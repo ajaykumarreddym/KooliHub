@@ -1,47 +1,49 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Upload,
-  X,
-  Image as ImageIcon,
-  Package,
-  Tag,
-  DollarSign,
-  Info,
-  Sparkles,
-  ArrowRight,
-} from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  serviceTypeConfigs,
-  getServiceTypeFromCategory,
-  getServiceTypeConfig,
-  baseFields,
-  FormField,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
+import { getCustomFieldValues, saveCustomFieldValues, useCustomFields } from "@/hooks/use-custom-fields";
+import { useVendorAuth } from "@/hooks/use-vendor-auth";
+import { productApi, uploadApi, vendorApi } from "@/lib/api";
+import {
+    baseFields,
+    FormField,
+    getServiceTypeConfig,
+    getServiceTypeFromCategory,
+    serviceTypeConfigs,
 } from "@/lib/service-field-configs";
-import { productApi, uploadApi } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import {
+    ArrowRight,
+    DollarSign,
+    Image as ImageIcon,
+    Info,
+    Package,
+    Sparkles,
+    Tag,
+    Upload,
+    X,
+} from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 interface Category {
   id: string;
@@ -70,14 +72,17 @@ export function EnhancedProductModal({
   mode = "add",
 }: EnhancedProductModalProps) {
   const { session } = useAuth();
+  const vendorAuth = useVendorAuth();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [selectedServiceType, setSelectedServiceType] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, any>>({
     name: "",
     description: "",
     price: "",
     category_id: "",
+    vendor_id: "",
     brand: "",
     sku: "",
     is_active: true,
@@ -87,12 +92,30 @@ export function EnhancedProductModal({
     "category",
   );
   const [showFieldTransition, setShowFieldTransition] = useState(false);
+  
+  // Custom fields hook - dynamically load fields from database
+  const { 
+    customFields, 
+    formFields: dynamicFormFields, 
+    loading: customFieldsLoading,
+    error: customFieldsError 
+  } = useCustomFields(selectedServiceType);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 EnhancedProductModal - selectedServiceType:', selectedServiceType);
+    console.log('🔍 EnhancedProductModal - customFields:', customFields);
+    console.log('🔍 EnhancedProductModal - dynamicFormFields:', dynamicFormFields);
+    console.log('🔍 EnhancedProductModal - customFieldsLoading:', customFieldsLoading);
+    console.log('🔍 EnhancedProductModal - customFieldsError:', customFieldsError);
+  }, [selectedServiceType, customFields, dynamicFormFields, customFieldsLoading, customFieldsError]);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
+      fetchVendors();
       if (mode === "edit" && product) {
         populateFormFromProduct();
       } else {
@@ -101,19 +124,30 @@ export function EnhancedProductModal({
     }
   }, [isOpen, mode, product]);
 
-  const populateFormFromProduct = () => {
+  // Set default vendor when vendor auth info is loaded
+  useEffect(() => {
+    if (!vendorAuth.loading && vendorAuth.isVendor && vendorAuth.vendorId) {
+      setFormData(prev => ({
+        ...prev,
+        vendor_id: vendorAuth.vendorId
+      }));
+    }
+  }, [vendorAuth]);
+
+  const populateFormFromProduct = async () => {
     if (!product) return;
 
-    setFormData({
+    const baseData = {
       name: product.name || "",
       description: product.description || "",
       price: product.price || "",
       category_id: product.category_id || "",
+      vendor_id: product.vendor_id || "",
       brand: product.brand || "",
       sku: product.sku || "",
       is_active: product.is_active ?? true,
       ...product, // Include any additional fields
-    });
+    };
 
     // Set service type if category is available
     if (product.category_id) {
@@ -123,18 +157,49 @@ export function EnhancedProductModal({
           category.service_type || getServiceTypeFromCategory(category.name);
         setSelectedServiceType(serviceType);
         setCurrentStep("details");
+        
+        // Load custom field values for this product
+        try {
+          const customFieldValues = await getCustomFieldValues(product.id);
+          setFormData({
+            ...baseData,
+            ...customFieldValues,
+          });
+          console.log("✅ Loaded custom field values:", customFieldValues);
+        } catch (error) {
+          console.error("❌ Error loading custom field values:", error);
+          setFormData(baseData);
+        }
       }
     } else {
       setCurrentStep("category");
+      setFormData(baseData);
+    }
+  };
+
+  const fetchVendors = async () => {
+    try {
+      const result = await vendorApi.getAll();
+      if (result.success && result.data) {
+        // Filter only active vendors
+        const activeVendors = result.data.filter((vendor: any) => vendor.status === 'active');
+        setVendors(activeVendors);
+      }
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+      setVendors([]);
     }
   };
 
   const resetForm = () => {
+    const defaultVendorId = vendorAuth.isVendor && vendorAuth.vendorId ? vendorAuth.vendorId : "";
+    
     setFormData({
       name: "",
       description: "",
       price: "",
       category_id: "",
+      vendor_id: defaultVendorId,
       brand: "",
       sku: "",
       is_active: true,
@@ -256,16 +321,27 @@ export function EnhancedProductModal({
         const serviceType =
           category.service_type || getServiceTypeFromCategory(category.name);
         const previousServiceType = selectedServiceType;
+        
+        console.log('🎯 Category selected:', {
+          categoryId,
+          categoryName: category.name,
+          categoryServiceType: category.service_type,
+          derivedServiceType: getServiceTypeFromCategory(category.name),
+          finalServiceType: serviceType,
+          previousServiceType
+        });
 
         // Show transition animation if service type changes
         if (serviceType !== previousServiceType && previousServiceType) {
           setShowFieldTransition(true);
           setTimeout(() => {
+            console.log('🔄 Setting service type after timeout:', serviceType);
             setSelectedServiceType(serviceType);
             setShowFieldTransition(false);
             setCurrentStep("details");
           }, 300);
         } else {
+          console.log('🔄 Setting service type directly:', serviceType);
           setSelectedServiceType(serviceType);
           setCurrentStep("details");
         }
@@ -362,23 +438,55 @@ export function EnhancedProductModal({
     };
 
     const config = getCurrentConfig();
-    if (!config) {
-      console.warn("No config found for service type:", selectedServiceType);
-      // Return only category field if no service type is selected
-      return [categoryField];
+    
+    // Start with category field
+    let allFields = [categoryField];
+
+    // Add static configuration fields (if config exists)
+    if (config) {
+      const filteredBaseFields = baseFields.filter(
+        (field) =>
+          config.baseFields.includes(field.name) && field.name !== "category_id",
+      );
+
+      allFields = [
+        ...allFields,
+        ...filteredBaseFields,
+        ...config.specificFields,
+      ];
+
+      console.log("getAllFields - static config fields added:", config.specificFields.length);
     }
 
-    // Get base fields filtered by config
-    const filteredBaseFields = baseFields.filter(
-      (field) =>
-        config.baseFields.includes(field.name) && field.name !== "category_id",
-    );
+    // Add dynamic database fields (prioritize these and merge with static ones)
+    if (dynamicFormFields.length > 0) {
+      console.log("getAllFields - adding dynamic fields:", dynamicFormFields.length);
+      
+      // Merge with static fields, giving priority to dynamic fields
+      const staticFieldNames = allFields.map(f => f.name);
+      const uniqueDynamicFields = dynamicFormFields.filter(
+        field => !staticFieldNames.includes(field.name)
+      );
+      
+      allFields = [
+        ...allFields,
+        ...uniqueDynamicFields,
+      ];
 
-    const allFields = [
-      categoryField,
-      ...filteredBaseFields,
-      ...config.specificFields,
-    ];
+      console.log("getAllFields - unique dynamic fields added:", uniqueDynamicFields.length);
+    }
+
+    // If no config and no dynamic fields, add basic fields
+    if (!config && dynamicFormFields.length === 0) {
+      console.warn("No config found and no dynamic fields for service type:", selectedServiceType);
+      // Add basic product fields
+      allFields = [
+        ...allFields,
+        ...baseFields.filter(field => 
+          ['name', 'description', 'price', 'brand', 'sku'].includes(field.name)
+        )
+      ];
+    }
 
     // Validate all fields have required properties
     const validFields = allFields.filter((field) => {
@@ -391,7 +499,8 @@ export function EnhancedProductModal({
 
     console.log("getAllFields - selectedServiceType:", selectedServiceType);
     console.log("getAllFields - config:", config);
-    console.log("getAllFields - validFields:", validFields);
+    console.log("getAllFields - dynamic fields count:", dynamicFormFields.length);
+    console.log("getAllFields - final validFields count:", validFields.length);
 
     return validFields;
   };
@@ -606,6 +715,13 @@ export function EnhancedProductModal({
     setLoading(true);
 
     try {
+      // Validate vendor_id is required
+      if (!formData.vendor_id || formData.vendor_id.trim() === "") {
+        toast.error("Please select a vendor for this product");
+        setLoading(false);
+        return;
+      }
+
       // Validate required fields
       const fields = getAllFields();
       for (const field of fields) {
@@ -618,7 +734,7 @@ export function EnhancedProductModal({
 
       // Prepare the data for submission
       const submitData: Record<string, any> = {
-        vendor_id: "system", // Default vendor for admin-created products
+        vendor_id: formData.vendor_id,
         name: formData.name,
       };
 
@@ -679,6 +795,35 @@ export function EnhancedProductModal({
       console.log('API result:', result);
 
       if (result.success) {
+        const productId = mode === "edit" ? product.id : result.data?.id;
+        
+        // Save custom field values if we have custom fields and a product ID
+        if (productId && customFields.length > 0) {
+          try {
+            console.log("💾 Saving custom field values for product:", productId);
+            
+            // Extract custom field values from form data
+            const customFieldValues: Record<string, any> = {};
+            customFields.forEach(field => {
+              const value = formData[field.field_name];
+              if (value !== undefined && value !== null && value !== '') {
+                customFieldValues[field.field_name] = value;
+              }
+            });
+            
+            console.log("💾 Custom field values to save:", customFieldValues);
+            
+            if (Object.keys(customFieldValues).length > 0) {
+              await saveCustomFieldValues(productId, customFieldValues, customFields);
+              console.log("✅ Custom field values saved successfully");
+            }
+          } catch (customFieldError) {
+            console.error("❌ Error saving custom field values:", customFieldError);
+            // Don't fail the entire operation, just log the error
+            toast.error("Product saved but custom fields failed to save");
+          }
+        }
+        
         toast.success(
           mode === "edit"
             ? "Product updated successfully"
@@ -699,7 +844,18 @@ export function EnhancedProductModal({
   };
 
   const config = getCurrentConfig();
-  const fields = getAllFields();
+  
+  // Make fields reactive to changes in dynamicFormFields
+  const fields = React.useMemo(() => {
+    const allFields = getAllFields();
+    console.log('🔄 Fields recalculated:', {
+      selectedServiceType,
+      dynamicFormFieldsCount: dynamicFormFields.length,
+      totalFieldsCount: allFields.length,
+      fields: allFields.map(f => ({ name: f.name, label: f.label, type: f.type }))
+    });
+    return allFields;
+  }, [selectedServiceType, dynamicFormFields, categories]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -862,8 +1018,70 @@ export function EnhancedProductModal({
                     accept="image/*"
                     multiple
                     className="hidden"
+                    aria-label="Upload product images"
+                    title="Upload product images"
                     onChange={handleImageUpload}
                   />
+                </CardContent>
+              </Card>
+
+              {/* Vendor Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vendor Assignment</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Label htmlFor="vendor_id">
+                      Vendor *
+                      {vendorAuth.isVendor && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          (Your vendor account)
+                        </span>
+                      )}
+                    </Label>
+                    <Select
+                      value={formData.vendor_id}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, vendor_id: value })
+                      }
+                      disabled={vendorAuth.isVendor && !vendorAuth.canSelectVendor}
+                    >
+                      <SelectTrigger className={vendorAuth.isVendor && !vendorAuth.canSelectVendor ? "opacity-60" : ""}>
+                        <SelectValue placeholder="Select vendor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vendorAuth.loading ? (
+                          <div className="p-4 text-center text-muted-foreground">
+                            Loading vendors...
+                          </div>
+                        ) : vendorAuth.isVendor && !vendorAuth.canSelectVendor ? (
+                          <SelectItem value={vendorAuth.vendorId!}>
+                            {vendorAuth.vendorName} (Your account)
+                          </SelectItem>
+                        ) : (
+                          vendors.map((vendor) => (
+                            <SelectItem key={vendor.id} value={vendor.id}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{vendor.name}</span>
+                                <Badge
+                                  variant="outline"
+                                  className="ml-2 text-xs"
+                                >
+                                  {vendor.status}
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {vendorAuth.isVendor && !vendorAuth.canSelectVendor && (
+                      <p className="text-xs text-muted-foreground">
+                        Products will be assigned to your vendor account automatically.
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -873,34 +1091,62 @@ export function EnhancedProductModal({
                   <CardTitle>Product Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {(() => {
+                  {customFieldsLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-muted-foreground">Loading custom fields...</p>
+                    </div>
+                  ) : customFieldsError ? (
+                    <div className="text-center py-8 text-red-600">
+                      <Package className="h-8 w-8 mx-auto mb-2" />
+                      <p>Error loading custom fields: {customFieldsError}</p>
+                      <p className="text-sm text-muted-foreground mt-2">Using default fields</p>
+                    </div>
+                  ) : (() => {
                     const nonCategoryFields = fields.filter(
                       (field) => field && field.name !== "category_id",
                     );
 
                     if (nonCategoryFields.length > 0) {
                       return (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {nonCategoryFields.map((field) => {
-                            if (!field) {
-                              console.warn(
-                                "Undefined field in nonCategoryFields",
-                              );
-                              return null;
-                            }
-                            return (
-                              <div
-                                key={field.name}
-                                className={
-                                  field.type === "textarea"
-                                    ? "md:col-span-2"
-                                    : ""
-                                }
-                              >
-                                {renderField(field)}
+                        <div className="space-y-4">
+                          {/* Show field source info */}
+                          {dynamicFormFields.length > 0 && (
+                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center gap-2 text-green-700">
+                                <Sparkles className="h-4 w-4" />
+                                <span className="text-sm font-medium">
+                                  Dynamic Fields Loaded
+                                </span>
                               </div>
-                            );
-                          })}
+                              <p className="text-xs text-green-600 mt-1">
+                                {dynamicFormFields.length} custom fields from database + {nonCategoryFields.length - dynamicFormFields.length} standard fields
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {nonCategoryFields.map((field) => {
+                              if (!field) {
+                                console.warn(
+                                  "Undefined field in nonCategoryFields",
+                                );
+                                return null;
+                              }
+                              return (
+                                <div
+                                  key={field.name}
+                                  className={
+                                    field.type === "textarea"
+                                      ? "md:col-span-2"
+                                      : ""
+                                  }
+                                >
+                                  {renderField(field)}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     } else {

@@ -441,6 +441,171 @@ export interface Payment {
   updated_at: string;
 }
 
+// Internationalization Types
+export interface Translation {
+  id: string;
+  resource_type: string;
+  resource_id: string;
+  locale: string;
+  field_name: string;
+  translated_value: string;
+  is_approved: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Locale {
+  id: string;
+  name: string;
+  native_name: string;
+  language_code: string;
+  country_code: string;
+  rtl: boolean;
+  is_active: boolean;
+  is_default: boolean;
+  sort_order: number;
+}
+
+export interface LocaleSettings {
+  id: string;
+  locale_id: string;
+  currency_code: string;
+  currency_symbol: string;
+  currency_position: 'before' | 'after';
+  decimal_separator: string;
+  thousand_separator: string;
+  date_format: string;
+  time_format: '12' | '24';
+  number_format: Record<string, any>;
+}
+
+// Service Attribute System Types
+export interface ServiceFieldDefinition {
+  id: string;
+  service_type_id: string;
+  field_name: string;
+  field_label: string;
+  field_type: 'text' | 'number' | 'boolean' | 'select' | 'multiselect' | 'date' | 'datetime' | 'url' | 'email' | 'tel' | 'textarea';
+  field_group?: string;
+  validation_rules: Record<string, any>;
+  field_options?: any[];
+  default_value?: string;
+  is_required: boolean;
+  is_searchable: boolean;
+  is_filterable: boolean;
+  is_translatable: boolean;
+  sort_order: number;
+  help_text?: string;
+}
+
+export interface ProductServiceAttribute {
+  id: string;
+  product_id: string;
+  field_definition_id: string;
+  value_text?: string;
+  value_number?: number;
+  value_boolean?: boolean;
+  value_json?: any;
+  field_definition?: ServiceFieldDefinition;
+}
+
+// Enhanced Order System Types
+export interface OrderWorkflow {
+  id: string;
+  order_id: string;
+  status: 'draft' | 'pending' | 'confirmed' | 'processing' | 'packed' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned' | 'refunded';
+  previous_status?: string;
+  transition_reason?: string;
+  transition_metadata: Record<string, any>;
+  transitioned_by?: string;
+  transitioned_at: string;
+}
+
+export interface PaymentTransaction {
+  id: string;
+  payment_id: string;
+  state: 'initialized' | 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';
+  previous_state?: string;
+  gateway_transaction_id?: string;
+  gateway_response?: Record<string, any>;
+  idempotency_key?: string;
+  amount: number;
+  currency: string;
+  failure_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderPromotion {
+  id: string;
+  order_id: string;
+  promotion_type: 'coupon' | 'discount' | 'cashback' | 'loyalty_points' | 'referral';
+  promotion_code?: string;
+  promotion_name: string;
+  discount_type?: 'percentage' | 'fixed' | 'buy_x_get_y';
+  discount_value?: number;
+  max_discount?: number;
+  applied_amount: number;
+  created_at: string;
+}
+
+export interface DeliverySlot {
+  id: string;
+  zone_id: string;
+  slot_date: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
+  booked_count: number;
+  is_available: boolean;
+  created_at: string;
+}
+
+export interface OrderDelivery {
+  id: string;
+  order_id: string;
+  delivery_slot_id?: string;
+  delivery_type: 'standard' | 'express' | 'same_day' | 'scheduled' | 'pickup';
+  estimated_delivery?: string;
+  actual_delivery?: string;
+  delivery_instructions?: string;
+  contact_phone?: string;
+  delivery_charge: number;
+  created_at: string;
+  delivery_slot?: DeliverySlot;
+}
+
+// Event Sourcing Types
+export interface DomainEvent {
+  id: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  event_type: string;
+  event_version: number;
+  event_data: Record<string, any>;
+  metadata: Record<string, any>;
+  correlation_id?: string;
+  causation_id?: string;
+  occurred_at: string;
+  recorded_at: string;
+  user_id?: string;
+}
+
+export interface AuditLog {
+  id: string;
+  table_name: string;
+  record_id: string;
+  operation: 'INSERT' | 'UPDATE' | 'DELETE';
+  old_values?: Record<string, any>;
+  new_values?: Record<string, any>;
+  changed_fields?: string[];
+  user_id?: string;
+  session_id?: string;
+  ip_address?: string;
+  user_agent?: string;
+  created_at: string;
+}
+
 // Admin Statistics Types
 export interface DashboardStats {
   total_orders: number;
@@ -450,4 +615,114 @@ export interface DashboardStats {
   recent_orders: Order[];
   top_products: Product[];
   vendor_performance: any[];
+}
+
+// Enhanced API Endpoints for New Features
+export interface TranslationApi {
+  // Get translations for a resource
+  getTranslations: (resourceType: string, resourceId: string, locale?: string) => Promise<ApiResponse<Translation[]>>;
+  
+  // Set translation
+  setTranslation: (data: {
+    resource_type: string;
+    resource_id: string;
+    field_name: string;
+    locale: string;
+    translated_value: string;
+  }) => Promise<ApiResponse<Translation>>;
+  
+  // Get supported locales
+  getLocales: () => Promise<ApiResponse<Locale[]>>;
+  
+  // Get locale settings
+  getLocaleSettings: (localeId: string) => Promise<ApiResponse<LocaleSettings>>;
+}
+
+export interface ServiceAttributeApi {
+  // Get field definitions for service type
+  getServiceFields: (serviceTypeId: string) => Promise<ApiResponse<ServiceFieldDefinition[]>>;
+  
+  // Get product attributes
+  getProductAttributes: (productId: string) => Promise<ApiResponse<Record<string, any>>>;
+  
+  // Set product attribute
+  setProductAttribute: (data: {
+    product_id: string;
+    field_name: string;
+    value: string;
+    service_type_id: string;
+  }) => Promise<ApiResponse<ProductServiceAttribute>>;
+  
+  // Bulk update product attributes
+  updateProductAttributes: (productId: string, attributes: Record<string, any>) => Promise<ApiResponse<ProductServiceAttribute[]>>;
+}
+
+export interface OrderManagementApi {
+  // Get order workflow history
+  getOrderWorkflow: (orderId: string) => Promise<ApiResponse<OrderWorkflow[]>>;
+  
+  // Transition order status
+  transitionOrder: (data: {
+    order_id: string;
+    new_status: string;
+    reason?: string;
+    metadata?: Record<string, any>;
+  }) => Promise<ApiResponse<OrderWorkflow>>;
+  
+  // Get payment transactions
+  getPaymentTransactions: (paymentId: string) => Promise<ApiResponse<PaymentTransaction[]>>;
+  
+  // Process payment
+  processPayment: (data: {
+    payment_id: string;
+    new_state: string;
+    gateway_transaction_id?: string;
+    gateway_response?: Record<string, any>;
+    failure_reason?: string;
+  }) => Promise<ApiResponse<PaymentTransaction>>;
+  
+  // Get delivery slots
+  getDeliverySlots: (zoneId: string, date: string) => Promise<ApiResponse<DeliverySlot[]>>;
+  
+  // Book delivery slot
+  bookDeliverySlot: (data: {
+    order_id: string;
+    slot_id: string;
+    delivery_type: string;
+    instructions?: string;
+  }) => Promise<ApiResponse<OrderDelivery>>;
+}
+
+export interface SpatialApi {
+  // Find nearby serviceable areas
+  findNearbyAreas: (lat: number, lng: number, radiusKm?: number) => Promise<ApiResponse<{
+    area_id: string;
+    pincode: string;
+    city: string;
+    state: string;
+    distance_km: number;
+  }[]>>;
+  
+  // Check if location is serviceable
+  checkServiceability: (lat: number, lng: number) => Promise<ApiResponse<{
+    is_serviceable: boolean;
+    nearest_area?: any;
+    distance_km?: number;
+  }>>;
+}
+
+export interface EventSourcingApi {
+  // Get domain events for aggregate
+  getAggregateEvents: (aggregateType: string, aggregateId: string, fromVersion?: number) => Promise<ApiResponse<DomainEvent[]>>;
+  
+  // Get audit logs
+  getAuditLogs: (filters: {
+    table_name?: string;
+    record_id?: string;
+    operation?: string;
+    user_id?: string;
+    from_date?: string;
+    to_date?: string;
+    limit?: number;
+  }) => Promise<ApiResponse<AuditLog[]>>;
 }

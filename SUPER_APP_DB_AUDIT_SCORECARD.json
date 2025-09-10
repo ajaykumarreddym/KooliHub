@@ -1,0 +1,362 @@
+{
+  "overall_score": 68,
+  "grade": "B-",
+  "assessment_date": "2024-01-20",
+  "database_type": "PostgreSQL (Supabase)",
+  "total_tables": 38,
+  "total_indexes": 120,
+  
+  "capability_scores": {
+    "service_model_extensibility": 3,
+    "multi_vendor": 4,
+    "local_delivery": 4,
+    "geofence": 5,
+    "area_pricing": 5,
+    "category_taxonomy": 4,
+    "i18n": 1,
+    "attributes": 3,
+    "orders_payments": 2,
+    "performance_scale": 3,
+    "governance_safety": 4
+  },
+  
+  "capability_details": {
+    "service_model_extensibility": {
+      "score": 3,
+      "strengths": [
+        "Dynamic service_types table replacing hardcoded constraints",
+        "Flexible product schema with service-specific fields",
+        "Well-structured category hierarchy with parent_id and level",
+        "JSONB attributes for extended properties"
+      ],
+      "weaknesses": [
+        "Service-specific columns in monolithic products table (anti-pattern)",
+        "Still some hardcoded service references in application logic",
+        "No service configuration registry for business rules"
+      ]
+    },
+    "multi_vendor": {
+      "score": 4,
+      "strengths": [
+        "Comprehensive vendor isolation with proper FK relationships",
+        "Vendor-specific categories, products, and pricing",
+        "Advanced vendor configuration system (vendor_config table)",
+        "Proper RLS policies preventing data leakage",
+        "Vendor user management with roles and permissions"
+      ],
+      "weaknesses": [
+        "Some global tables could benefit from vendor scoping (notifications, banners)"
+      ]
+    },
+    "local_delivery": {
+      "score": 4,
+      "strengths": [
+        "Dedicated delivery agent management",
+        "Order assignment and tracking system",
+        "Multiple inventory locations per vendor",
+        "Fulfillment workflow with items tracking",
+        "Real-time delivery tracking capabilities"
+      ],
+      "weaknesses": [
+        "No SLA management or performance metrics",
+        "Limited route optimization capabilities"
+      ]
+    },
+    "geofence": {
+      "score": 5,
+      "strengths": [
+        "Sophisticated serviceable areas management",
+        "Proper spatial data support with coordinates JSONB",
+        "Service zone abstraction for complex geographies",
+        "Vendor-specific service zones with custom delivery rules",
+        "Area-specific service type availability"
+      ],
+      "weaknesses": []
+    },
+    "area_pricing": {
+      "score": 5,
+      "strengths": [
+        "Sophisticated product_area_pricing table",
+        "Time-based pricing (peak/off-peak multipliers)",
+        "Tier pricing for bulk orders",
+        "Promotional pricing with date ranges",
+        "Area-specific stock and delivery charges",
+        "PostgreSQL function for effective price calculation"
+      ],
+      "weaknesses": []
+    },
+    "category_taxonomy": {
+      "score": 4,
+      "strengths": [
+        "Hierarchical categories with parent_id and level",
+        "Path-based navigation support",
+        "Service type association",
+        "Vendor-specific categories",
+        "Proper sort ordering and activation flags"
+      ],
+      "weaknesses": [
+        "No taxonomy versioning or inheritance rules",
+        "Limited cross-service category sharing"
+      ]
+    },
+    "i18n": {
+      "score": 1,
+      "strengths": [],
+      "weaknesses": [
+        "No translation tables or localization support",
+        "Hardcoded English text in database",
+        "No locale-aware formatting",
+        "No currency localization beyond basic field",
+        "No date/time localization"
+      ]
+    },
+    "attributes": {
+      "score": 3,
+      "strengths": [
+        "Service-specific product fields (grocery, car rental, etc.)",
+        "Product variants with attributes JSONB",
+        "Comprehensive service field configurations",
+        "Image management per product/variant"
+      ],
+      "weaknesses": [
+        "Anti-pattern: Service-specific columns in single table",
+        "No attribute registry or validation system",
+        "Limited attribute inheritance or templates"
+      ]
+    },
+    "orders_payments": {
+      "score": 2,
+      "strengths": [
+        "Basic order structure with status tracking",
+        "Order items with vendor separation",
+        "Payment methods configuration",
+        "Refund tracking"
+      ],
+      "weaknesses": [
+        "Legacy JSONB order_items field alongside proper order_items table",
+        "No payment state machine or idempotency",
+        "No audit trail for payment transactions",
+        "Limited payment gateway abstraction",
+        "No comprehensive order workflow"
+      ]
+    },
+    "performance_scale": {
+      "score": 3,
+      "strengths": [
+        "UUID primary keys (distributed-ready)",
+        "Comprehensive indexing (120+ indexes)",
+        "Composite indexes for complex queries",
+        "RLS policies for security"
+      ],
+      "weaknesses": [
+        "No spatial indexes for coordinate queries",
+        "No partitioning strategy for large tables",
+        "Missing full-text search indexes",
+        "No connection pooling strategy"
+      ]
+    },
+    "governance_safety": {
+      "score": 4,
+      "strengths": [
+        "Comprehensive RLS on all tables",
+        "Proper FK constraints with CASCADE rules",
+        "CHECK constraints for data validation",
+        "Audit fields (created_at, updated_at, created_by)",
+        "Soft deletes with deleted_at"
+      ],
+      "weaknesses": [
+        "No event sourcing or comprehensive audit logs",
+        "Limited PII isolation strategies"
+      ]
+    }
+  },
+  
+  "red_flags": [
+    {
+      "name": "Monolithic Product Table with Service-Specific Columns",
+      "evidence": "50+ service-specific columns in products table (price_per_day, is_organic, transmission, etc.)",
+      "impact": "Schema bloat, poor maintainability, violates single responsibility principle",
+      "priority": "P0",
+      "fix": "Implement service-specific attribute tables or enhanced EAV model"
+    },
+    {
+      "name": "Dual Order Storage Pattern",
+      "evidence": "Both order_items JSONB field and order_items normalized table exist",
+      "impact": "Data inconsistency, complex business logic, audit trail issues",
+      "priority": "P0",
+      "fix": "Migrate to canonical order_items table, deprecate JSONB field"
+    },
+    {
+      "name": "No Translation Infrastructure",
+      "evidence": "Zero i18n support in database schema",
+      "impact": "Blocks international expansion, hardcoded content",
+      "priority": "P0",
+      "fix": "Implement translations table and locale-aware queries"
+    },
+    {
+      "name": "Missing Spatial Indexes",
+      "evidence": "JSONB coordinates field without spatial indexing",
+      "impact": "Poor performance for location-based queries at scale",
+      "priority": "P1",
+      "fix": "Implement PostGIS with proper spatial indexes"
+    },
+    {
+      "name": "No Partitioning Strategy",
+      "evidence": "Large tables (orders, app_stats) without partitioning",
+      "impact": "Query performance degradation as data volume grows",
+      "priority": "P1",
+      "fix": "Implement date-based partitioning for time-series data"
+    },
+    {
+      "name": "Polymorphic FKs in Media Table",
+      "evidence": "Optional product_id and variant_id columns without constraints",
+      "impact": "Weak referential integrity, potential data orphaning",
+      "priority": "P2",
+      "fix": "Implement proper inheritance pattern or separate media tables"
+    }
+  ],
+  
+  "missing_entities": [
+    "translations",
+    "service_field_definitions", 
+    "product_service_attributes",
+    "payment_transactions",
+    "order_workflows",
+    "domain_events",
+    "notification_preferences",
+    "promotion_rules",
+    "inventory_adjustments",
+    "vendor_settlements"
+  ],
+  
+  "recommended_changes": [
+    {
+      "type": "ddl",
+      "object": "translations",
+      "snippet": "CREATE TABLE translations (\n    id UUID PRIMARY KEY,\n    resource_type TEXT NOT NULL,\n    resource_id UUID NOT NULL,\n    locale TEXT NOT NULL,\n    field_name TEXT NOT NULL,\n    translated_value TEXT NOT NULL,\n    UNIQUE(resource_type, resource_id, locale, field_name)\n);",
+      "rationale": "Enable internationalization for global market expansion"
+    },
+    {
+      "type": "ddl",
+      "object": "service_field_definitions",
+      "snippet": "CREATE TABLE service_field_definitions (\n    id UUID PRIMARY KEY,\n    service_type_id TEXT REFERENCES service_types(id),\n    field_name TEXT NOT NULL,\n    field_type TEXT NOT NULL,\n    validation_rules JSONB DEFAULT '{}',\n    is_required BOOLEAN DEFAULT false\n);",
+      "rationale": "Replace service-specific columns with configurable attribute system"
+    },
+    {
+      "type": "ddl",
+      "object": "payment_transactions",
+      "snippet": "CREATE TABLE payment_transactions (\n    id UUID PRIMARY KEY,\n    payment_id UUID REFERENCES payments(id),\n    state payment_state,\n    gateway_response JSONB,\n    idempotency_key UUID UNIQUE,\n    created_at TIMESTAMPTZ DEFAULT NOW()\n);",
+      "rationale": "Implement payment state machine for reliable transaction processing"
+    },
+    {
+      "type": "index",
+      "object": "serviceable_areas",
+      "snippet": "CREATE INDEX idx_serviceable_areas_geom ON serviceable_areas USING GIST (ST_GeomFromGeoJSON(coordinates));",
+      "rationale": "Enable efficient spatial queries for location-based services"
+    },
+    {
+      "type": "index",
+      "object": "products",
+      "snippet": "CREATE INDEX idx_products_fulltext ON products USING gin(to_tsvector('english', COALESCE(name, '') || ' ' || COALESCE(description, '')));",
+      "rationale": "Implement full-text search for product discovery"
+    },
+    {
+      "type": "partitioning",
+      "object": "orders",
+      "snippet": "ALTER TABLE orders PARTITION BY RANGE (created_at);\nCREATE TABLE orders_y2024m01 PARTITION OF orders FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');",
+      "rationale": "Improve query performance and maintenance for time-series data"
+    }
+  ],
+  
+  "indexes_to_add": [
+    {
+      "table": "serviceable_areas",
+      "columns": ["coordinates"],
+      "type": "GIST (spatial)"
+    },
+    {
+      "table": "products", 
+      "columns": ["name", "description"],
+      "type": "GIN (full-text)"
+    },
+    {
+      "table": "orders",
+      "columns": ["vendor_id", "status", "created_at"],
+      "type": "BTREE (composite)"
+    },
+    {
+      "table": "order_items",
+      "columns": ["vendor_id", "created_at"],
+      "type": "BTREE (composite)"
+    },
+    {
+      "table": "translations",
+      "columns": ["resource_type", "resource_id", "locale"],
+      "type": "BTREE (composite)"
+    }
+  ],
+  
+  "partitions": [
+    {
+      "table": "orders",
+      "strategy": "range",
+      "key": "created_at",
+      "rationale": "Monthly partitions for order history management"
+    },
+    {
+      "table": "app_stats", 
+      "strategy": "range",
+      "key": "date",
+      "rationale": "Daily partitions for analytics data retention"
+    },
+    {
+      "table": "domain_events",
+      "strategy": "range", 
+      "key": "occurred_at",
+      "rationale": "Weekly partitions for event sourcing audit trail"
+    }
+  ],
+  
+  "heuristic_tests": {
+    "add_service": {
+      "status": "PASSES_WITH_MODIFICATIONS",
+      "details": "Can add new service types dynamically, but requires attribute system instead of schema changes"
+    },
+    "new_geography": {
+      "status": "PARTIAL_PASS",
+      "details": "Zone/area insertion works, but needs spatial indexes for performance"
+    },
+    "new_language": {
+      "status": "FAILS",
+      "details": "No translation infrastructure exists, requires complete i18n implementation"
+    },
+    "multi_vendor_flip": {
+      "status": "PASSES",
+      "details": "Excellent vendor isolation with proper scoping mechanisms"
+    }
+  },
+  
+  "quick_wins": [
+    "Add spatial indexes for coordinates",
+    "Implement full-text search indexes",
+    "Create missing composite indexes",
+    "Add foreign key indexes for performance"
+  ],
+  
+  "strategic_changes": [
+    "Implement translation infrastructure",
+    "Migrate from JSONB order_items to normalized structure", 
+    "Refactor service-specific columns to attribute system",
+    "Add table partitioning for high-volume tables",
+    "Implement event sourcing for audit trails"
+  ],
+  
+  "risk_assessment": {
+    "scalability_readiness": "MODERATE",
+    "international_readiness": "LOW", 
+    "multi_vendor_readiness": "HIGH",
+    "performance_readiness": "MODERATE",
+    "governance_readiness": "HIGH"
+  }
+}
+

@@ -1,42 +1,43 @@
-import React, { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { supabase } from "@/lib/supabase";
-import { toast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import { useVendorAuth } from "@/hooks/use-vendor-auth";
+import { vendorApi } from "@/lib/api";
 import {
-  serviceTypeConfigs,
-  getServiceTypeFromCategory,
-  getServiceTypeConfig,
-  baseFields,
-  FormField,
+    baseFields,
+    FormField,
+    getServiceTypeConfig,
+    getServiceTypeFromCategory
 } from "@/lib/service-field-configs";
-import { Info, Package, ArrowRight, CheckCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { ArrowRight, CheckCircle, Info, Package } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 interface Category {
   id: string;
@@ -56,9 +57,11 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   onSuccess,
 }) => {
   const { session } = useAuth();
+  const vendorAuth = useVendorAuth();
   const [step, setStep] = useState<"category" | "details">("category");
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [selectedServiceType, setSelectedServiceType] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
     null,
@@ -68,6 +71,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     description: "",
     price: "",
     category_id: "",
+    vendor_id: "",
     brand: "",
     sku: "",
     is_active: true,
@@ -76,16 +80,44 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       fetchCategories();
+      fetchVendors();
       resetForm();
     }
   }, [isOpen]);
 
+  // Set default vendor when vendor auth info is loaded
+  useEffect(() => {
+    if (!vendorAuth.loading && vendorAuth.isVendor && vendorAuth.vendorId) {
+      setFormData(prev => ({
+        ...prev,
+        vendor_id: vendorAuth.vendorId
+      }));
+    }
+  }, [vendorAuth]);
+
+  const fetchVendors = async () => {
+    try {
+      const result = await vendorApi.getAll();
+      if (result.success && result.data) {
+        // Filter only active vendors
+        const activeVendors = result.data.filter((vendor: any) => vendor.status === 'active');
+        setVendors(activeVendors);
+      }
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+      setVendors([]);
+    }
+  };
+
   const resetForm = () => {
+    const defaultVendorId = vendorAuth.isVendor && vendorAuth.vendorId ? vendorAuth.vendorId : "";
+    
     setFormData({
       name: "",
       description: "",
       price: "",
       category_id: "",
+      vendor_id: defaultVendorId,
       brand: "",
       sku: "",
       is_active: true,
@@ -246,12 +278,24 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     setLoading(true);
 
     try {
+      // Validate vendor_id is required
+      if (!formData.vendor_id || formData.vendor_id.trim() === "") {
+        toast({
+          title: "Error",
+          description: "Please select a vendor for this product.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       // Prepare data for insertion, handling different field types
       const insertData: Record<string, any> = {
         name: formData.name,
         description: formData.description || null,
         price: formData.price ? parseFloat(formData.price) : null,
         category_id: formData.category_id || null,
+        vendor_id: formData.vendor_id,
         brand: formData.brand || null,
         sku: formData.sku || null,
         is_active: formData.is_active,
@@ -672,6 +716,85 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                       )}
                     </SelectContent>
                   </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Vendor Selection */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Vendor Assignment</CardTitle>
+                <CardDescription>
+                  Choose which vendor this product belongs to
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Label htmlFor="vendor-select">
+                    Vendor *
+                    {vendorAuth.isVendor && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (Your vendor account)
+                      </span>
+                    )}
+                  </Label>
+                  <div className="text-xs text-gray-500 mb-2">
+                    Available vendors: {vendors.length}
+                  </div>
+                  <Select
+                    value={formData.vendor_id}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, vendor_id: value })
+                    }
+                    disabled={vendorAuth.isVendor && !vendorAuth.canSelectVendor}
+                  >
+                    <SelectTrigger className={`h-12 ${vendorAuth.isVendor && !vendorAuth.canSelectVendor ? "opacity-60" : ""}`}>
+                      <SelectValue placeholder="Select a vendor..." />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999] max-h-64 overflow-auto">
+                      {vendorAuth.loading ? (
+                        <div className="p-4 text-center text-gray-500">
+                          Loading vendors...
+                        </div>
+                      ) : vendorAuth.isVendor && !vendorAuth.canSelectVendor ? (
+                        <SelectItem value={vendorAuth.vendorId!}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{vendorAuth.vendorName}</span>
+                            <Badge
+                              variant="outline"
+                              className="ml-2 text-xs"
+                            >
+                              Your account
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ) : (
+                        vendors
+                          .filter(
+                            (vendor) =>
+                              vendor.id && vendor.id.trim() !== "",
+                          )
+                          .map((vendor) => (
+                            <SelectItem key={vendor.id} value={vendor.id}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{vendor.name}</span>
+                                <Badge
+                                  variant="outline"
+                                  className="ml-2 text-xs"
+                                >
+                                  {vendor.status}
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {vendorAuth.isVendor && !vendorAuth.canSelectVendor && (
+                    <p className="text-xs text-muted-foreground">
+                      Products will be assigned to your vendor account automatically.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

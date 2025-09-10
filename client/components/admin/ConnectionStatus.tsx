@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { supabase } from "@/lib/supabase";
-import { parseError, logDetailedError } from "@/lib/debug-utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { verifyAdminAccess } from "@/lib/admin-verify";
+import { logDetailedError, parseError } from "@/lib/debug-utils";
+import { supabase } from "@/lib/supabase";
 import {
-  Wifi,
-  WifiOff,
-  User,
-  UserX,
-  Database,
-  Shield,
-  RefreshCw,
-  CheckCircle,
+    CheckCircle,
+    Database,
+    RefreshCw,
+    Shield,
+    User,
+    UserX,
+    Wifi,
+    WifiOff,
 } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 interface ConnectionInfo {
   supabaseConnected: boolean;

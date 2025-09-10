@@ -1,0 +1,359 @@
+{
+  "overall_score": 68,
+  "grade": "B-",
+  "audit_date": "2024-12-19",
+  "database_type": "PostgreSQL (Supabase)",
+  "total_tables": 62,
+  "total_base_tables": 59,
+  "total_views": 3,
+  
+  "capability_scores": {
+    "service_model_extensibility": 4,
+    "multi_vendor": 5,
+    "local_delivery": 4,
+    "geofence": 4,
+    "area_pricing": 5,
+    "category_taxonomy": 4,
+    "i18n": 1,
+    "attributes": 4,
+    "orders_payments": 2,
+    "performance_scale": 3,
+    "governance_safety": 4
+  },
+  
+  "capability_details": {
+    "service_model_extensibility": {
+      "score": 4,
+      "status": "strong",
+      "rationale": "Dynamic service_types table with field definitions system",
+      "strengths": ["Dynamic service types", "Service field definition system", "Hierarchical categories", "JSONB attributes"],
+      "weaknesses": ["Service-specific columns in products table", "Some hardcoded references"]
+    },
+    "multi_vendor": {
+      "score": 5,
+      "status": "excellent",
+      "rationale": "Outstanding vendor isolation and multi-tenancy support",
+      "strengths": ["Perfect vendor isolation", "Vendor-scoped entities", "RLS policies", "Independent operations"],
+      "weaknesses": []
+    },
+    "local_delivery": {
+      "score": 4,
+      "status": "strong",
+      "rationale": "Comprehensive delivery infrastructure with agent management",
+      "strengths": ["Delivery agent management", "Order tracking", "Fulfillment workflow", "Delivery slots"],
+      "weaknesses": ["Limited SLA management", "No automated routing"]
+    },
+    "geofence": {
+      "score": 4,
+      "status": "strong",
+      "rationale": "Good geofencing with room for spatial optimization",
+      "strengths": ["Serviceable areas management", "Zone-based organization", "Pincode routing"],
+      "weaknesses": ["Missing spatial indexes", "JSONB coordinates", "No polygon geofencing"]
+    },
+    "area_pricing": {
+      "score": 5,
+      "status": "excellent",
+      "rationale": "Sophisticated multi-dimensional pricing system",
+      "strengths": ["Area-specific pricing", "Tier-based pricing", "Time-based pricing", "Promotional pricing", "Dynamic calculation"],
+      "weaknesses": []
+    },
+    "category_taxonomy": {
+      "score": 4,
+      "status": "strong",
+      "rationale": "Well-structured hierarchical taxonomy",
+      "strengths": ["Hierarchical structure", "Service type association", "Vendor-specific categories", "Path tracking"],
+      "weaknesses": ["Limited cross-service sharing", "No attribute inheritance"]
+    },
+    "i18n": {
+      "score": 1,
+      "status": "critical",
+      "rationale": "No internationalization infrastructure exists",
+      "strengths": [],
+      "weaknesses": ["No translation tables", "Hardcoded English text", "No locale support", "No currency localization", "No RTL support"]
+    },
+    "attributes": {
+      "score": 4,
+      "status": "strong",
+      "rationale": "Flexible attribute system with some anti-patterns",
+      "strengths": ["Service field definitions", "Product variants with JSONB", "Validation rules", "Attribute mapping"],
+      "weaknesses": ["Service-specific columns anti-pattern", "No attribute inheritance", "Limited validation"]
+    },
+    "orders_payments": {
+      "score": 2,
+      "status": "critical",
+      "rationale": "Major architectural gaps in order and payment processing",
+      "strengths": ["Basic order structure", "Payment methods", "Refund tracking", "Order workflow"],
+      "weaknesses": ["Dual order_items storage", "No payment state machine", "Limited audit trail", "No idempotency", "No order saga pattern"]
+    },
+    "performance_scale": {
+      "score": 3,
+      "status": "warning",
+      "rationale": "Basic indexing but missing key optimizations",
+      "strengths": ["Primary key indexes", "Foreign key relationships", "Some application indexes"],
+      "weaknesses": ["Missing spatial indexes", "No table partitioning", "Missing full-text search", "Limited composite indexes"]
+    },
+    "governance_safety": {
+      "score": 4,
+      "status": "strong",
+      "rationale": "Strong foundations with some gaps",
+      "strengths": ["RLS policies", "Foreign key constraints", "Role-based access", "Soft delete patterns", "Audit fields"],
+      "weaknesses": ["Missing comprehensive audit logging", "No event sourcing", "Limited PII protection"]
+    }
+  },
+  
+  "red_flags": [
+    {
+      "name": "Dual Order Storage Pattern",
+      "evidence": "Orders table has both order_items JSONB field AND separate order_items table",
+      "impact": "Data inconsistency, complex business logic, audit issues",
+      "priority": "P0",
+      "fix": "Migrate to normalized order_items table, deprecate JSONB field"
+    },
+    {
+      "name": "Missing Payment State Machine",
+      "evidence": "Basic payment status enum without proper state transitions or idempotency",
+      "impact": "Payment failures, duplicate charges, poor error handling",
+      "priority": "P0",
+      "fix": "Implement payment_transactions table with state machine and idempotency keys"
+    },
+    {
+      "name": "Zero Internationalization Infrastructure",
+      "evidence": "No translation tables, hardcoded English text throughout schema",
+      "impact": "Blocks international expansion completely",
+      "priority": "P0",
+      "fix": "Implement comprehensive translation infrastructure"
+    },
+    {
+      "name": "Missing Spatial Indexes",
+      "evidence": "JSONB coordinates without spatial indexing for location queries",
+      "impact": "Poor performance for location-based queries at scale",
+      "priority": "P1",
+      "fix": "Implement PostGIS with GIST spatial indexes"
+    },
+    {
+      "name": "No Table Partitioning Strategy",
+      "evidence": "Large transactional tables (orders, payments) without partitioning",
+      "impact": "Query performance degradation and maintenance issues at scale",
+      "priority": "P1",
+      "fix": "Implement date-based partitioning for high-volume tables"
+    },
+    {
+      "name": "Service-Specific Column Anti-Pattern",
+      "evidence": "Products table with service-specific columns (is_organic, transmission, etc.)",
+      "impact": "Schema bloat, maintenance complexity, rigid service addition",
+      "priority": "P2",
+      "fix": "Migrate to pure attribute-based system using service_field_definitions"
+    }
+  ],
+  
+  "missing_entities": [
+    "translations",
+    "locales", 
+    "locale_settings",
+    "payment_transactions",
+    "order_workflows",
+    "domain_events",
+    "audit_logs",
+    "inventory_adjustments",
+    "vendor_settlements",
+    "price_change_history",
+    "promotional_campaigns",
+    "customer_segments",
+    "delivery_routes",
+    "capacity_planning"
+  ],
+  
+  "recommended_changes": [
+    {
+      "type": "ddl",
+      "object": "translations",
+      "snippet": "CREATE TABLE translations (\n    id UUID PRIMARY KEY,\n    resource_type TEXT NOT NULL,\n    resource_id UUID NOT NULL,\n    locale TEXT NOT NULL,\n    field_name TEXT NOT NULL,\n    translated_value TEXT NOT NULL,\n    is_approved BOOLEAN DEFAULT false,\n    created_at TIMESTAMPTZ DEFAULT NOW(),\n    UNIQUE(resource_type, resource_id, locale, field_name)\n);",
+      "rationale": "Enable internationalization for global market expansion"
+    },
+    {
+      "type": "ddl",
+      "object": "payment_transactions",
+      "snippet": "CREATE TYPE payment_state AS ENUM ('initialized', 'pending', 'processing', 'completed', 'failed', 'cancelled', 'refunded', 'partially_refunded');\n\nCREATE TABLE payment_transactions (\n    id UUID PRIMARY KEY,\n    payment_id UUID REFERENCES payments(id),\n    state payment_state NOT NULL,\n    previous_state payment_state,\n    gateway_transaction_id TEXT,\n    gateway_response JSONB,\n    idempotency_key UUID UNIQUE,\n    amount NUMERIC NOT NULL,\n    currency TEXT DEFAULT 'INR',\n    failure_reason TEXT,\n    created_at TIMESTAMPTZ DEFAULT NOW()\n);",
+      "rationale": "Implement payment state machine for reliable transaction processing"
+    },
+    {
+      "type": "ddl",
+      "object": "domain_events",
+      "snippet": "CREATE TABLE domain_events (\n    id UUID PRIMARY KEY,\n    aggregate_type TEXT NOT NULL,\n    aggregate_id UUID NOT NULL,\n    event_type TEXT NOT NULL,\n    event_version INTEGER NOT NULL,\n    event_data JSONB NOT NULL,\n    metadata JSONB DEFAULT '{}',\n    correlation_id UUID,\n    occurred_at TIMESTAMPTZ DEFAULT NOW(),\n    user_id UUID REFERENCES profiles(id)\n);",
+      "rationale": "Add event sourcing for comprehensive audit trail and business intelligence"
+    },
+    {
+      "type": "index",
+      "object": "serviceable_areas",
+      "snippet": "CREATE EXTENSION IF NOT EXISTS postgis;\nALTER TABLE serviceable_areas ADD COLUMN geom_point GEOMETRY(POINT, 4326);\nUPDATE serviceable_areas SET geom_point = ST_SetSRID(ST_MakePoint((coordinates->>'lng')::float, (coordinates->>'lat')::float), 4326) WHERE coordinates IS NOT NULL;\nCREATE INDEX idx_serviceable_areas_spatial ON serviceable_areas USING GIST (geom_point);",
+      "rationale": "Enable efficient spatial queries for location-based services"
+    },
+    {
+      "type": "index",
+      "object": "products",
+      "snippet": "CREATE INDEX idx_products_fulltext ON products USING gin(to_tsvector('english', COALESCE(name, '') || ' ' || COALESCE(description, '') || ' ' || COALESCE(brand, '')));",
+      "rationale": "Implement full-text search for product discovery"
+    },
+    {
+      "type": "index",
+      "object": "composite_indexes",
+      "snippet": "CREATE INDEX idx_products_vendor_category_active ON products (vendor_id, category_id, is_active);\nCREATE INDEX idx_order_items_vendor_created ON order_items (vendor_id, created_at DESC);\nCREATE INDEX idx_product_area_pricing_lookup ON product_area_pricing (service_area_id, is_active, is_available);",
+      "rationale": "Optimize common query patterns for better performance"
+    },
+    {
+      "type": "partitioning",
+      "object": "orders",
+      "snippet": "CREATE TABLE orders_partitioned (LIKE orders INCLUDING ALL) PARTITION BY RANGE (created_at);\nCREATE TABLE orders_2024_01 PARTITION OF orders_partitioned FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');\nCREATE TABLE orders_2024_02 PARTITION OF orders_partitioned FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');",
+      "rationale": "Implement date-based partitioning for better query performance and maintenance"
+    },
+    {
+      "type": "partitioning", 
+      "object": "payments",
+      "snippet": "CREATE TABLE payments_partitioned (LIKE payments INCLUDING ALL) PARTITION BY RANGE (created_at);",
+      "rationale": "Partition payment data for better performance and compliance with data retention policies"
+    }
+  ],
+  
+  "indexes_to_add": [
+    {"table": "order_items", "columns": ["order_id"], "type": "btree"},
+    {"table": "order_items", "columns": ["product_id"], "type": "btree"},
+    {"table": "order_items", "columns": ["vendor_id"], "type": "btree"},
+    {"table": "products", "columns": ["vendor_id", "category_id", "is_active"], "type": "btree"},
+    {"table": "products", "columns": ["name", "description", "brand"], "type": "gin"},
+    {"table": "serviceable_areas", "columns": ["geom_point"], "type": "gist"},
+    {"table": "product_area_pricing", "columns": ["service_area_id", "is_active"], "type": "btree"},
+    {"table": "orders", "columns": ["status", "created_at"], "type": "btree"},
+    {"table": "payments", "columns": ["status", "created_at"], "type": "btree"}
+  ],
+  
+  "partitions": [
+    {
+      "table": "orders",
+      "strategy": "range",
+      "key": "created_at",
+      "rationale": "High-volume transactional data benefits from date-based partitioning"
+    },
+    {
+      "table": "payments",
+      "strategy": "range", 
+      "key": "created_at",
+      "rationale": "Financial data partitioning for performance and compliance"
+    },
+    {
+      "table": "domain_events",
+      "strategy": "range",
+      "key": "occurred_at", 
+      "rationale": "Event sourcing data grows rapidly and benefits from time-based partitioning"
+    },
+    {
+      "table": "order_items",
+      "strategy": "range",
+      "key": "created_at",
+      "rationale": "Large volume of order items data benefits from date partitioning"
+    }
+  ],
+  
+  "heuristic_tests": {
+    "add_service": {
+      "status": "pass",
+      "score": 4,
+      "notes": "Can add new service types via service_types table and configure fields via service_field_definitions"
+    },
+    "new_geography": {
+      "status": "partial",
+      "score": 3,
+      "notes": "Can add zones and areas but lacks spatial indexing for performance"
+    },
+    "new_language": {
+      "status": "fail",
+      "score": 0,
+      "notes": "No translation infrastructure exists - complete i18n implementation required"
+    },
+    "multi_vendor_flip": {
+      "status": "pass",
+      "score": 5,
+      "notes": "Excellent vendor isolation with proper scoping and RLS policies"
+    }
+  },
+  
+  "migration_phases": {
+    "phase_1_critical": {
+      "duration": "Month 1",
+      "priority": "P0",
+      "items": [
+        "Implement translation infrastructure",
+        "Fix dual order_items storage pattern", 
+        "Add payment state machine with idempotency",
+        "Create event sourcing foundation"
+      ]
+    },
+    "phase_2_performance": {
+      "duration": "Month 2",
+      "priority": "P1", 
+      "items": [
+        "Add spatial indexing with PostGIS",
+        "Implement full-text search indexes",
+        "Add critical composite indexes",
+        "Optimize area-based pricing queries"
+      ]
+    },
+    "phase_3_scalability": {
+      "duration": "Month 3",
+      "priority": "P1",
+      "items": [
+        "Implement table partitioning strategy",
+        "Add comprehensive audit logging",
+        "Refactor service-specific columns to attributes",
+        "Add monitoring and alerting"
+      ]
+    }
+  },
+  
+  "performance_metrics": {
+    "current_table_sizes": {
+      "categories": "392 kB",
+      "products": "320 kB", 
+      "service_types": "256 kB",
+      "product_area_pricing": "184 kB",
+      "orders": "144 kB"
+    },
+    "estimated_scale_limits": {
+      "orders_without_partitioning": "1M records",
+      "products_without_optimization": "100K records",
+      "concurrent_users_without_indexing": "1K users"
+    }
+  },
+  
+  "business_impact": {
+    "internationalization_blocker": {
+      "impact": "Cannot expand to non-English markets",
+      "revenue_risk": "High - blocks global expansion"
+    },
+    "payment_reliability": {
+      "impact": "Risk of duplicate charges and payment failures", 
+      "revenue_risk": "Critical - financial transaction integrity"
+    },
+    "performance_scaling": {
+      "impact": "Query performance degradation at scale",
+      "revenue_risk": "Medium - user experience and operational costs"
+    }
+  },
+  
+  "recommendations": {
+    "immediate": [
+      "Add missing foreign key indexes (no downtime)",
+      "Implement full-text search indexes",
+      "Set up query performance monitoring"
+    ],
+    "short_term": [
+      "Design and implement translation system",
+      "Plan order_items migration strategy",
+      "Add payment state machine with idempotency"
+    ],
+    "long_term": [
+      "Implement comprehensive event sourcing",
+      "Add table partitioning for scale",
+      "Migrate to pure attribute-based product system"
+    ]
+  }
+}

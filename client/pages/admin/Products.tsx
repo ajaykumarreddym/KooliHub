@@ -1,5 +1,5 @@
-import React from "react";
 import { ProductManagement } from "@/components/admin/ProductManagement";
+import React from "react";
 
 export const Products: React.FC = () => {
   return (

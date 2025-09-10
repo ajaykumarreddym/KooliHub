@@ -96,56 +96,56 @@ if ("serviceWorker" in navigator) {
     });
 }
 
-import React from "react";
-import { createRoot } from "react-dom/client";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { CartProvider } from "@/contexts/CartContext";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { WishlistProvider } from "@/contexts/WishlistContext";
 import { AdminRoute } from "@/components/admin/AdminRoute";
 import { FirebaseProvider } from "@/components/firebase/FirebaseProvider";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AdminDataProvider } from "@/contexts/AdminDataContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { CartProvider } from "@/contexts/CartContext";
+import { WishlistProvider } from "@/contexts/WishlistContext";
+import { CustomFieldsTest } from "@/pages/admin/CustomFieldsTest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 // Consumer Pages
-import Index from "./pages/Index";
-import Grocery from "./pages/Grocery";
-import Trips from "./pages/Trips";
+import { AuthCallback } from "./pages/AuthCallback";
+import Beauty from "./pages/Beauty";
 import CarRental from "./pages/CarRental";
-import Handyman from "./pages/Handyman";
-import HomeKitchen from "./pages/HomeKitchen";
 import Electronics from "./pages/Electronics";
 import Fashion from "./pages/Fashion";
-import Beauty from "./pages/Beauty";
+import Grocery from "./pages/Grocery";
+import Handyman from "./pages/Handyman";
+import HomeKitchen from "./pages/HomeKitchen";
+import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
+import Trips from "./pages/Trips";
 import UserTest from "./pages/UserTest";
-import { AuthCallback } from "./pages/AuthCallback";
 
 // Admin pages
-import { AdminLogin } from "./pages/admin/AdminLogin";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { Dashboard } from "./pages/admin/Dashboard";
-import { Users } from "./pages/admin/Users";
+import { AdminLogin } from "./pages/admin/AdminLogin";
 import { Analytics } from "./pages/admin/Analytics";
-import { ServiceAreas } from "./pages/admin/ServiceAreas";
-import { ServiceTypes } from "./pages/admin/ServiceTypes";
-import { Coupons } from "./pages/admin/Coupons";
-import { Banners } from "./pages/admin/Banners";
-import { Notifications } from "./pages/admin/Notifications";
-import { Payments } from "./pages/admin/Payments";
 import { AppConfig } from "./pages/admin/AppConfig";
-import { DatabaseSetup } from "./pages/admin/DatabaseSetup";
-import { Orders } from "./pages/admin/Orders";
-import { OrderFulfillment } from "./pages/admin/OrderFulfillment";
-import { OrderAnalytics } from "./pages/admin/OrderAnalytics";
-import { FirebaseNotifications } from "./pages/admin/FirebaseNotifications";
 import { AreaInventory } from "./pages/admin/AreaInventory";
+import { Banners } from "./pages/admin/Banners";
+import { Coupons } from "./pages/admin/Coupons";
+import { Dashboard } from "./pages/admin/Dashboard";
+import { DatabaseSetup } from "./pages/admin/DatabaseSetup";
+import { FirebaseNotifications } from "./pages/admin/FirebaseNotifications";
+import { Notifications } from "./pages/admin/Notifications";
+import { OrderAnalytics } from "./pages/admin/OrderAnalytics";
+import { OrderFulfillment } from "./pages/admin/OrderFulfillment";
+import { Orders } from "./pages/admin/Orders";
+import { Payments } from "./pages/admin/Payments";
 import { POS } from "./pages/admin/POS";
+import { UnifiedProductManagement } from "./pages/admin/UnifiedProductManagement";
+import { Users } from "./pages/admin/Users";
 import { Vendors } from "./pages/admin/Vendors";
-import { ProductsInventory } from "./pages/admin/ProductsInventory";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -161,10 +161,11 @@ const App: React.FC = () => {
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <FirebaseProvider>
-            <WishlistProvider>
-              <CartProvider>
-                <TooltipProvider>
+          <AdminDataProvider>
+            <FirebaseProvider>
+              <WishlistProvider>
+                <CartProvider>
+                  <TooltipProvider>
                   <Toaster />
                   <Sonner />
                   <BrowserRouter>
@@ -201,20 +202,38 @@ const App: React.FC = () => {
                         <Route path="pos" element={<POS />} />
                         <Route path="vendors" element={<Vendors />} />
                         <Route
-                          path="products-inventory"
-                          element={<ProductsInventory />}
+                          path="product-management"
+                          element={<UnifiedProductManagement />}
                         />
-                        {/* Redirect old routes to unified page */}
+                        {/* Redirect old routes to unified product management */}
+                        <Route
+                          path="products-inventory"
+                          element={
+                            <Navigate to="/admin/product-management" replace />
+                          }
+                        />
                         <Route
                           path="products"
                           element={
-                            <Navigate to="/admin/products-inventory" replace />
+                            <Navigate to="/admin/product-management" replace />
                           }
                         />
                         <Route
                           path="inventory"
                           element={
-                            <Navigate to="/admin/products-inventory" replace />
+                            <Navigate to="/admin/product-management" replace />
+                          }
+                        />
+                        <Route
+                          path="service-areas"
+                          element={
+                            <Navigate to="/admin/product-management" replace />
+                          }
+                        />
+                        <Route
+                          path="service-types"
+                          element={
+                            <Navigate to="/admin/product-management" replace />
                           }
                         />
                         <Route
@@ -223,14 +242,6 @@ const App: React.FC = () => {
                         />
                         <Route path="users" element={<Users />} />
                         <Route path="analytics" element={<Analytics />} />
-                        <Route
-                          path="service-areas"
-                          element={<ServiceAreas />}
-                        />
-                        <Route
-                          path="service-types"
-                          element={<ServiceTypes />}
-                        />
                         <Route path="orders" element={<Orders />} />
                         <Route
                           path="order-fulfillment"
@@ -256,6 +267,10 @@ const App: React.FC = () => {
                           path="database-setup"
                           element={<DatabaseSetup />}
                         />
+                        <Route
+                          path="custom-fields-test"
+                          element={<CustomFieldsTest />}
+                        />
                       </Route>
 
                       {/* 404 Route */}
@@ -266,6 +281,7 @@ const App: React.FC = () => {
               </CartProvider>
             </WishlistProvider>
           </FirebaseProvider>
+          </AdminDataProvider>
         </AuthProvider>
       </QueryClientProvider>
     </React.StrictMode>
