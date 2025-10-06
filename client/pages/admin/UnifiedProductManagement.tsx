@@ -1,42 +1,42 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,32 +56,33 @@ import { supabase } from "@/lib/supabase";
 
 // Components
 import { AddServiceAreaModal } from "@/components/admin/AddServiceAreaModal";
+import { ComprehensiveProductModal } from "@/components/admin/ComprehensiveProductModal";
 import { EditServiceAreaModal } from "@/components/admin/EditServiceAreaModal";
 import { EnhancedProductModal } from "@/components/admin/EnhancedProductModal";
 
 // Icons
 import {
-  Activity,
-  AlertCircle,
-  BarChart3,
-  Clock,
-  Download,
-  Edit,
-  Layers,
-  Map,
-  MapPin,
-  MoreHorizontal,
-  Navigation,
-  Package,
-  Plus,
-  RefreshCw,
-  Search,
-  Settings,
-  ShoppingCart,
-  Store,
-  Tag,
-  Trash2,
-  TrendingUp
+    Activity,
+    AlertCircle,
+    BarChart3,
+    Clock,
+    Download,
+    Edit,
+    Layers,
+    Map,
+    MapPin,
+    MoreHorizontal,
+    Navigation,
+    Package,
+    Plus,
+    RefreshCw,
+    Search,
+    Settings,
+    ShoppingCart,
+    Store,
+    Tag,
+    Trash2,
+    TrendingUp
 } from "lucide-react";
 
 // Types from AdminDataContext
@@ -154,13 +155,14 @@ export const UnifiedProductManagement: React.FC = () => {
     serviceTypes,
     categories,
     vendors,
-    inventory: inventoryProducts,
+    merchants,
     loading,
     refreshProducts,
     refreshServiceAreas,
     refreshServiceTypes,
     refreshCategories,
     refreshVendors,
+    refreshMerchants,
     isDataLoaded,
     getCacheStats
   } = useAdminData();
@@ -226,6 +228,7 @@ export const UnifiedProductManagement: React.FC = () => {
   
   // Modal states
   const [showEnhancedProductModal, setShowEnhancedProductModal] = useState(false);
+  const [showComprehensiveProductModal, setShowComprehensiveProductModal] = useState(false);
   const [showAddServiceAreaModal, setShowAddServiceAreaModal] = useState(false);
   const [showEditServiceAreaModal, setShowEditServiceAreaModal] = useState(false);
   const [showAddServiceTypeModal, setShowAddServiceTypeModal] = useState(false);
@@ -290,17 +293,14 @@ export const UnifiedProductManagement: React.FC = () => {
   const calculateStats = useCallback(() => {
     if (!isDataLoaded) return;
 
-    // Product stats
+    // Product stats - Updated for modern schema
     const totalProducts = products.length;
     const activeProducts = products.filter(p => p.is_active).length;
-    const lowStockProducts = inventoryProducts.filter(
-      p => p.stock_quantity > 0 && p.stock_quantity < 20
-    ).length;
-    const outOfStockProducts = inventoryProducts.filter(
-      p => p.stock_quantity === 0
-    ).length;
-    const totalValue = inventoryProducts.reduce(
-      (sum, p) => sum + Number(p.price) * p.stock_quantity, 0
+    // Note: Stock information is now managed through merchant_inventory table
+    const lowStockProducts = 0; // Would need to fetch from merchant_inventory
+    const outOfStockProducts = 0; // Would need to fetch from merchant_inventory
+    const totalValue = products.reduce(
+      (sum, p) => sum + Number(p.base_price || 0), 0
     );
 
     // Service area stats
@@ -334,7 +334,7 @@ export const UnifiedProductManagement: React.FC = () => {
       activeCategories,
       totalServiceTypes,
     });
-  }, [products, inventoryProducts, serviceAreas, categories, serviceTypes, isDataLoaded]);
+  }, [products, merchants, serviceAreas, categories, serviceTypes, isDataLoaded]);
 
   // Trigger stats calculation when data changes
   useEffect(() => {
@@ -981,7 +981,7 @@ export const UnifiedProductManagement: React.FC = () => {
             <Button
               onClick={() => {
                 setSelectedProduct(null);
-                setShowEnhancedProductModal(true);
+                setShowComprehensiveProductModal(true);
               }}
               className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 h-12"
             >
@@ -1098,7 +1098,7 @@ export const UnifiedProductManagement: React.FC = () => {
             <Button
               onClick={() => {
                 setSelectedProduct(null);
-                setShowEnhancedProductModal(true);
+                setShowComprehensiveProductModal(true);
               }}
               className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
             >
@@ -1127,7 +1127,7 @@ export const UnifiedProductManagement: React.FC = () => {
               </p>
               <Button onClick={() => {
                 setSelectedProduct(null);
-                setShowEnhancedProductModal(true);
+                setShowComprehensiveProductModal(true);
               }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Product
@@ -1197,7 +1197,7 @@ export const UnifiedProductManagement: React.FC = () => {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => {
                             setSelectedProduct(product);
-                            setShowEnhancedProductModal(true);
+                            setShowComprehensiveProductModal(true);
                           }}>
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
@@ -1221,7 +1221,7 @@ export const UnifiedProductManagement: React.FC = () => {
         </CardContent>
       </Card>
     </div>
-  ), [filteredProducts, productSearchTerm, vendorFilter, selectedServiceType, handleProductSearch, deleteLoading, formatPrice, setSelectedProduct, setShowEnhancedProductModal, handleDeleteProduct]);
+  ), [filteredProducts, productSearchTerm, vendorFilter, selectedServiceType, handleProductSearch, deleteLoading, formatPrice, setSelectedProduct, setShowComprehensiveProductModal, handleDeleteProduct]);
 
   // Service Areas Section - MEMOIZED to prevent component recreation and focus loss
   const ServiceAreasSection = useMemo(() => (
@@ -1861,7 +1861,7 @@ export const UnifiedProductManagement: React.FC = () => {
           <Button
             onClick={() => {
               setSelectedProduct(null);
-              setShowEnhancedProductModal(true);
+              setShowComprehensiveProductModal(true);
             }}
             className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
           >
@@ -1918,6 +1918,45 @@ export const UnifiedProductManagement: React.FC = () => {
       </Tabs>
 
       {/* Modals */}
+      {/* New Comprehensive Product Modal with Dynamic Attribute System */}
+      <ComprehensiveProductModal
+        isOpen={showComprehensiveProductModal}
+        product={selectedProduct}
+        mode={selectedProduct ? "edit" : "add"}
+        onClose={() => {
+          setShowComprehensiveProductModal(false);
+          setSelectedProduct(null);
+        }}
+        onSuccess={async () => {
+          console.log("🔄 Comprehensive Product modal success - refreshing data...");
+          
+          // Close modal immediately for better UX
+          setShowComprehensiveProductModal(false);
+          setSelectedProduct(null);
+          
+          // Show loading toast
+          const loadingToast = toast({
+            title: "Updating...",
+            description: "Refreshing product data...",
+          });
+          
+          // Refresh data
+          await Promise.all([
+            refreshOfferings(),
+            refreshCategories(),
+            refreshServiceAreas(),
+          ]);
+          
+          // Update toast
+          loadingToast.update({
+            id: loadingToast.id,
+            title: "Success!",
+            description: "Product data refreshed successfully.",
+          });
+        }}
+      />
+
+      {/* Legacy Product Modal (kept for backwards compatibility) */}
       <EnhancedProductModal
         isOpen={showEnhancedProductModal}
         product={selectedProduct}

@@ -83,34 +83,100 @@ export interface VendorUser {
   user?: Profile;
 }
 
-// Product and Catalog Types
-export interface Product {
+// Offering and Catalog Types (Modern Architecture)
+export type OfferingType = 
+  | "product" 
+  | "service" 
+  | "ride" 
+  | "delivery" 
+  | "booking" 
+  | "rental" 
+  | "subscription" 
+  | "digital";
+
+export type OfferingStatus = 
+  | "draft" 
+  | "pending_approval" 
+  | "active" 
+  | "inactive" 
+  | "out_of_stock" 
+  | "discontinued" 
+  | "scheduled";
+
+export type AvailabilityType = 
+  | "always" 
+  | "scheduled" 
+  | "on_demand" 
+  | "appointment_only";
+
+export interface Offering {
   id: string;
-  vendor_id: string;
+  tenant_id?: string;
+  vendor_id?: string;
   name: string;
   slug?: string;
   description?: string;
-  price: number;
-  discount_price?: number;
-  image_url?: string;
+  type: OfferingType;
+  status?: OfferingStatus;
+  category_path?: string;
   category_id?: string;
-  stock_quantity: number;
-  is_active: boolean;
-  rating?: number;
-  reviews_count: number;
-  sku?: string;
-  brand?: string;
-  tags: string[];
-  status: string;
+  base_price?: number;
+  currency?: string;
+  pricing_type?: string;
+  primary_image_url?: string;
+  gallery_urls?: string[];
+  tags?: string[];
+  keywords?: string[];
+  availability_type?: AvailabilityType;
+  is_active?: boolean;
+  metadata?: Record<string, any>;
+  custom_attributes?: Record<string, any>;
   meta_title?: string;
   meta_description?: string;
   created_at: string;
   updated_at: string;
+  created_by?: string;
+  updated_by?: string;
   deleted_at?: string;
   vendor?: Vendor;
   category?: Category;
+  variants?: OfferingVariant[];
+  attributes?: OfferingAttribute[];
+}
+
+// Keep Product interface for backward compatibility where needed
+export interface Product extends Offering {
+  price: number;
+  discount_price?: number;
+  image_url?: string;
+  stock_quantity: number;
+  rating?: number;
+  reviews_count: number;
+  sku?: string;
+  brand?: string;
   variants?: ProductVariant[];
   images?: ProductImage[];
+}
+
+export interface OfferingVariant {
+  id: string;
+  offering_id?: string;
+  name: string;
+  sku?: string;
+  price_adjustment?: number;
+  price_override?: number;
+  weight?: number;
+  dimensions?: Record<string, any>;
+  attributes?: Record<string, any>;
+  track_inventory?: boolean;
+  is_active?: boolean;
+  sort_order?: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  offering?: Offering;
+  inventory?: MerchantInventory[];
+  attributes_values?: OfferingAttribute[];
 }
 
 export interface ProductVariant {
@@ -143,6 +209,118 @@ export interface ProductImage {
   is_primary: boolean;
   sort_order: number;
   created_at: string;
+}
+
+// New Clean Schema Types
+export interface AttributeRegistry {
+  id: string;
+  tenant_id?: string;
+  name: string;
+  label: string;
+  data_type: string;
+  scope?: string;
+  applicable_types?: OfferingType[];
+  validation_rules?: Record<string, any>;
+  options?: Record<string, any>;
+  default_value?: string;
+  input_type?: string;
+  placeholder?: string;
+  help_text?: string;
+  group_name?: string;
+  sort_order?: number;
+  is_required?: boolean;
+  is_searchable?: boolean;
+  is_filterable?: boolean;
+  is_active?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OfferingAttribute {
+  id: string;
+  offering_id?: string;
+  variant_id?: string;
+  attribute_id?: string;
+  value_text?: string;
+  value_number?: number;
+  value_boolean?: boolean;
+  value_json?: Record<string, any>;
+  value_date?: string;
+  value_datetime?: string;
+  created_at: string;
+  updated_at: string;
+  attribute_registry?: AttributeRegistry;
+}
+
+export interface Merchant {
+  id: string;
+  tenant_id?: string;
+  vendor_id?: string;
+  name: string;
+  slug?: string;
+  type?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  address_line_1?: string;
+  address_line_2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+  location?: Record<string, any>;
+  business_hours?: Record<string, any>;
+  delivery_zones?: string[];
+  pickup_available?: boolean;
+  delivery_available?: boolean;
+  is_active?: boolean;
+  is_verified?: boolean;
+  settings?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  vendor?: Vendor;
+  inventory?: MerchantInventory[];
+}
+
+export interface MerchantInventory {
+  id: string;
+  merchant_id?: string;
+  offering_id?: string;
+  variant_id?: string;
+  quantity?: number;
+  reserved_quantity?: number;
+  safety_stock?: number;
+  reorder_point?: number;
+  max_stock?: number;
+  price_override?: number;
+  discount_percentage?: number;
+  is_available?: boolean;
+  availability_note?: string;
+  last_counted_at?: string;
+  last_updated_by?: string;
+  created_at: string;
+  updated_at: string;
+  merchant?: Merchant;
+  offering?: Offering;
+  variant?: OfferingVariant;
+}
+
+export interface ZoneServiceAvailability {
+  id: string;
+  tenant_id?: string;
+  zone_id?: string;
+  pincode?: string;
+  service_types?: string[];
+  offering_types?: OfferingType[];
+  availability_schedule?: Record<string, any>;
+  is_active?: boolean;
+  delivery_time_hours?: number;
+  delivery_charge?: number;
+  minimum_order_amount?: number;
+  maximum_order_amount?: number;
+  coordinates?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Category {

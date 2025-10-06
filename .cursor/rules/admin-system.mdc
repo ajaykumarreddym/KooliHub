@@ -1,0 +1,186 @@
+---
+globs: **/admin/**/*.tsx,**/pages/admin/**/*.tsx
+description: Admin panel development guidelines and multi-vendor management
+---
+
+# Admin System Guidelines
+
+## Admin Architecture Overview
+The admin system supports comprehensive multi-vendor management with **service-oriented operations**, unified offering management, vendor oversight, and business analytics. The new architecture organizes operations by service types (Transport, Handyman, Retail, etc.) for better management and scalability.
+
+## Admin Page Structure ([client/pages/admin/](mdc:client/pages/admin/))
+
+### Core Admin Pages
+- **[Dashboard.tsx](mdc:client/pages/admin/Dashboard.tsx)**: Main admin dashboard with KPIs
+- **[ServiceManagement.tsx](mdc:client/pages/admin/ServiceManagement.tsx)**: **NEW** Service-oriented operations hub
+- **[UnifiedProductManagement.tsx](mdc:client/pages/admin/UnifiedProductManagement.tsx)**: Central product management hub
+- **[Vendors.tsx](mdc:client/pages/admin/Vendors.tsx)**: Vendor management and oversight
+- **[POS.tsx](mdc:client/pages/admin/POS.tsx)**: Point of sale system
+- **[Users.tsx](mdc:client/pages/admin/Users.tsx)**: User management
+
+### Service-Specific Dashboards **NEW**
+- **[services/TransportDashboard.tsx](mdc:client/pages/admin/services/TransportDashboard.tsx)**: Transport & mobility services management
+- **[services/HandymanDashboard.tsx](mdc:client/pages/admin/services/HandymanDashboard.tsx)**: Home services and handyman operations
+- **Service-specific operations for Retail, Digital, Hospitality, and Liquor services**
+
+### Analytics & Reporting
+- **[Analytics.tsx](mdc:client/pages/admin/Analytics.tsx)**: Business analytics dashboard
+- **[OrderAnalytics.tsx](mdc:client/pages/admin/OrderAnalytics.tsx)**: Order-specific analytics
+- **[Orders.tsx](mdc:client/pages/admin/Orders.tsx)**: Order management
+- **[OrderFulfillment.tsx](mdc:client/pages/admin/OrderFulfillment.tsx)**: Fulfillment tracking
+
+### Configuration & Setup
+- **[AppConfig.tsx](mdc:client/pages/admin/AppConfig.tsx)**: Application configuration
+- **[DatabaseSetup.tsx](mdc:client/pages/admin/DatabaseSetup.tsx)**: Database initialization
+- **[Notifications.tsx](mdc:client/pages/admin/Notifications.tsx)**: Notification management
+- **[FirebaseNotifications.tsx](mdc:client/pages/admin/FirebaseNotifications.tsx)**: Firebase push notifications
+
+## Admin Components ([client/components/admin/](mdc:client/components/admin/))
+
+### Core Admin Components
+- **[AdminLayout.tsx](mdc:client/components/admin/AdminLayout.tsx)**: Main admin layout wrapper
+- **[ServiceAdminLayout.tsx](mdc:client/components/admin/ServiceAdminLayout.tsx)**: **NEW** Service-oriented admin layout
+- **[AdminRoute.tsx](mdc:client/components/admin/AdminRoute.tsx)**: Route protection component
+- **[AdminSidebar.tsx](mdc:client/components/admin/AdminSidebar.tsx)**: Navigation sidebar
+
+### Product Management Components
+- **[ProductManagement.tsx](mdc:client/components/admin/ProductManagement.tsx)**: Product CRUD operations
+- **[ProductEditDialog.tsx](mdc:client/components/admin/ProductEditDialog.tsx)**: Product editing interface
+- **[ProductImageUpload.tsx](mdc:client/components/admin/ProductImageUpload.tsx)**: Image upload handling
+
+### Vendor Management
+- **[VendorManagement.tsx](mdc:client/components/admin/VendorManagement.tsx)**: Vendor CRUD operations
+- **[VendorDialog.tsx](mdc:client/components/admin/VendorDialog.tsx)**: Vendor creation/editing
+
+## Admin Access Control
+
+### Route Protection
+All admin routes are protected using the `<AdminRoute>` component:
+```typescript
+<Route path="/admin" element={
+  <AdminRoute>
+    <AdminLayout />
+  </AdminRoute>
+}>
+```
+
+### Admin Authentication
+- Admin login handled by [AdminLogin.tsx](mdc:client/pages/admin/AdminLogin.tsx)
+- Authentication state managed by [AuthContext.tsx](mdc:client/contexts/AuthContext.tsx)
+- Role-based access control implemented
+
+### Permission Levels
+- **Super Admin**: Full system access
+- **Admin**: Standard admin operations
+- **Vendor Admin**: Vendor-specific management
+- **Vendor User**: Limited vendor operations
+
+## Service-Oriented Admin Operations **NEW**
+
+### Service Organization
+The admin panel is now organized by service types for better operational efficiency:
+
+#### **Transport & Mobility Services**
+- **Ride Services**: Taxi, auto, ride-sharing management
+- **Delivery Services**: Parcel delivery and courier operations
+- **Vehicle Rentals**: Car, bike, and equipment rental management
+- **Driver Management**: Provider onboarding and performance tracking
+- **Route Planning**: Optimization and service area management
+
+#### **Home Services (Handyman)**
+- **Service Providers**: Skilled worker management and certification
+- **Service Categories**: Plumbing, electrical, carpentry, and more
+- **Booking Management**: Appointment scheduling and tracking
+- **Emergency Services**: Urgent request handling and dispatch
+- **Quality Control**: Service rating and feedback management
+
+#### **Retail & E-commerce**
+- **Product Catalog**: Grocery, fashion, electronics inventory
+- **Vendor Management**: Multi-vendor marketplace operations
+- **Order Processing**: Fulfillment and delivery coordination
+- **Inventory Tracking**: Real-time stock management across locations
+
+#### **Digital Services**
+- **Digital Products**: Software, courses, content management
+- **Subscriptions**: Recurring service management
+- **Content Delivery**: Digital asset distribution
+- **Licensing**: User access and permission management
+
+#### **Hospitality & Events**
+- **Event Management**: Booking and coordination
+- **Venue Operations**: Space and resource management
+- **Travel Services**: Package and accommodation management
+- **Catering Services**: Food and beverage coordination
+
+#### **Liquor & Beverages**
+- **Product Management**: Alcohol inventory and compliance
+- **Age Verification**: Customer validation systems
+- **Regulatory Compliance**: License and legal requirement management
+- **Delivery Management**: Specialized alcohol delivery operations
+
+### Service Dashboard Navigation
+```typescript
+// Access service-specific dashboards
+/admin/services/transport/*     // Transport operations
+/admin/services/handyman/*      // Home services
+/admin/services/retail/*        // Retail operations
+/admin/services/digital/*       // Digital services
+/admin/services/hospitality/*   // Event management
+/admin/services/liquor/*        // Beverage services
+```
+
+## Admin Development Guidelines
+
+### Component Structure
+1. **Use consistent layout** - All admin pages should use `AdminLayout` or `ServiceAdminLayout`
+2. **Implement proper loading states** - Show loading indicators during data operations
+3. **Handle errors gracefully** - Display meaningful error messages
+4. **Follow table patterns** - Use consistent table designs for data display
+5. **Include action buttons** - Provide clear actions for all operations
+6. **Service-specific theming** - Use consistent colors and icons for each service type
+
+### Data Management
+- Use React Query for server state management
+- Implement optimistic updates where appropriate
+- Cache admin data appropriately
+- Handle real-time updates for collaborative features
+
+### UI/UX Patterns
+- Use consistent form layouts and validation
+- Implement proper confirmation dialogs for destructive actions
+- Provide bulk operation capabilities
+- Include search and filtering functionality
+- Use pagination for large datasets
+
+## Multi-Vendor Features
+
+### Vendor Management
+- Complete vendor lifecycle management
+- Business information and document handling
+- Commission and payment term configuration
+- Status management (active, pending, suspended)
+
+### Product Management
+- Unified view across all vendors
+- Vendor-specific product filtering
+- Bulk operations for efficiency
+- Category and attribute management
+
+### Order Management
+- Cross-vendor order handling
+- Split order management
+- Vendor-specific fulfillment tracking
+- Commission calculation and tracking
+
+## Admin API Integration
+- All admin operations use protected API endpoints with `requireAdmin` middleware
+- Consistent error handling and response formatting
+- Real-time updates for collaborative admin operations
+- Audit logging for all admin actions
+
+## Performance Considerations
+- Implement proper data pagination
+- Use virtual scrolling for large datasets
+- Optimize database queries with proper indexing
+- Cache frequently accessed admin data
+- Implement lazy loading for admin components

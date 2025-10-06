@@ -1,0 +1,213 @@
+---
+description: Supabase database operations and schema management
+---
+
+# Supabase Database Guidelines
+
+## Database Architecture
+KooliHub uses Supabase PostgreSQL with Row Level Security (RLS) and comprehensive schema design for multi-service, multi-tenant, multi-vendor super app operations.
+
+## Schema Overview - REDESIGNED ARCHITECTURE
+The database supports:
+- **Multi-tenant operations** with tenant isolation
+- **Unified offering model** for all service types (products, services, rides, rentals, etc.)
+- **Hierarchical categories** using ltree for unlimited depth
+- **Dynamic attribute registry** for flexible field definitions
+- **Per-pincode service availability** with scheduling
+- **Multi-location merchant/outlet support**
+- **Service area-based pricing** and inventory
+- **Enhanced RLS policies** for security
+
+## Key Database Files
+- **[database-schema.sql](mdc:database-schema.sql)**: Legacy schema (deprecated)
+- **[supabase/migrations/](mdc:supabase/migrations/)**: Migration files
+- Migration files: `create_super_app_schema_redesign`, `create_enhanced_rls_policies`, etc.
+
+## REDESIGNED CORE ENTITIES
+
+### Multi-Tenancy Foundation
+- `tenants`: Multi-tenant support (marketplace, vendor stores, franchises, white-label)
+- Tenant-aware RLS policies for complete data isolation
+
+### Unified Offering Model (Replaces products)
+- `offerings`: Universal table for products, services, rides, rentals, bookings, etc.
+- `offering_variants`: SKU-level variations (size, color, model, etc.)
+- `offering_attributes`: Dynamic attribute values using attribute registry
+- `offering_type` ENUM: product, service, ride, delivery, booking, rental, subscription, digital
+
+### Hierarchical Categories (Enhanced)
+- `categories`: Now uses ltree for unlimited depth hierarchy
+- `category_path`: Full hierarchical path using PostgreSQL ltree extension
+- Support for cross-service category organization
+
+### Dynamic Attribute Registry (New)
+- `attribute_registry`: Centralized attribute definitions
+- `offering_attributes`: Polymorphic attribute values
+- Support for: text, number, boolean, select, multiselect, date, datetime, url, email, tel, textarea, file, image, json, location
+- Scope-based attributes: offering, variant, category, vendor, tenant
+
+### Multi-Location Merchants (New)
+- `merchants`: Physical locations/outlets for vendors
+- `merchant_inventory`: Location-specific inventory and pricing
+- Support for stores, warehouses, distribution centers, pickup points, service centers
+
+### Enhanced Service Zones
+- `service_zones`: Geographic service areas with PostGIS geometry support
+- `zone_service_availability`: Per-pincode service availability with scheduling
+- Support for delivery, service, pickup, coverage zones
+- Business hours and availability scheduling per location
+
+### Pricing & Inventory (Enhanced)
+- Multi-location inventory tracking in `merchant_inventory`
+- Zone-based and merchant-specific pricing overrides
+- Dynamic pricing support with tier pricing
+- Real-time stock tracking across multiple locations
+
+## Database Operation Guidelines
+
+### Using Supabase Client
+```typescript
+import { createClient } from '@supabase/supabase-js';
+
+// Use environment variables for configuration
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_ANON_KEY!
+);
+```
+
+### Type Safety with Unified Offering Model
+- Use updated TypeScript interfaces from [shared/api.ts](mdc:shared/api.ts)
+- Import types for database operations:
+```typescript
+import { 
+  Offering, OfferingVariant, OfferingAttribute, 
+  Merchant, MerchantInventory, ZoneServiceAvailability,
+  Vendor, Order 
+} from '@shared/api';
+```
+
+### Multi-Tenant Operations
+```typescript
+// Always include tenant context
+const getTenantId = () => '00000000-0000-0000-0000-000000000001'; // Default tenant
+
+// Query offerings with tenant awareness
+const { data: offerings } = await supabase
+  .from('offerings')
+  .select('*')
+  .eq('tenant_id', getTenantId())
+  .eq('is_active', true);
+```
+
+### Enhanced Row Level Security (RLS)
+- **Multi-tenant RLS**: Data isolated by tenant
+- **Admin users**: Can access all data across tenants
+- **Vendor users**: Access only their offerings and related data
+- **Customer users**: See only active/published content in their tenant
+- **Helper functions**: `is_admin()`, `is_vendor_user()`, `get_user_tenant_id()`
+
+### Query Patterns for Unified Schema
+```typescript
+// Search offerings across all types using new clean functions
+const searchResults = await supabase.rpc('search_active_offerings', {
+  search_term: 'laptop',
+  offering_type_filter: 'product',
+  category_filter: null,
+  tenant_filter: getTenantId(),
+  limit_count: 20
+});
+
+// Check offering availability by pincode
+const isAvailable = await supabase.rpc('check_offering_availability', {
+  offering_id_param: offeringId,
+  pincode_param: '110001',
+  tenant_id_param: getTenantId()
+});
+
+// Get inventory info for specific offering
+const inventory = await supabase.rpc('get_offering_inventory', {
+  offering_id_param: offeringId,
+  merchant_id_param: null // null for all merchants
+});
+
+// Get offerings with inventory from specific merchants
+const offeringsWithStock = await supabase
+  .from('offerings')
+  .select(`
+    *,
+    merchant_inventory!inner(
+      quantity,
+      price_override,
+      merchant:merchants(name, location)
+    )
+  `)
+  .gt('merchant_inventory.quantity', 0);
+```
+
+### Attribute System Usage
+```typescript
+// Get offering with all attributes
+const offeringWithAttributes = await supabase
+  .from('offerings')
+  .select(`
+    *,
+    offering_attributes(
+      attribute_registry(name, label, data_type),
+      value_text, value_number, value_boolean, value_json
+    )
+  `)
+  .eq('id', offeringId);
+
+// Query by specific attributes
+const coloredProducts = await supabase
+  .from('offering_attributes')
+  .select('offering_id')
+  .eq('attribute_registry.name', 'color')
+  .eq('value_text', 'red');
+```
+
+### Real-time Features (Enhanced)
+- Real-time updates on offerings, inventory, and availability
+- Tenant-aware subscriptions
+- Multi-location inventory updates
+- Service availability changes
+
+## Migration Management
+- **IMPORTANT**: Schema has been completely redesigned with clean, modern architecture
+- Use migration files: `create_super_app_schema_redesign`, `create_enhanced_rls_policies`, `clean_database_remove_backward_compatibility`
+- **Clean slate approach**: No backward compatibility layer - pure modern schema
+- Test all migrations thoroughly in development first
+
+## Performance Considerations (Enhanced)
+- **New indexes**: Optimized for multi-tenant and offering-based queries
+- **Materialized views**: `popular_offerings` for performance
+- **ltree indexes**: Fast hierarchical category queries
+- **PostGIS indexes**: Spatial queries for service areas
+- **Full-text search**: Optimized search across offerings
+
+## Spatial Data Operations (Enhanced)
+- PostGIS extension with geometry support for service zones
+- `zone_service_availability`: Per-pincode service checking
+- `merchants.location`: Point-based merchant locations
+- Distance-based service area calculations
+- Geofenced delivery zones
+
+## Business Logic Functions
+```sql
+-- Search active offerings with full-text search
+SELECT * FROM search_active_offerings('laptop', 'product', NULL, '00000000-0000-0000-0000-000000000001', 20);
+
+-- Check offering availability by pincode
+SELECT * FROM check_offering_availability('offering-uuid', '110001', '00000000-0000-0000-0000-000000000001');
+
+-- Get inventory information for offering
+SELECT * FROM get_offering_inventory('offering-uuid', NULL);
+```
+
+## Multi-Service Support
+- **Service scheduling**: Business hours and availability windows
+- **Dynamic service types**: Configurable offering types
+- **Cross-service categories**: Hierarchical organization
+- **Flexible pricing**: Zone-based and merchant-specific pricing
+- **Multi-location inventory**: Real-time stock across outlets

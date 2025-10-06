@@ -51,12 +51,18 @@ const sidebarGroups = [
     title: "Core Operations",
     items: [
       {
+        title: "Service Management 🎯",
+        href: "/admin/services",
+        icon: Settings,
+        description: "Manage all services by category (Transport, Handyman, etc.)"
+      },
+      {
         title: "POS System",
         href: "/admin/pos",
         icon: Calculator,
       },
       {
-        title: "Product Management 🎯",
+        title: "Product Management",
         href: "/admin/product-management",
         icon: Package,
         description: "Products, Inventory, Service Areas & Categories"

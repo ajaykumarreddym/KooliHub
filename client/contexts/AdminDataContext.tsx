@@ -4,24 +4,28 @@ import { authenticatedFetch } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
-// Types
-interface Product {
+// Types - Updated for new schema
+interface Offering {
   id: string;
   name: string;
-  price: number;
-  stock_quantity: number;
+  base_price: number;
+  type: 'product' | 'service' | 'ride' | 'delivery' | 'booking' | 'rental' | 'subscription' | 'digital';
+  status: 'draft' | 'pending_approval' | 'active' | 'inactive' | 'out_of_stock' | 'discontinued' | 'scheduled';
   is_active: boolean;
   category_id: string;
   vendor_id: string;
-  sku: string | null;
-  brand: string | null;
+  slug: string | null;
+  description: string | null;
   tags: string[];
-  status: string;
-  image_url: string | null;
+  keywords: string[];
+  primary_image_url: string | null;
+  gallery_urls: string[];
   created_at: string;
+  updated_at: string;
   vendor?: { id: string; name: string };
   category?: { id: string; name: string; service_type: string };
-  variants?: any[];
+  custom_attributes?: any;
+  metadata?: any;
 }
 
 interface ServiceArea {
@@ -71,46 +75,70 @@ interface Vendor {
   is_active: boolean;
 }
 
-// Cache state interface
+interface Merchant {
+  id: string;
+  tenant_id?: string;
+  vendor_id?: string;
+  name: string;
+  slug?: string;
+  type?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  address_line_1?: string;
+  address_line_2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+  is_active: boolean;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Cache state interface - Updated to match current database schema
 interface CacheState {
-  products: Product[];
+  offerings: Offering[];
   serviceAreas: ServiceArea[];
   serviceTypes: ServiceType[];
   categories: Category[];
   vendors: Vendor[];
-  inventory: Product[];
+  merchants: Merchant[];
 }
 
-// Loading state interface
+// Loading state interface - Updated to match current database schema
 interface LoadingState {
-  products: boolean;
+  offerings: boolean;
   serviceAreas: boolean;
   serviceTypes: boolean;
   categories: boolean;
   vendors: boolean;
-  inventory: boolean;
+  merchants: boolean;
 }
 
-// Context interface
+// Context interface - Updated to match current database schema
 interface AdminDataContextType {
   // Data
-  products: Product[];
+  offerings: Offering[];
+  products: Offering[]; // Keep for backward compatibility
   serviceAreas: ServiceArea[];
   serviceTypes: ServiceType[];
   categories: Category[];
   vendors: Vendor[];
-  inventory: Product[];
+  merchants: Merchant[];
   
   // Loading states
   loading: LoadingState;
   
   // Refresh functions
-  refreshProducts: () => Promise<void>;
+  refreshOfferings: () => Promise<void>;
+  refreshProducts: () => Promise<void>; // Keep for backward compatibility
   refreshServiceAreas: () => Promise<void>;
   refreshServiceTypes: () => Promise<void>;
   refreshCategories: () => Promise<void>;
   refreshVendors: () => Promise<void>;
-  refreshInventory: () => Promise<void>;
+  refreshMerchants: () => Promise<void>;
   refreshAll: () => Promise<void>;
   
   // Cache utilities
@@ -132,24 +160,24 @@ export const useAdminData = (): AdminDataContextType => {
 export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isAuthenticated, isAdminUser } = useAuth();
   
-  // Cache state
+  // Cache state - Updated to match current database schema
   const [cache, setCache] = useState<CacheState>({
-    products: [],
+    offerings: [],
     serviceAreas: [],
     serviceTypes: [],
     categories: [],
     vendors: [],
-    inventory: [],
+    merchants: [],
   });
   
-  // Loading state
+  // Loading state - Updated to match current database schema
   const [loading, setLoading] = useState<LoadingState>({
-    products: false,
+    offerings: false,
     serviceAreas: false,
     serviceTypes: false,
     categories: false,
     vendors: false,
-    inventory: false,
+    merchants: false,
   });
   
   // Track last updated times
@@ -187,36 +215,36 @@ export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
   
   // Products fetching
-  const refreshProducts = useCallback(async () => {
+  const refreshOfferings = useCallback(async () => {
     if (!isAuthenticated || !user) {
-      console.log('User not authenticated, skipping product fetch');
+      console.log('User not authenticated, skipping offerings fetch');
       return;
     }
     
-    if (loading.products) {
-      console.log('Products already loading, skipping fetch');
+    if (loading.offerings) {
+      console.log('Offerings already loading, skipping fetch');
       return;
     }
     
     try {
-      updateLoadingState('products', true);
-      console.log('🔄 Fetching products for admin...');
+      updateLoadingState('offerings', true);
+      console.log('🔄 Fetching offerings for admin...');
       
-      let enhancedProducts: Product[] = [];
+      let enhancedOfferings: Offering[] = [];
       
       // Try API endpoint first for admin users
       if (isAdminUser || user.email === 'hello.krsolutions@gmail.com') {
         try {
-          const response = await authenticatedFetch("/api/admin/products?limit=1000&include=vendor");
+          const response = await authenticatedFetch("/api/admin/offerings?limit=1000&include=vendor,category");
           if (response.ok) {
             const apiData = await response.json();
-            if (apiData.success && apiData.data?.products) {
-              enhancedProducts = apiData.data.products.map((product: any) => ({
-                ...product,
-                vendor: product.vendors,
-                category: product.categories
+            if (apiData.success && apiData.data?.offerings) {
+              enhancedOfferings = apiData.data.offerings.map((offering: any) => ({
+                ...offering,
+                vendor: offering.vendors,
+                category: offering.categories
               }));
-              console.log('✅ Got products from API:', enhancedProducts.length);
+              console.log('✅ Got offerings from API:', enhancedOfferings.length);
             }
           }
         } catch (apiError) {
@@ -225,47 +253,48 @@ export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       
       // Fallback to direct Supabase query
-      if (enhancedProducts.length === 0) {
-        const { data: productsData, error } = await supabase
-          .from("products")
+      if (enhancedOfferings.length === 0) {
+        const { data: offeringsData, error } = await supabase
+          .from("offerings")
           .select("*")
+          .is("deleted_at", null)
           .order("created_at", { ascending: false });
         
         if (error) throw error;
         
-        if (productsData && productsData.length > 0) {
-          // Fetch vendors and categories to enhance products
+        if (offeringsData && offeringsData.length > 0) {
+          // Fetch vendors and categories to enhance offerings
           const [vendorsResult, categoriesResult] = await Promise.all([
-            supabase.from("vendors").select("id, name"),
-            supabase.from("categories").select("id, name, service_type")
+            supabase.from("vendors").select("id, name").is("deleted_at", null),
+            supabase.from("categories").select("id, name, service_type").eq("is_active", true)
           ]);
           
           const vendorMap = new Map(vendorsResult.data?.map(v => [v.id, v]) || []);
           const categoryMap = new Map(categoriesResult.data?.map(c => [c.id, c]) || []);
           
-          enhancedProducts = productsData.map(product => ({
-            ...product,
-            vendor: product.vendor_id ? vendorMap.get(product.vendor_id) : null,
-            category: product.category_id ? categoryMap.get(product.category_id) : null
+          enhancedOfferings = offeringsData.map(offering => ({
+            ...offering,
+            vendor: offering.vendor_id ? vendorMap.get(offering.vendor_id) : null,
+            category: offering.category_id ? categoryMap.get(offering.category_id) : null
           }));
           
-          console.log('✅ Got products from direct query:', enhancedProducts.length);
+          console.log('✅ Got offerings from direct query:', enhancedOfferings.length);
         }
       }
       
-      updateCache('products', enhancedProducts);
+      updateCache('offerings', enhancedOfferings);
       
     } catch (error) {
-      console.error('❌ Error fetching products:', error);
+      console.error('❌ Error fetching offerings:', error);
       toast({
         title: "Error",
-        description: "Failed to load products. Please try again.",
+        description: "Failed to load offerings. Please try again.",
         variant: "destructive",
       });
     } finally {
-      updateLoadingState('products', false);
+      updateLoadingState('offerings', false);
     }
-  }, [isAuthenticated, user, isAdminUser, loading.products, updateLoadingState, updateCache]);
+  }, [isAuthenticated, user, isAdminUser, loading.offerings, updateLoadingState, updateCache]);
   
   // Service Areas fetching
   const refreshServiceAreas = useCallback(async () => {
@@ -370,46 +399,51 @@ export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [loading.vendors, updateLoadingState, updateCache]);
   
-  // Inventory fetching (different from products - includes stock info)
-  const refreshInventory = useCallback(async () => {
-    if (loading.inventory) return;
+  // Merchants fetching (physical locations/outlets for vendors)
+  const refreshMerchants = useCallback(async () => {
+    if (loading.merchants) return;
     
     try {
-      updateLoadingState('inventory', true);
-      console.log('🔄 Fetching inventory...');
+      updateLoadingState('merchants', true);
+      console.log('🔄 Fetching merchants...');
       
       const { data, error } = await supabase
-        .from("products")
+        .from("merchants")
         .select("*")
-        .gte("stock_quantity", 0)
-        .order("stock_quantity", { ascending: true });
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
       
       if (error) throw error;
       
-      updateCache('inventory', data || []);
-      console.log('✅ Got inventory:', data?.length || 0);
+      updateCache('merchants', data || []);
+      console.log('✅ Got merchants:', data?.length || 0);
       
     } catch (error) {
-      console.error('❌ Error fetching inventory:', error);
+      console.error('❌ Error fetching merchants:', error);
     } finally {
-      updateLoadingState('inventory', false);
+      updateLoadingState('merchants', false);
     }
-  }, [loading.inventory, updateLoadingState, updateCache]);
+  }, [loading.merchants, updateLoadingState, updateCache]);
   
   // Refresh all data
   const refreshAll = useCallback(async () => {
     console.log('🔄 Refreshing all admin data...');
     await Promise.all([
-      refreshProducts(),
+      refreshOfferings(),
       refreshServiceAreas(),
       refreshServiceTypes(),
       refreshCategories(),
       refreshVendors(),
-      refreshInventory(),
+      refreshMerchants(),
     ]);
     setIsDataLoaded(true);
     console.log('✅ All admin data refreshed!');
-  }, [refreshProducts, refreshServiceAreas, refreshServiceTypes, refreshCategories, refreshVendors, refreshInventory]);
+  }, [refreshOfferings, refreshServiceAreas, refreshServiceTypes, refreshCategories, refreshVendors, refreshMerchants]);
+  
+  // Backward compatibility function
+  const refreshProducts = useCallback(async () => {
+    return refreshOfferings();
+  }, [refreshOfferings]);
   
   // Setup real-time subscriptions
   useEffect(() => {
@@ -426,7 +460,7 @@ export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         table: 'products'
       }, (payload) => {
         console.log('📦 Product change:', payload.eventType);
-        debouncedUpdate('products', refreshProducts);
+        debouncedUpdate('offerings', refreshOfferings);
       })
       .subscribe();
     
@@ -471,7 +505,7 @@ export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // Store subscription references
     subscriptionsRef.current = {
-      products: productsChannel,
+      offerings: productsChannel,
       areas: areasChannel,
       categories: categoriesChannel,
       serviceTypes: serviceTypesChannel,
@@ -488,7 +522,7 @@ export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       Object.values(debounceTimersRef.current).forEach(timer => clearTimeout(timer));
       debounceTimersRef.current = {};
     };
-  }, [isAuthenticated, user, refreshProducts, refreshServiceAreas, refreshCategories, refreshServiceTypes, debouncedUpdate]);
+  }, [isAuthenticated, user, refreshOfferings, refreshServiceAreas, refreshCategories, refreshServiceTypes, debouncedUpdate]);
   
   // Initial data loading
   useEffect(() => {
@@ -501,10 +535,10 @@ export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Cache stats utility
   const getCacheStats = useCallback(() => {
     return {
-      products: {
-        count: cache.products.length,
-        lastUpdated: lastUpdated.products,
-        loading: loading.products,
+      offerings: {
+        count: cache.offerings.length,
+        lastUpdated: lastUpdated.offerings,
+        loading: loading.offerings,
       },
       serviceAreas: {
         count: cache.serviceAreas.length,
@@ -526,35 +560,37 @@ export const AdminDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         lastUpdated: lastUpdated.vendors,
         loading: loading.vendors,
       },
-      inventory: {
-        count: cache.inventory.length,
-        lastUpdated: lastUpdated.inventory,
-        loading: loading.inventory,
+      merchants: {
+        count: cache.merchants.length,
+        lastUpdated: lastUpdated.merchants,
+        loading: loading.merchants,
       },
       isDataLoaded,
       totalItems: Object.values(cache).reduce((sum, arr) => sum + arr.length, 0),
     };
   }, [cache, lastUpdated, loading, isDataLoaded]);
-  
+
   const contextValue: AdminDataContextType = {
     // Data from cache
-    products: cache.products,
+    offerings: cache.offerings,
+    products: cache.offerings, // Backward compatibility
     serviceAreas: cache.serviceAreas,
     serviceTypes: cache.serviceTypes,
     categories: cache.categories,
     vendors: cache.vendors,
-    inventory: cache.inventory,
+    merchants: cache.merchants,
     
     // Loading states
     loading,
     
     // Refresh functions
-    refreshProducts,
+    refreshOfferings,
+    refreshProducts, // Backward compatibility
     refreshServiceAreas,
     refreshServiceTypes,
     refreshCategories,
     refreshVendors,
-    refreshInventory,
+    refreshMerchants,
     refreshAll,
     
     // Cache utilities

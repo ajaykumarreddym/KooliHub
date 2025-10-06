@@ -1,0 +1,101 @@
+---
+globs: **/server/**/*.ts,**/shared/**/*.ts
+description: Backend API development and shared type management
+---
+
+# Backend API & Server Development
+
+## Server Architecture
+The Express server is integrated with Vite dev server and configured in [server/index.ts](mdc:server/index.ts).
+
+## API Endpoint Guidelines
+
+### When to Create Server Endpoints
+**ONLY** create server endpoints for:
+- Private key/secret handling (Firebase Admin, payment keys)
+- Complex database operations requiring server-side logic
+- File upload handling
+- Authentication/authorization middleware
+- Third-party API integrations that require secrets
+
+### API Route Structure
+All API endpoints are prefixed with `/api/` and organized in [server/routes/](mdc:server/routes/):
+
+- **[admin.ts](mdc:server/routes/admin.ts)**: Admin dashboard and analytics
+- **[auth.ts](mdc:server/routes/auth.ts)**: Authentication operations
+- **[categories.ts](mdc:server/routes/categories.ts)**: Category CRUD operations
+- **[custom-fields.ts](mdc:server/routes/custom-fields.ts)**: Dynamic field management
+- **[firebase.ts](mdc:server/routes/firebase.ts)**: FCM notifications
+- **[products.ts](mdc:server/routes/products.ts)**: Product management
+- **[vendors.ts](mdc:server/routes/vendors.ts)**: Vendor management
+- **[upload.ts](mdc:server/routes/upload.ts)**: File upload handling
+
+### Adding New API Routes
+
+1. **Create shared interface** in [shared/api.ts](mdc:shared/api.ts):
+```typescript
+export interface MyRouteResponse {
+  message: string;
+  data?: any;
+}
+```
+
+2. **Create route handler** in `server/routes/my-route.ts`:
+```typescript
+import { RequestHandler } from "express";
+import { MyRouteResponse } from "@shared/api";
+
+export const handleMyRoute: RequestHandler = (req, res) => {
+  const response: MyRouteResponse = {
+    message: 'Success'
+  };
+  res.json(response);
+};
+```
+
+3. **Register route** in [server/index.ts](mdc:server/index.ts):
+```typescript
+import { handleMyRoute } from "./routes/my-route";
+app.get("/api/my-endpoint", handleMyRoute);
+```
+
+## Shared Types System
+The [shared/api.ts](mdc:shared/api.ts) file contains comprehensive TypeScript interfaces used by both client and server:
+
+### Core Entity Types
+- `Vendor`, `Product`, `Category`, `Order`, `User`
+- Complete type definitions with relationships
+- Enum types for status fields
+
+### API Response Types
+- `ApiResponse<T>`: Standard API response wrapper
+- `PaginatedResponse<T>`: For paginated results
+- Specific response types for each endpoint
+
+### Database Schema Types
+- Full type coverage for all database entities
+- Proper typing for JSONB fields
+- Relationship definitions with optional joins
+
+## Server Middleware
+- **CORS**: Enabled for cross-origin requests
+- **JSON parsing**: For request body parsing
+- **Static files**: Serves uploads from `/uploads` path
+- **Admin protection**: `requireAdmin` middleware for protected routes
+
+## Error Handling
+- Implement proper HTTP status codes
+- Use consistent error response format
+- Handle async errors with try-catch blocks
+- Log errors appropriately for debugging
+
+## Database Integration
+- Use Supabase client for database operations
+- Implement proper Row Level Security (RLS) policies
+- Use TypeScript types from shared/api.ts for type safety
+- Handle database errors gracefully
+
+## Development Server
+- Single port (8080) for both frontend and backend
+- Hot reload for both client and server code
+- Vite integration for optimal development experience

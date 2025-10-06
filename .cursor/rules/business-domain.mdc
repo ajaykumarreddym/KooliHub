@@ -1,0 +1,250 @@
+---
+description: KooliHub business domain logic and multi-vendor marketplace guidelines
+---
+
+# KooliHub Business Domain Guidelines
+
+## Business Model Overview
+KooliHub is a multi-vendor super app supporting diverse service types with unified management, dynamic pricing, and comprehensive vendor ecosystem.
+
+## Service Types Supported (REDESIGNED ARCHITECTURE)
+**NEW**: Unified offering model supports unlimited service types through `offering_type` enum:
+
+### Core Offering Types
+- **product**: Physical goods (grocery, electronics, fashion, home & kitchen)
+- **service**: Professional services (handyman, beauty, consulting, repair)
+- **ride**: Transportation services (taxi, auto, bike sharing)
+- **delivery**: Courier and delivery services (parcels, documents)
+- **booking**: Reservation-based services (hotels, events, appointments)
+- **rental**: Equipment/vehicle rentals (cars, bikes, tools, equipment)
+- **subscription**: Recurring services (monthly groceries, cleaning, maintenance)
+- **digital**: Digital products and services (software, courses, content)
+
+### Dynamic Service Categories
+- **Hierarchical categories** using ltree for unlimited depth
+- **Cross-service organization** (e.g., "automotive.rental" and "automotive.repair")
+- **Future-expandable** without schema changes
+
+## Multi-Vendor Architecture (REDESIGNED)
+
+### Multi-Tenant & Multi-Vendor Support
+**NEW**: Complete multi-tenant architecture with vendor hierarchy:
+- **Marketplace Tenant**: Main KooliHub platform
+- **Vendor Tenants**: Individual vendor stores
+- **Franchise Tenants**: Franchise operations
+- **White-label Tenants**: Custom branded solutions
+
+### Enhanced Vendor Lifecycle
+1. **Registration**: Vendor or franchise application with tenant assignment
+2. **Approval**: Admin review with automated verification workflows
+3. **Onboarding**: Setup of offerings, merchants/outlets, and service zones
+4. **Multi-Location Operations**: Multiple outlets with location-specific inventory
+5. **Active Operations**: Unified order fulfillment across locations
+6. **Performance Monitoring**: Enhanced analytics with location-based metrics
+
+
+### Vendor Status Management
+- `pending_approval`: Awaiting admin review
+- `active`: Fully operational vendor
+- `inactive`: Temporarily disabled
+- `suspended`: Policy violation or performance issues
+
+### Commission Structure
+- Configurable commission rates per vendor
+- Payment terms (net 7, 15, 30 days)
+- Minimum order amounts per vendor
+- Fee structure for additional services
+
+## Dynamic Attribute Registry System (REDESIGNED)
+
+### Enhanced Field Types
+**NEW**: Expanded attribute support with polymorphic storage:
+- **text/textarea**: Text inputs with validation
+- **number**: Numeric values with min/max/unit constraints
+- **boolean**: True/false toggles
+- **select/multiselect**: Predefined option lists
+- **date/datetime**: Date and time pickers with timezone support
+- **url/email/tel**: Validated input types with format checking
+- **file/image**: File upload with type and size validation
+- **json**: Complex structured data
+- **location**: Geographic coordinates and addresses
+
+### Scope-Based Attributes
+**NEW**: Attributes can be scoped to different levels:
+- **offering**: Attributes on the main offering
+- **variant**: Variant-specific attributes (size, color, model)
+- **category**: Category-wide attributes
+- **vendor**: Vendor-specific attributes
+- **tenant**: Tenant-wide custom fields
+
+### Dynamic Service-Specific Customization
+Each offering type can have unique attribute requirements:
+- **Products**: Brand, model, specifications, warranty, dimensions
+- **Services**: Duration, skill level, equipment included, certifications
+- **Rides**: Vehicle type, capacity, fuel type, features
+- **Rentals**: Hourly/daily rates, availability windows, condition
+- **Bookings**: Time slots, capacity, cancellation policy
+
+### Attribute Templates & Inheritance
+- **Template system**: Pre-defined attribute sets for quick setup
+- **Inheritance**: Child categories inherit parent attributes
+- **Override capability**: Customize inherited attributes per category
+- **Bulk application**: Apply templates across multiple offerings
+
+## Pricing & Inventory Management (REDESIGNED)
+
+### Multi-Location Merchant System
+**NEW**: Enhanced multi-location support:
+- **Merchants/Outlets**: Physical locations for each vendor
+- **Location Types**: Stores, warehouses, distribution centers, pickup points, service centers
+- **Geographic Coverage**: PostGIS-enabled location tracking
+- **Delivery Zones**: Location-specific service areas
+
+### Advanced Pricing Model
+**NEW**: Flexible pricing hierarchy:
+1. **Base Price**: Set at offering level
+2. **Zone-Specific Pricing**: Different prices per service zone
+3. **Merchant-Specific Pricing**: Location-based price overrides
+4. **Dynamic Pricing**: Time-based, demand-based, tier-based pricing
+5. **Promotional Pricing**: Temporary price adjustments
+
+### Enhanced Inventory Management
+**NEW**: Location-aware inventory system:
+- **Multi-Location Tracking**: Separate inventory per merchant/outlet
+- **Real-Time Updates**: Live stock updates across locations
+- **Reserved Quantities**: Hold stock for pending orders
+- **Safety Stock**: Location-specific minimum stock levels
+- **Cross-Location Transfers**: Move inventory between locations
+- **Availability Rules**: Control which products are available where
+
+### Pricing Types Supported
+- **Fixed**: Standard fixed pricing
+- **Dynamic**: Algorithm-based pricing adjustments
+- **Tiered**: Bulk pricing with quantity breaks
+- **Negotiable**: Allow price negotiations for B2B
+- **Subscription**: Recurring pricing models
+
+## Order Management Workflow
+
+### Order States
+1. **draft**: Order being composed
+2. **pending**: Awaiting confirmation
+3. **confirmed**: Vendor acceptance
+4. **processing**: Order preparation
+5. **packed**: Ready for delivery
+6. **shipped**: In transit
+7. **out_for_delivery**: Final delivery stage
+8. **delivered**: Successfully completed
+9. **cancelled**: Order cancellation
+10. **returned**: Return processing
+11. **refunded**: Payment refunded
+
+### Multi-Vendor Orders
+- Single order split across multiple vendors
+- Individual vendor fulfillment tracking
+- Coordinated delivery management
+- Separate commission calculations
+
+### Delivery Management
+- Scheduled delivery slots
+- Express and same-day options
+- Real-time delivery tracking
+- Customer delivery preferences
+
+## Payment Processing
+
+### Payment Methods
+- Credit/Debit cards via Stripe
+- UPI and wallets via Razorpay
+- Cash on delivery (COD)
+- Digital wallets integration
+
+### Payment States
+- `initialized`: Payment created
+- `pending`: Awaiting processing
+- `processing`: In progress
+- `completed`: Successfully processed
+- `failed`: Payment failure
+- `cancelled`: User cancellation
+- `refunded`: Full refund processed
+- `partially_refunded`: Partial refund
+
+### Commission Handling
+- Automatic commission calculation
+- Vendor payout scheduling
+- Tax calculation and reporting
+- Payment reconciliation
+
+## Location & Serviceability
+
+### Geographic Coverage
+- Pincode-based service areas
+- City and state-level organization
+- Coordinate-based location services
+- Distance calculations for delivery
+
+### Spatial Features
+- PostGIS integration for geographic queries
+- Radius-based service area definition
+- Route optimization for delivery
+- Coverage map visualization
+
+## Real-Time Features
+
+### Live Updates
+- Product inventory changes
+- Order status updates
+- Vendor availability changes
+- Delivery tracking updates
+
+### Notifications
+- Firebase Cloud Messaging (FCM)
+- Email notifications via Supabase
+- In-app notifications
+- SMS alerts for critical updates
+
+### Subscription Management
+- Topic-based notifications
+- User preference settings
+- Device token management
+- Notification delivery tracking
+
+## Analytics & Reporting
+
+### Business Metrics
+- Vendor performance analytics
+- Product sales analytics
+- Customer behavior tracking
+- Geographic performance analysis
+
+### Admin Dashboard
+- Real-time KPI monitoring
+- Revenue and commission tracking
+- Order fulfillment metrics
+- Vendor compliance monitoring
+
+### Vendor Analytics
+- Individual vendor dashboards
+- Product performance metrics
+- Customer rating analytics
+- Earnings and commission reports
+
+## Business Rules & Constraints
+
+### Data Integrity
+- Product pricing must be positive
+- Inventory cannot go negative
+- Commission rates between 0-50%
+- Order totals must match item calculations
+
+### Business Logic
+- Vendors can only edit their own products
+- Admins have full system access
+- Customers see only active products
+- Geographic restrictions apply to service areas
+
+### Audit & Compliance
+- Complete audit trail for all transactions
+- Event sourcing for critical business events
+- GDPR compliance for user data
+- Financial reporting capabilities

@@ -143,6 +143,7 @@ import { OrderFulfillment } from "./pages/admin/OrderFulfillment";
 import { Orders } from "./pages/admin/Orders";
 import { Payments } from "./pages/admin/Payments";
 import { POS } from "./pages/admin/POS";
+import { ServiceManagement } from "./pages/admin/ServiceManagement";
 import { UnifiedProductManagement } from "./pages/admin/UnifiedProductManagement";
 import { Users } from "./pages/admin/Users";
 import { Vendors } from "./pages/admin/Vendors";
@@ -199,6 +200,7 @@ const App: React.FC = () => {
                         }
                       >
                         <Route path="dashboard" element={<Dashboard />} />
+                        <Route path="services/*" element={<ServiceManagement />} />
                         <Route path="pos" element={<POS />} />
                         <Route path="vendors" element={<Vendors />} />
                         <Route

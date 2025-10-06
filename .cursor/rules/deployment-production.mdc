@@ -1,0 +1,160 @@
+---
+description: Production deployment guidelines and environment configuration
+---
+
+# Deployment & Production Guidelines
+
+## Build Process
+KooliHub supports multiple deployment strategies with optimized production builds.
+
+## Build Commands
+- `pnpm build` → Complete production build (client + server)
+- `pnpm build:client` → Client-only build using Vite
+- `pnpm build:server` → Server build using Vite server config
+- `pnpm start` → Start production server
+
+## Production Architecture
+
+### Single Port Deployment
+- Production server runs on single port with Express serving both API and static files
+- Built client files served from `/dist/spa/`
+- API endpoints accessible via `/api/*` routes
+- Static uploads served from `/uploads/` path
+
+### Environment Configuration
+Required environment variables:
+```env
+# Supabase Configuration
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Firebase Configuration
+FIREBASE_PROJECT_ID=your_firebase_project_id
+FIREBASE_PRIVATE_KEY=your_firebase_private_key
+FIREBASE_CLIENT_EMAIL=your_firebase_client_email
+
+# Server Configuration
+PORT=8080
+NODE_ENV=production
+PING_MESSAGE=production_ping
+
+# Payment Integration
+STRIPE_SECRET_KEY=your_stripe_secret_key
+RAZORPAY_KEY_ID=your_razorpay_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+```
+
+## Deployment Strategies
+
+### 1. Standard Deployment
+Use the standard build process for traditional hosting:
+```bash
+pnpm build
+pnpm start
+```
+
+### 2. Serverless Deployment (Netlify/Vercel)
+The project includes [netlify.toml](mdc:netlify.toml) and serverless function support:
+- Client deployed as static site
+- API functions deployed as serverless functions
+- See [netlify/functions/api.ts](mdc:netlify/functions/api.ts) for configuration
+
+### 3. Binary Deployment
+Create self-contained executables for different platforms:
+- Linux, macOS, and Windows binaries supported
+- Includes all dependencies and static files
+- Uses pkg configuration in [package.json](mdc:package.json)
+
+## Cloud Deployment Options
+
+### Recommended Providers
+- **Netlify**: Excellent for static site + serverless functions
+- **Vercel**: Great performance with edge functions
+- **Railway**: Simple full-stack deployment
+- **DigitalOcean App Platform**: Container-based deployment
+
+### Database Hosting
+- **Supabase**: Managed PostgreSQL with real-time features
+- **Neon**: Serverless PostgreSQL with branch database support
+- **PlanetScale**: MySQL-compatible with branching
+
+## Production Optimization
+
+### Performance Optimizations
+- Vite build optimization with code splitting
+- Tree shaking for minimal bundle size
+- Asset optimization and compression
+- CDN integration for static assets
+
+### Security Considerations
+- Environment variable protection
+- CORS configuration for production domains
+- Rate limiting for API endpoints
+- File upload restrictions and validation
+- SQL injection prevention with parameterized queries
+
+### Monitoring & Logging
+- Error tracking integration (Sentry recommended)
+- Performance monitoring
+- Database query monitoring
+- API endpoint monitoring
+- User analytics tracking
+
+## Production Checklist
+
+### Pre-Deployment
+- [ ] All environment variables configured
+- [ ] Database migrations applied
+- [ ] SSL certificates configured
+- [ ] Domain DNS configured
+- [ ] CDN setup (if applicable)
+
+### Post-Deployment
+- [ ] Health checks passing
+- [ ] Database connectivity verified
+- [ ] File uploads working
+- [ ] Payment integration tested
+- [ ] Email notifications working
+- [ ] Real-time features functional
+
+### Performance Verification
+- [ ] Page load times under 3 seconds
+- [ ] API response times under 500ms
+- [ ] Database query performance optimized
+- [ ] Mobile performance acceptable
+- [ ] Lighthouse scores above 90
+
+## Scaling Considerations
+
+### Horizontal Scaling
+- Stateless server design supports multiple instances
+- Database connection pooling configured
+- File uploads should use cloud storage (S3, GCS)
+- Session management with Redis (if needed)
+
+### Database Scaling
+- Read replicas for analytics queries
+- Connection pooling for high concurrency
+- Query optimization and indexing
+- Archival strategy for old data
+
+### CDN & Caching
+- Static asset caching via CDN
+- API response caching where appropriate
+- Database query result caching
+- Image optimization and delivery
+
+## Backup & Recovery
+- Automated database backups
+- File upload backup strategy
+- Configuration backup
+- Disaster recovery procedures
+- Data retention policies
+
+## Maintenance
+- Regular dependency updates
+- Security patch management
+- Database maintenance schedules
+- Performance monitoring reviews
+- Error log analysis

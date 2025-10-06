@@ -1,0 +1,47 @@
+---
+alwaysApply: true
+---
+
+# KooliHub Development Guidelines
+
+## General Development Principles
+
+### Package Management
+- **ALWAYS** use `pnpm` for package management (never npm or yarn)
+- Use `pnpm add` for production dependencies
+- Use `pnpm add -D` for development dependencies
+
+### API Endpoint Strategy
+- **MINIMIZE** server endpoints - only create when strictly necessary
+- Use server endpoints for:
+  - Private key handling
+  - Database operations requiring server-side logic
+  - Authentication/authorization logic
+  - File uploads
+- **AVOID** creating endpoints for simple CRUD operations that can be done client-side with Supabase
+
+### TypeScript Configuration
+- TypeScript strict mode is **disabled** for flexibility
+- Path aliases are configured:
+  - `@/*` for client code
+  - `@shared/*` for shared types
+- All files should use TypeScript (.ts/.tsx extensions)
+
+### Code Style & Standards
+- Use functional components with hooks (no class components)
+- Prefer arrow functions for component definitions
+- Use the `cn()` utility for conditional CSS classes
+- Import React hooks from 'react' (not destructured)
+- Use Zod for runtime validation where appropriate
+
+### Error Handling
+- Enhanced ResizeObserver error handling is already implemented in [App.tsx](mdc:client/App.tsx)
+- Implement proper error boundaries for React components
+- Use try-catch blocks for async operations
+- Provide meaningful error messages to users
+
+### Performance Considerations
+- Use React.memo() for expensive components
+- Implement proper loading states
+- Use React Query for server state management
+- Lazy load routes and components where appropriate

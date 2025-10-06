@@ -1,63 +1,108 @@
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useRealtimeProducts } from "@/hooks/use-realtime-products";
 import { authenticatedFetch, vendorApi } from "@/lib/api";
 import type {
-    Category,
-    Product,
-    Vendor
+  Category,
+  Vendor
 } from "@shared/api";
+
+// Local Product type that matches what useRealtimeProducts provides
+type Product = {
+  id: string;
+  name: string;
+  base_price: number;
+  type: 'product' | 'service' | 'ride' | 'delivery' | 'booking' | 'rental' | 'subscription' | 'digital';
+  status: 'draft' | 'pending_approval' | 'active' | 'inactive' | 'out_of_stock' | 'discontinued' | 'scheduled';
+  primary_image_url: string | null;
+  gallery_urls: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  vendor_id: string | null;
+  category_id: string | null;
+  tags: string[];
+  keywords: string[];
+  slug: string | null;
+  description: string | null;
+  custom_attributes: any;
+  metadata: any;
+  categories: {
+    name: string;
+    service_type: string;
+  } | null;
+  category: {
+    name: string;
+    service_type: string;
+  } | null;
+  vendor?: {
+    id: string;
+    name: string;
+  } | null;
+  price: number;
+  image_url?: string | null;
+  stock_quantity: number;
+  brand?: string;
+  sku?: string;
+  variants?: any[];
+  reviews_count: number;
+  rating?: number;
+  discount_price?: number;
+  meta_title?: string;
+  meta_description?: string;
+};
+
 import {
-    DollarSign,
-    Edit,
-    Grid3X3,
-    Package,
-    Plus,
-    Store,
-    Trash2
+  DollarSign,
+  Edit,
+  Grid3X3,
+  Package,
+  Plus,
+  Store,
+  Trash2
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -151,12 +196,7 @@ export function ProductManagement({ className }: ProductManagementProps) {
         method,
         body: JSON.stringify({
           ...formData,
-          tags: Array.isArray(formData.tags)
-            ? formData.tags
-            : formData.tags
-                .toString()
-                .split(",")
-                .map((t) => t.trim()),
+          tags: formData.tags,
         }),
       });
 
@@ -640,6 +680,7 @@ export function ProductManagement({ className }: ProductManagementProps) {
                   <input
                     type="checkbox"
                     id="variant_default"
+                    title="Set this variant as default"
                     checked={variantFormData.is_default}
                     onChange={(e) =>
                       setVariantFormData({

@@ -1,0 +1,61 @@
+---
+globs: *.tsx,*.ts
+description: UI component development guidelines and Radix UI usage
+---
+
+# UI Components & Styling Guidelines
+
+## Component Library Structure
+The project uses a comprehensive UI component library located in [client/components/ui/](mdc:client/components/ui/), built on top of Radix UI primitives.
+
+## Styling System
+- **Primary**: TailwindCSS 3 utility classes
+- **Theme**: Configure in [client/global.css](mdc:client/global.css)
+- **Components**: Pre-built library in [client/components/ui/](mdc:client/components/ui/)
+- **Icons**: Lucide React icons
+
+## CSS Class Utility Function
+Use the `cn()` function for combining classes:
+
+```typescript
+import { cn } from "@/lib/utils";
+
+className={cn(
+  "base-classes",
+  { "conditional-class": condition },
+  props.className  // Allow user overrides
+)}
+```
+
+## Available UI Components
+The project includes pre-built components:
+- Form controls: Button, Input, Select, Checkbox, Switch, etc.
+- Layout: Card, Sheet, Dialog, Tabs, Accordion, etc.
+- Feedback: Toast, Alert, Progress, Skeleton, etc.
+- Navigation: Breadcrumb, Menubar, NavigationMenu, etc.
+- Data display: Table, Badge, Avatar, Tooltip, etc.
+
+## Component Development Rules
+1. **Always extend existing UI components** rather than creating new ones
+2. **Use Radix UI primitives** for accessibility and behavior
+3. **Apply consistent styling** using the design tokens in global.css
+4. **Support className prop** for style overrides
+5. **Include proper TypeScript types** for all props
+6. **Use forwardRef** when ref forwarding is needed
+
+## Theme Customization
+- CSS custom properties are defined in [client/global.css](mdc:client/global.css)
+- Color palette supports light/dark themes
+- Add new colors in both global.css and [tailwind.config.ts](mdc:tailwind.config.ts)
+
+## Responsive Design
+- Use TailwindCSS responsive prefixes (sm:, md:, lg:, xl:, 2xl:)
+- Mobile-first approach (base styles for mobile, then enhance for larger screens)
+- Test components across different screen sizes
+
+## Accessibility Requirements
+- All interactive elements must be keyboard navigable
+- Use semantic HTML elements
+- Include proper ARIA labels and roles
+- Ensure sufficient color contrast
+- Support screen readers with proper labeling

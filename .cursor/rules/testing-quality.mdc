@@ -1,0 +1,161 @@
+---
+globs: **/*.test.ts,**/*.test.tsx,**/*.spec.ts,**/*.spec.tsx
+description: Testing standards and quality assurance guidelines
+---
+
+# Testing & Quality Assurance Guidelines
+
+## Testing Framework
+KooliHub uses **Vitest** as the primary testing framework, configured for optimal TypeScript and React support.
+
+## Testing Commands
+- `pnpm test` → Run all tests
+- `pnpm typecheck` → TypeScript validation
+- `pnpm format.fix` → Code formatting with Prettier
+
+## Testing Strategy
+
+### Unit Testing
+- Test individual components in isolation
+- Test custom hooks independently
+- Test utility functions thoroughly
+- Mock external dependencies appropriately
+
+### Integration Testing
+- Test component interactions
+- Test API endpoint functionality
+- Test database operations
+- Test authentication flows
+
+### End-to-End Testing
+- Test critical user journeys
+- Test admin workflows
+- Test multi-vendor scenarios
+- Test payment and order flows
+
+## Component Testing Guidelines
+
+### React Component Tests
+```typescript
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import MyComponent from './MyComponent';
+
+describe('MyComponent', () => {
+  it('should render correctly', () => {
+    render(<MyComponent />);
+    expect(screen.getByText('Expected Text')).toBeInTheDocument();
+  });
+  
+  it('should handle user interactions', () => {
+    render(<MyComponent />);
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('Updated Text')).toBeInTheDocument();
+  });
+});
+```
+
+### Custom Hook Testing
+```typescript
+import { renderHook, act } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import useMyHook from './useMyHook';
+
+describe('useMyHook', () => {
+  it('should return initial state', () => {
+    const { result } = renderHook(() => useMyHook());
+    expect(result.current.value).toBe(initialValue);
+  });
+});
+```
+
+## API Testing Guidelines
+
+### Server Route Testing
+- Test all API endpoints in [server/routes/](mdc:server/routes/)
+- Mock Supabase client for database operations
+- Test authentication and authorization
+- Validate request/response schemas
+
+### Database Testing
+- Use test database instances
+- Clean up test data after each test
+- Test RLS policies and permissions
+- Validate data integrity constraints
+
+## Testing Utilities
+
+### Test Setup
+- Configure test environment with proper TypeScript support
+- Set up testing utilities for React Query
+- Mock Supabase client and Firebase services
+- Configure test database connections
+
+### Mock Strategies
+- Mock external API calls
+- Mock authentication providers
+- Mock file upload functionality
+- Mock real-time subscriptions
+
+## Code Quality Standards
+
+### TypeScript Quality
+- Enable strict TypeScript checking in tests
+- Use proper type assertions
+- Avoid `any` types in test code
+- Import types from [shared/api.ts](mdc:shared/api.ts)
+
+### Code Coverage
+- Maintain high code coverage for critical paths
+- Focus on business logic coverage
+- Test error handling scenarios
+- Cover edge cases and boundary conditions
+
+### Performance Testing
+- Test component rendering performance
+- Validate memory usage in long-running tests
+- Test database query performance
+- Monitor bundle size impact
+
+## Quality Assurance Checklist
+
+### Pre-Commit Checks
+- [ ] All tests pass
+- [ ] TypeScript compilation succeeds
+- [ ] Code formatting is consistent
+- [ ] No linting errors
+- [ ] Documentation is updated
+
+### Feature Testing
+- [ ] Admin functionality works correctly
+- [ ] Multi-vendor features operate properly
+- [ ] Authentication flows function
+- [ ] Real-time updates work
+- [ ] Mobile responsiveness verified
+
+### Browser Compatibility
+- [ ] Modern browsers (Chrome, Firefox, Safari, Edge)
+- [ ] Mobile browsers (iOS Safari, Android Chrome)
+- [ ] Responsive design across screen sizes
+- [ ] Accessibility compliance
+
+### Performance Criteria
+- [ ] Page load times under 3 seconds
+- [ ] Interactive elements respond quickly
+- [ ] Database queries are optimized
+- [ ] Bundle size is reasonable
+- [ ] Memory usage is acceptable
+
+## Error Handling Testing
+- Test all error boundary scenarios
+- Validate error message display
+- Test network failure scenarios
+- Ensure graceful degradation
+- Test offline functionality where applicable
+
+## Security Testing
+- Validate authentication mechanisms
+- Test authorization controls
+- Verify data sanitization
+- Test API endpoint security
+- Validate file upload restrictions
