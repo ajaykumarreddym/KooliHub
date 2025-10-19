@@ -9,6 +9,14 @@ import {
     getRealtimeStats,
     requireAdmin,
 } from "./routes/admin";
+import {
+    createSubcategory,
+    getAttributeHierarchy,
+    getSubcategories,
+    previewProductForm,
+    reorderAttributes,
+    validateProductAttributes
+} from "./routes/attributes";
 import { confirmEmail, resendConfirmation } from "./routes/auth";
 import {
     createCategory,
@@ -222,6 +230,14 @@ export function createServer() {
   // Custom field values routes (protected)
   app.get("/api/admin/custom-field-values/:productId", requireAdmin, getCustomFieldValues);
   app.post("/api/admin/custom-field-values/:productId", requireAdmin, saveCustomFieldValues);
+
+  // Attribute management endpoints (NEW - Naming Convention System)
+  app.post("/api/attributes/reorder", requireAdmin, reorderAttributes);
+  app.get("/api/attributes/preview", previewProductForm);
+  app.post("/api/attributes/validate", validateProductAttributes);
+  app.get("/api/attributes/hierarchy/:productId", getAttributeHierarchy);
+  app.get("/api/attributes/subcategories", getSubcategories);
+  app.post("/api/attributes/subcategories", requireAdmin, createSubcategory);
 
   return app;
 }

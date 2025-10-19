@@ -34,50 +34,121 @@ interface FormField {
 interface DynamicFormGeneratorProps {
     serviceTypeId?: string | null;
     categoryId?: string | null;
+    subcategoryId?: string | null; // NEW: Support for subcategories
     initialValues?: Record<string, any>;
     onSubmit: (values: Record<string, any>) => Promise<void>;
     onCancel?: () => void;
     submitButtonText?: string;
+    useEnhancedVersion?: boolean; // NEW: Use v2 with inheritance tracking
 }
 
 const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
     serviceTypeId,
     categoryId,
+    subcategoryId,
     initialValues = {},
     onSubmit,
     onCancel,
     submitButtonText = "Save",
+    useEnhancedVersion = false,
 }) => {
     const [fields, setFields] = useState<FormField[]>([]);
     const [formValues, setFormValues] = useState<Record<string, any>>(initialValues);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [vendors, setVendors] = useState<Array<{id: string, name: string}>>([]);
 
-    // Load form fields based on service type and category
-    useEffect(() => {
-        fetchFormFields();
-    }, [serviceTypeId, categoryId]);
+    const fetchVendors = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('vendors')
+                .select('id, name')
+                .is('deleted_at', null)
+                .eq('status', 'active')
+                .order('name');
+            
+            if (error) throw error;
+            setVendors(data || []);
+            console.log('✅ Fetched vendors:', data?.length || 0);
+        } catch (error) {
+            console.error('Error fetching vendors:', error);
+        }
+    }, []);
 
     const fetchFormFields = useCallback(async () => {
+        console.log('🔄 fetchFormFields called, vendors available:', vendors.length);
         try {
             setLoading(true);
             
-            // Call the database function to get merged attributes
-            const { data, error } = await supabase
-                .rpc('get_product_form_attributes', {
+            // Choose function based on useEnhancedVersion flag
+            const functionName = useEnhancedVersion 
+                ? 'get_product_form_attributes_v2' 
+                : 'get_product_form_attributes';
+            
+            const params = useEnhancedVersion
+                ? {
                     p_service_type_id: serviceTypeId,
                     p_category_id: categoryId,
-                });
+                    p_subcategory_id: subcategoryId,
+                  }
+                : {
+                    p_service_type_id: serviceTypeId,
+                    p_category_id: categoryId,
+                  };
+
+            // Call the database function to get merged attributes
+            const { data, error } = await supabase.rpc(functionName, params);
 
             if (error) throw error;
 
+            console.log('🔍 Raw data from database:', data);
+
+            // ✅ FIX: Map database response to match FormField interface
+            const mappedFields = (data || []).map((field: any) => ({
+                ...field,
+                attribute_label: field.label || field.attribute_label || field.attribute_name, // Map label to attribute_label
+            }));
+
             // Group fields by field_group for better organization
-            const sortedFields = (data || []).sort((a: FormField, b: FormField) => 
+            const sortedFields = mappedFields.sort((a: FormField, b: FormField) => 
                 a.display_order - b.display_order
             );
 
-            setFields(sortedFields);
+            // ✅ FIX: Enhance vendor_name field with fetched vendors
+            const enhancedFields = sortedFields.map((field: FormField) => {
+                if (field.attribute_name === 'vendor_name') {
+                    console.log('🔍 Processing vendor_name field:', {
+                        vendorsCount: vendors.length,
+                        fieldInputType: field.input_type,
+                        fieldDataType: field.data_type
+                    });
+                    
+                    if (vendors.length > 0) {
+                        return {
+                            ...field,
+                            input_type: 'select', // Force select type
+                            data_type: 'select',
+                            options: vendors.map(v => ({ value: v.id, label: v.name }))
+                        };
+                    } else {
+                        console.warn('⚠️ No vendors found! Keeping as select but with empty options');
+                        return {
+                            ...field,
+                            input_type: 'select',
+                            data_type: 'select',
+                            options: []
+                        };
+                    }
+                }
+                return field;
+            });
+
+            console.log('📋 Loaded fields:', enhancedFields.length, 'fields');
+            console.log('🔍 Vendor field after enhancement:', 
+                enhancedFields.find(f => f.attribute_name === 'vendor_name')
+            );
+            setFields(enhancedFields);
         } catch (error: any) {
             console.error("Error fetching form fields:", error);
             toast({
@@ -88,7 +159,19 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
         } finally {
             setLoading(false);
         }
-    }, [serviceTypeId, categoryId]);
+    }, [serviceTypeId, categoryId, subcategoryId, useEnhancedVersion, vendors, toast]);
+
+    // Load vendors on mount
+    useEffect(() => {
+        fetchVendors();
+    }, [fetchVendors]);
+
+    // Load form fields when service/category changes OR when vendors are loaded
+    useEffect(() => {
+        if (serviceTypeId || categoryId || subcategoryId) {
+            fetchFormFields();
+        }
+    }, [serviceTypeId, categoryId, subcategoryId, vendors.length, fetchFormFields]);
 
     // Handle form field change
     const handleFieldChange = useCallback((fieldName: string, value: any) => {
@@ -196,17 +279,20 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
         }
     }, [formValues, validateForm, onSubmit]);
 
-    // Render field based on type
+    // Render field based on type with lock indicator
     const renderField = useCallback((field: FormField) => {
+        // ✅ FIX: Only lock truly non-editable system fields, not mandatory ones
+        // Mandatory fields should be editable but required
+        const isReadOnly = field.is_system_field && !field.is_mandatory && field.attribute_name !== 'vendor_name';
         const value = formValues[field.attribute_name] || field.default_value || '';
         const error = errors[field.attribute_name];
-        const isLocked = field.is_system_field && field.is_mandatory;
 
         const commonProps = {
             id: field.attribute_name,
             value,
             onChange: (e: any) => handleFieldChange(field.attribute_name, e.target.value),
-            disabled: submitting || isLocked,
+            disabled: submitting, // ✅ FIX: Only disable when submitting, not for mandatory fields
+            readOnly: isReadOnly, // Use readOnly for display-only fields
             className: error ? "border-red-500" : "",
         };
 
@@ -221,21 +307,56 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
                 );
 
             case 'select':
+                // ✅ FIX: Ensure options are available before rendering select
+                const hasOptions = field.options && Array.isArray(field.options) && field.options.length > 0;
+                
+                // Special handling for vendor_name - show loading state if no vendors yet
+                if (field.attribute_name === 'vendor_name' && !hasOptions) {
+                    return (
+                        <Select
+                            value={value}
+                            onValueChange={(val) => handleFieldChange(field.attribute_name, val)}
+                            disabled={true}
+                        >
+                            <SelectTrigger className={error ? "border-red-500" : ""}>
+                                <SelectValue placeholder="Loading vendors..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="loading" disabled>No vendors available</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    );
+                }
+                
+                if (!hasOptions) {
+                    // Fallback to text input if no options available
+                    console.warn(`Select field "${field.attribute_name}" has no options, rendering as text input`);
+                    return (
+                        <Input
+                            {...commonProps}
+                            type="text"
+                            placeholder={field.placeholder || 'No options available'}
+                        />
+                    );
+                }
+                
+                console.log(`🎯 Rendering select for "${field.attribute_name}" with ${field.options.length} options`);
+                
                 return (
                     <Select
                         value={value}
                         onValueChange={(val) => handleFieldChange(field.attribute_name, val)}
-                        disabled={submitting || isLocked}
+                        disabled={submitting}
                     >
                         <SelectTrigger className={error ? "border-red-500" : ""}>
                             <SelectValue placeholder={field.placeholder || 'Select...'} />
                         </SelectTrigger>
                         <SelectContent>
-                            {field.options && Array.isArray(field.options) && field.options.map((option: any, idx: number) => {
+                            {field.options.map((option: any, idx: number) => {
                                 const optionValue = typeof option === 'string' ? option : (option.value || option);
                                 const optionLabel = typeof option === 'string' ? option : (option.label || option.value || option);
                                 return (
-                                    <SelectItem key={idx} value={optionValue}>
+                                    <SelectItem key={idx} value={String(optionValue)}>
                                         {optionLabel}
                                     </SelectItem>
                                 );
@@ -246,9 +367,22 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
 
             case 'multiselect':
                 // For multiselect, render as checkboxes
+                const hasMultiOptions = field.options && Array.isArray(field.options) && field.options.length > 0;
+                
+                if (!hasMultiOptions) {
+                    console.warn(`Multiselect field "${field.attribute_name}" has no options`);
+                    return (
+                        <Input
+                            {...commonProps}
+                            type="text"
+                            placeholder="No options available"
+                        />
+                    );
+                }
+                
                 return (
                     <div className="space-y-2">
-                        {field.options && Array.isArray(field.options) && field.options.map((option: any, idx: number) => {
+                        {field.options.map((option: any, idx: number) => {
                             const optionValue = typeof option === 'string' ? option : (option.value || option);
                             const optionLabel = typeof option === 'string' ? option : (option.label || option.value || option);
                             const isChecked = Array.isArray(value) && value.includes(optionValue);
@@ -264,7 +398,7 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
                                                 : currentValues.filter((v: any) => v !== optionValue);
                                             handleFieldChange(field.attribute_name, newValues);
                                         }}
-                                        disabled={submitting || isLocked}
+                                        disabled={submitting}
                                     />
                                     <label className="text-sm">{optionLabel}</label>
                                 </div>
@@ -280,7 +414,7 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
                         <Checkbox
                             checked={value === true || value === 'true'}
                             onCheckedChange={(checked) => handleFieldChange(field.attribute_name, checked)}
-                            disabled={submitting || isLocked}
+                            disabled={submitting}
                         />
                         <label className="text-sm">{field.placeholder || 'Enable'}</label>
                     </div>
@@ -288,25 +422,61 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
 
             case 'file':
             case 'image':
+                // ✅ FIX: Allow multiple images for product_images field
+                const allowMultiple = field.attribute_name === 'product_images';
                 return (
                     <div className="space-y-2">
                         <div className="flex items-center space-x-2">
                             <Input
                                 type="file"
                                 accept={field.input_type === 'image' ? 'image/*' : '*'}
+                                multiple={allowMultiple}
                                 onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                        // Handle file upload
-                                        handleFieldChange(field.attribute_name, file);
+                                    const files = e.target.files;
+                                    if (files && files.length > 0) {
+                                        if (allowMultiple) {
+                                            // Store array of files for product_images
+                                            handleFieldChange(field.attribute_name, Array.from(files));
+                                        } else {
+                                            // Store single file for other fields
+                                            handleFieldChange(field.attribute_name, files[0]);
+                                        }
                                     }
                                 }}
-                                disabled={submitting || isLocked}
+                                disabled={submitting}
                                 className={error ? "border-red-500" : ""}
                             />
                             <Upload className="h-4 w-4 text-gray-400" />
                         </div>
-                        {value && typeof value === 'string' && (
+                        {/* Show file count for arrays */}
+                        {Array.isArray(value) && value.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-xs text-muted-foreground">
+                                    {value.length} file(s) selected
+                                </p>
+                                {/* ✅ Image Preview Thumbnails */}
+                                <div className="grid grid-cols-4 gap-2">
+                                    {value.map((file: File, idx: number) => {
+                                        const previewUrl = URL.createObjectURL(file);
+                                        return (
+                                            <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border">
+                                                <img 
+                                                    src={previewUrl} 
+                                                    alt={`Preview ${idx + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                    onLoad={() => URL.revokeObjectURL(previewUrl)}
+                                                />
+                                                <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 text-center">
+                                                    {idx + 1}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        {/* Show current file/URL for single files */}
+                        {!Array.isArray(value) && value && typeof value === 'string' && (
                             <p className="text-xs text-muted-foreground">Current: {value}</p>
                         )}
                     </div>
@@ -398,6 +568,24 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
         return acc;
     }, {} as Record<string, FormField[]>);
 
+    // ✅ FIX: Define group order - Basic first, then Custom
+    const groupOrder: Record<string, number> = {
+        'basic': 1,
+        'mandatory': 1,
+        'general': 2,
+        'product_details': 3,
+        'pricing': 4,
+        'custom': 5,
+        'additional': 6,
+    };
+
+    // Sort groups by priority
+    const sortedGroupEntries = Object.entries(groupedFields).sort(([groupA], [groupB]) => {
+        const orderA = groupOrder[groupA] || 99;
+        const orderB = groupOrder[groupB] || 99;
+        return orderA - orderB;
+    });
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -409,7 +597,7 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            {Object.entries(groupedFields).map(([group, groupFields]) => (
+            {sortedGroupEntries.map(([group, groupFields]) => (
                 <div key={group} className="space-y-4">
                     <div className="flex items-center space-x-2">
                         <h3 className="text-lg font-semibold capitalize">{group.replace(/_/g, ' ')}</h3>
@@ -432,12 +620,15 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
                                         {field.attribute_label}
                                         {field.is_required && <span className="text-red-500 ml-1">*</span>}
                                     </Label>
-                                    {field.is_system_field && field.is_mandatory && (
-                                        <Lock className="h-3 w-3 text-gray-400" />
+                                    {/* ✅ FIX: Only show lock icon for truly non-editable fields */}
+                                    {field.is_system_field && !field.is_mandatory && field.attribute_name !== 'vendor_name' && (
+                                        <span title="Read-only field">
+                                            <Lock className="h-3 w-3 text-gray-400" />
+                                        </span>
                                     )}
-                                    {field.inherited_from !== 'default' && (
-                                        <span className="text-xs text-muted-foreground bg-gray-100 px-2 py-0.5 rounded">
-                                            from {field.inherited_from}
+                                    {field.inherited_from && field.inherited_from !== 'default' && (
+                                        <span className="text-xs text-muted-foreground bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                            inherited from {field.inherited_from}
                                         </span>
                                     )}
                                 </div>

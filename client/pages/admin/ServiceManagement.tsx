@@ -1,5 +1,9 @@
+import AttributeRegistryManager from '@/components/admin/AttributeRegistryManager';
 import { CategoryAttributeManager } from '@/components/admin/CategoryAttributeManager';
+import { ComprehensiveAttributeManagement } from '@/components/admin/ComprehensiveAttributeManagement';
 import ComprehensiveAttributeManager from '@/components/admin/ComprehensiveAttributeManager';
+import EntityManagement from '@/components/admin/EntityManagement';
+import { NamingConventionManager } from '@/components/admin/NamingConventionManager';
 import ServiceAdminLayout from '@/components/admin/ServiceAdminLayout';
 import { ServiceAttributeManager } from '@/components/admin/ServiceAttributeManager';
 import { ServiceTypeCRUD } from '@/components/admin/ServiceTypeCRUD';
@@ -9,19 +13,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import {
-    BarChart3,
-    Car,
-    Hammer,
-    MapPin,
-    Package,
-    ShoppingBag,
-    Smartphone,
-    TrendingUp,
-    Users,
-    Wine
+  BarChart3,
+  Car,
+  Hammer,
+  Layers,
+  MapPin,
+  Package,
+  ShoppingBag,
+  Smartphone,
+  TrendingUp,
+  Users,
+  Wine
 } from 'lucide-react';
 import React from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import ServiceAreaManagement from './ServiceAreaManagement';
 import { ComprehensiveServiceDashboard } from './services/ComprehensiveServiceDashboard';
 import { FashionDashboard } from './services/FashionDashboard';
 import { GroceryDashboard } from './services/GroceryDashboard';
@@ -369,6 +375,71 @@ const ServiceOverview: React.FC = () => {
         </Card>
       </div>
 
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common service management tasks</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => navigate('/admin/services/manage')}
+            >
+              <Package className="h-6 w-6 mb-2" />
+              Manage Service Types
+            </Button>
+            <Button 
+              variant="default" 
+              className="h-20 flex-col bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+              onClick={() => navigate('/admin/services/entity-management')}
+            >
+              <Layers className="h-6 w-6 mb-2" />
+              Entity Management
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => navigate('/admin/services/attribute-registry')}
+            >
+              <Package className="h-6 w-6 mb-2" />
+              Attribute Registry
+            </Button>
+            <Button 
+              variant="default" 
+              className="h-20 flex-col"
+              onClick={() => navigate('/admin/services/comprehensive-attributes')}
+            >
+              <Layers className="h-6 w-6 mb-2" />
+              Attribute Manager
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => navigate('/admin/services/attributes')}
+            >
+              <Package className="h-6 w-6 mb-2" />
+              Sync Attributes (Legacy)
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => navigate('/admin/services/service-areas')}
+            >
+              <MapPin className="h-6 w-6 mb-2" />
+              Service Areas
+            </Button>
+            <Button variant="outline" className="h-20 flex-col">
+              <BarChart3 className="h-6 w-6 mb-2" />
+              Analytics Report
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+
       {/* Service Categories Grid */}
       <Card className="border-0 shadow-none bg-transparent">
         <CardHeader className="px-0">
@@ -487,58 +558,7 @@ const ServiceOverview: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common service management tasks</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button 
-              variant="outline" 
-              className="h-20 flex-col"
-              onClick={() => navigate('/admin/services/manage')}
-            >
-              <Package className="h-6 w-6 mb-2" />
-              Manage Service Types
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-20 flex-col"
-              onClick={() => navigate('/admin/services/attributes')}
-            >
-              <Package className="h-6 w-6 mb-2" />
-              Sync Attributes (Legacy)
-            </Button>
-            <Button 
-              variant="default" 
-              className="h-20 flex-col"
-              onClick={() => navigate('/admin/services/attribute-config')}
-            >
-              <Package className="h-6 w-6 mb-2" />
-              Configure Attributes
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-20 flex-col"
-              onClick={() => navigate('/admin/services/category-attributes')}
-            >
-              <Hammer className="h-6 w-6 mb-2" />
-              Category Attributes
-            </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <MapPin className="h-6 w-6 mb-2" />
-              Service Areas
-            </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <BarChart3 className="h-6 w-6 mb-2" />
-              Analytics Report
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
+      
       {/* Recent Activity */}
       <Card>
         <CardHeader>
@@ -721,9 +741,14 @@ export const ServiceManagement: React.FC = () => {
         <Routes>
           <Route index element={<ServiceOverview />} />
           <Route path="manage" element={<ServiceTypeCRUD />} />
+          <Route path="entity-management" element={<EntityManagement />} />
+          <Route path="attribute-registry" element={<AttributeRegistryManager />} />
           <Route path="attributes" element={<ServiceAttributeManager />} />
+          <Route path="service-areas" element={<ServiceAreaManagement />} />
           <Route path="attribute-config" element={<ComprehensiveAttributeManager />} />
+          <Route path="comprehensive-attributes" element={<ComprehensiveAttributeManagement />} />
           <Route path="category-attributes" element={<CategoryAttributeManager />} />
+          <Route path="naming-convention" element={<NamingConventionManager />} />
           <Route path="fashion/*" element={<FashionDashboard />} />
           <Route path="grocery/*" element={<GroceryDashboard />} />
           <Route path="liquor/*" element={<LiquorDashboard />} />

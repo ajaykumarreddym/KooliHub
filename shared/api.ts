@@ -46,6 +46,52 @@ export type NotificationType =
   | "order_update";
 export type DeviceType = "all" | "desktop" | "mobile" | "tablet";
 
+// Service Area Product Types
+export interface ServiceAreaProduct {
+  id: string;
+  service_area_id: string;
+  offering_id: string;
+  is_available: boolean;
+  stock_quantity: number | null;
+  price_override: number | null;
+  delivery_time_override: number | null;
+  priority_order: number;
+  location_notes: string | null;
+  min_order_quantity: number;
+  max_order_quantity: number | null;
+  is_featured: boolean;
+  available_from: string | null;
+  available_until: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+export interface ServiceAreaCategory {
+  id: string;
+  service_area_id: string;
+  category_id: string;
+  is_available: boolean;
+  display_order: number;
+  auto_include_new_products: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceAreaProductSummary {
+  service_area_id: string;
+  pincode: string;
+  city: string;
+  state: string;
+  total_products: number;
+  available_products: number;
+  featured_products: number;
+  total_categories: number;
+  is_serviceable: boolean;
+  service_types: string[];
+}
+
 // Vendor Types
 export interface Vendor {
   id: string;
@@ -793,6 +839,91 @@ export interface DashboardStats {
   recent_orders: Order[];
   top_products: Product[];
   vendor_performance: any[];
+}
+
+// ============================================
+// ENHANCED ATTRIBUTE SYSTEM TYPES
+// ============================================
+
+// Enhanced form field with inheritance metadata
+export interface EnhancedFormField {
+  attribute_id: string | null;
+  attribute_name: string;
+  attribute_label: string;
+  data_type: string;
+  input_type: string;
+  placeholder: string | null;
+  help_text: string | null;
+  is_required: boolean;
+  is_visible: boolean;
+  is_editable: boolean;
+  is_deletable: boolean;
+  display_order: number;
+  field_group: string;
+  validation_rules: any;
+  options: any;
+  default_value: string | null;
+  is_system_field: boolean;
+  is_mandatory: boolean;
+  inherited_from: 'default' | 'service' | 'category' | 'subcategory';
+  inheritance_level: number; // 0=default, 1=service, 2=category, 3=subcategory
+}
+
+// Subcategory type (extends Category)
+export interface Subcategory extends Category {
+  parent_id: string;
+  parent_name?: string;
+  level: number;
+}
+
+// Attribute configuration with edit/delete permissions
+export interface AttributeConfigExtended {
+  id: string;
+  entity_type: 'service' | 'category' | 'subcategory';
+  entity_id: string;
+  attribute_id: string;
+  is_required: boolean;
+  is_visible: boolean;
+  is_editable: boolean;
+  is_deletable: boolean;
+  display_order: number;
+  field_group: string;
+  override_label?: string;
+  override_placeholder?: string;
+  override_help_text?: string;
+  custom_validation_rules?: Record<string, any>;
+  inherit_from_parent: boolean;
+  created_at: string;
+  updated_at: string;
+  attribute_registry?: AttributeRegistry;
+}
+
+// Preview field structure
+export interface PreviewField {
+  name: string;
+  label: string;
+  type: string;
+  value: any;
+  required: boolean;
+  placeholder: string;
+  help_text: string;
+  locked: boolean;
+  inherited_from: string;
+  show_in_preview: boolean;
+}
+
+// Product validation result
+export interface ProductValidationResult {
+  isValid: boolean;
+  errors: Array<{
+    field: string;
+    message: string;
+    type: 'required' | 'validation' | 'duplicate';
+  }>;
+  warnings: Array<{
+    field: string;
+    message: string;
+  }>;
 }
 
 // Enhanced API Endpoints for New Features

@@ -1,17 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
+  CardTitle
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +14,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -27,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -36,27 +33,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { formatCurrency } from "@/lib/payment-utils";
+import { supabase } from "@/lib/supabase";
 import {
-  MapPin,
-  Plus,
-  Edit,
-  Trash2,
-  Search,
-  Filter,
-  Download,
-  TrendingUp,
-  TrendingDown,
-  Package,
-  IndianRupee,
-  Clock,
-  Truck,
   AlertCircle,
   CheckCircle,
-  Settings,
+  Edit,
+  IndianRupee,
+  Package,
+  Plus,
+  Search,
+  Trash2
 } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
-import { formatCurrency } from "@/lib/payment-utils";
 
 interface Product {
   id: string;
@@ -164,10 +155,16 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
     try {
       setLoading(true);
 
-      // Load products
+      // Load products from offerings table
       const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select("id, name, price, brand, categories(name)")
+        .from("offerings")
+        .select(`
+          id, 
+          name, 
+          base_price,
+          category_id,
+          categories!inner(name)
+        `)
         .eq("is_active", true)
         .order("name");
 
@@ -185,8 +182,11 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
       if (areasError) throw areasError;
 
       setProducts(
-        productsData?.map((p) => ({
-          ...p,
+        productsData?.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          price: Number(p.base_price) || 0,
+          brand: "", // Brand not available in offerings table
           category_name: p.categories?.name || "Uncategorized",
         })) || [],
       );
@@ -204,14 +204,14 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
 
   const loadPricingData = async () => {
     try {
-      let query = supabase.from("product_area_pricing").select(`
+      let query = supabase.from("service_area_products").select(`
           *,
-          products!inner(id, name, price, brand, categories(name)),
+          offerings!inner(id, name, base_price, categories(name)),
           serviceable_areas!inner(id, pincode, city, state, delivery_time_hours, delivery_charge)
         `);
 
       if (selectedProduct && selectedProduct !== "all") {
-        query = query.eq("product_id", selectedProduct);
+        query = query.eq("offering_id", selectedProduct);
       }
 
       if (selectedArea && selectedArea !== "all") {
@@ -226,10 +226,31 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
 
       setPricingData(
         data?.map((item) => ({
-          ...item,
+          id: item.id,
+          product_id: item.offering_id,
+          service_area_id: item.service_area_id,
+          area_price: Number(item.price_override || item.offerings?.base_price || 0),
+          area_original_price: Number(item.offerings?.base_price || 0),
+          area_discount_percentage: 0,
+          stock_quantity: item.stock_quantity || 0,
+          max_order_quantity: item.max_order_quantity || 100,
+          estimated_delivery_hours: item.delivery_time_override || 24,
+          delivery_charge: 0,
+          handling_charge: 0,
+          is_available: item.is_available !== false,
+          is_active: true,
+          priority: item.priority_order || 1,
+          promotional_price: 0,
+          promo_start_date: "",
+          promo_end_date: "",
+          tier_pricing: {},
+          notes: item.location_notes || "",
           product: {
-            ...item.products,
-            category_name: item.products.categories?.name || "Uncategorized",
+            id: item.offerings.id,
+            name: item.offerings.name,
+            price: Number(item.offerings.base_price) || 0,
+            brand: "",
+            category_name: item.offerings.categories?.name || "Uncategorized",
           },
           service_area: item.serviceable_areas,
         })) || [],
@@ -250,16 +271,22 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
       }
 
       const dataToSave = {
-        ...formData,
-        tier_pricing: JSON.stringify(formData.tier_pricing),
-        promo_start_date: formData.promo_start_date || null,
-        promo_end_date: formData.promo_end_date || null,
-        promotional_price: formData.promotional_price || null,
+        offering_id: formData.product_id,
+        service_area_id: formData.service_area_id,
+        price_override: formData.area_price,
+        stock_quantity: formData.stock_quantity,
+        max_order_quantity: formData.max_order_quantity,
+        min_order_quantity: 1,
+        delivery_time_override: formData.estimated_delivery_hours,
+        is_available: formData.is_available,
+        priority_order: formData.priority,
+        location_notes: formData.notes || null,
+        is_featured: false,
       };
 
       if (editingItem) {
         const { error } = await supabase
-          .from("product_area_pricing")
+          .from("service_area_products")
           .update(dataToSave)
           .eq("id", editingItem.id);
 
@@ -267,7 +294,7 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
         toast.success("Pricing updated successfully");
       } else {
         const { error } = await supabase
-          .from("product_area_pricing")
+          .from("service_area_products")
           .insert([dataToSave]);
 
         if (error) throw error;
@@ -325,7 +352,7 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
 
     try {
       const { error } = await supabase
-        .from("product_area_pricing")
+        .from("service_area_products")
         .delete()
         .eq("id", id);
 
@@ -483,10 +510,9 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
                 </DialogHeader>
 
                 <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                    <TabsTrigger value="pricing">Pricing</TabsTrigger>
-                    <TabsTrigger value="logistics">Logistics</TabsTrigger>
+                    <TabsTrigger value="pricing">Pricing & Stock</TabsTrigger>
                     <TabsTrigger value="advanced">Advanced</TabsTrigger>
                   </TabsList>
 
@@ -601,7 +627,7 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
                   </TabsContent>
 
                   <TabsContent value="pricing" className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Area Price (₹)</Label>
                         <Input
@@ -615,146 +641,13 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
                             })
                           }
                           min="0"
+                          placeholder="Custom price for this area"
                         />
+                        <p className="text-xs text-gray-500">
+                          Leave empty to use base product price
+                        </p>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label>Original Price (₹)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={formData.area_original_price}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              area_original_price:
-                                parseFloat(e.target.value) || 0,
-                            })
-                          }
-                          min="0"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Discount (%)</Label>
-                        <Input
-                          type="number"
-                          value={formData.area_discount_percentage}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              area_discount_percentage:
-                                parseInt(e.target.value) || 0,
-                            })
-                          }
-                          min="0"
-                          max="100"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <Label>Promotional Pricing</Label>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label>Promo Price (₹)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.promotional_price}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                promotional_price:
-                                  parseFloat(e.target.value) || 0,
-                              })
-                            }
-                            min="0"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Start Date</Label>
-                          <Input
-                            type="date"
-                            value={formData.promo_start_date}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                promo_start_date: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>End Date</Label>
-                          <Input
-                            type="date"
-                            value={formData.promo_end_date}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                promo_end_date: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <Label>Tier Pricing</Label>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Tier 1 (5+ items): ₹</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.tier_pricing.tier1?.price || 0}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                tier_pricing: {
-                                  ...formData.tier_pricing,
-                                  tier1: {
-                                    ...formData.tier_pricing.tier1,
-                                    price: parseFloat(e.target.value) || 0,
-                                  },
-                                },
-                              })
-                            }
-                            min="0"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Tier 2 (10+ items): ₹</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={formData.tier_pricing.tier2?.price || 0}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                tier_pricing: {
-                                  ...formData.tier_pricing,
-                                  tier2: {
-                                    ...formData.tier_pricing.tier2,
-                                    price: parseFloat(e.target.value) || 0,
-                                  },
-                                },
-                              })
-                            }
-                            min="0"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="logistics" className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Delivery Time (hours)</Label>
                         <Input
@@ -768,19 +661,21 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
                             })
                           }
                           min="0"
+                          placeholder="24"
                         />
                       </div>
+                    </div>
 
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Delivery Charge (₹)</Label>
+                        <Label>Stock Quantity</Label>
                         <Input
                           type="number"
-                          step="0.01"
-                          value={formData.delivery_charge}
+                          value={formData.stock_quantity}
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              delivery_charge: parseFloat(e.target.value) || 0,
+                              stock_quantity: parseInt(e.target.value) || 0,
                             })
                           }
                           min="0"
@@ -788,18 +683,17 @@ export const ProductAreaPricing: React.FC<ProductAreaPricingProps> = ({
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Handling Charge (₹)</Label>
+                        <Label>Max Order Quantity</Label>
                         <Input
                           type="number"
-                          step="0.01"
-                          value={formData.handling_charge}
+                          value={formData.max_order_quantity}
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              handling_charge: parseFloat(e.target.value) || 0,
+                              max_order_quantity: parseInt(e.target.value) || 1,
                             })
                           }
-                          min="0"
+                          min="1"
                         />
                       </div>
                     </div>

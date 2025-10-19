@@ -2,11 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,6 +36,12 @@ interface ComprehensiveProductModalProps {
   mode?: "add" | "edit";
 }
 
+interface Vendor {
+  id: string;
+  name: string;
+  status: string;
+}
+
 export function ComprehensiveProductModal({
   isOpen,
   onClose,
@@ -47,6 +53,7 @@ export function ComprehensiveProductModal({
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedServiceType, setSelectedServiceType] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [currentStep, setCurrentStep] = useState<"service" | "category" | "details">("service");
@@ -82,6 +89,7 @@ export function ComprehensiveProductModal({
       }
       fetchServiceTypes();
       fetchCategories();
+      fetchVendors();
     }
   }, [isOpen, mode, product]);
 
@@ -117,6 +125,23 @@ export function ComprehensiveProductModal({
     }
   };
 
+  const fetchVendors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("vendors")
+        .select("id, name, status")
+        .is("deleted_at", null)
+        .eq("status", "active")
+        .order("name");
+
+      if (error) throw error;
+      setVendors(data || []);
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+      toast.error("Failed to load vendors");
+    }
+  };
+
   const handleServiceTypeSelect = (serviceTypeId: string) => {
     setSelectedServiceType(serviceTypeId);
     setSelectedCategory(""); // Reset category when service type changes
@@ -139,22 +164,67 @@ export function ComprehensiveProductModal({
   const handleSubmit = async (values: Record<string, any>) => {
     setLoading(true);
     try {
-      // Prepare product data
-      const productData = {
+      // ✅ Handle multiple product images upload
+      let imageUrls: string[] = [];
+      let primaryImageUrl: string | null = null;
+
+      if (values.product_images) {
+        const images = Array.isArray(values.product_images) 
+          ? values.product_images 
+          : [values.product_images];
+        
+        // Upload images to Supabase storage
+        for (const file of images) {
+          if (file instanceof File) {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+            const filePath = `product-images/${fileName}`;
+            
+            const { error: uploadError } = await supabase.storage
+              .from('products')
+              .upload(filePath, file);
+            
+            if (uploadError) {
+              console.error('Image upload error:', uploadError);
+            } else {
+              const { data: { publicUrl } } = supabase.storage
+                .from('products')
+                .getPublicUrl(filePath);
+              imageUrls.push(publicUrl);
+            }
+          }
+        }
+        
+        // Set first image as primary
+        if (imageUrls.length > 0) {
+          primaryImageUrl = imageUrls[0];
+        }
+      }
+
+      // Prepare offering data (using offerings table, not products)
+      const offeringData: any = {
         name: values.product_name,
         description: values.product_description,
-        specification: values.product_specification,
-        price: parseFloat(values.price),
-        units: values.units,
-        discount: parseFloat(values.discount || 0),
+        type: 'product', // offering_type enum
         vendor_id: values.vendor_name,
         category_id: selectedCategory,
-        service_type: selectedServiceType,
+        base_price: parseFloat(values.price),
         meta_title: values.meta_title,
-        meta_tags: values.meta_tags,
         meta_description: values.meta_description,
         is_active: true,
+        metadata: {
+          specification: values.product_specification,
+          units: values.units,
+          discount: parseFloat(values.discount || 0),
+          meta_tags: values.meta_tags,
+        },
       };
+
+      // ✅ Add images (multiple support)
+      if (imageUrls.length > 0) {
+        offeringData.primary_image_url = primaryImageUrl;
+        offeringData.gallery_urls = imageUrls; // Array of images
+      }
 
       // Extract custom attributes (non-default fields)
       const customAttributes: Record<string, any> = {};
@@ -170,39 +240,29 @@ export function ComprehensiveProductModal({
         }
       });
 
+      if (Object.keys(customAttributes).length > 0) {
+        offeringData.custom_attributes = customAttributes;
+      }
+
       if (mode === "edit" && product) {
-        // Update existing product
-        const { error: productError } = await supabase
-          .from("products")
-          .update(productData)
+        // Update existing offering
+        const { error: offeringError } = await supabase
+          .from("offerings")
+          .update(offeringData)
           .eq("id", product.id);
 
-        if (productError) throw productError;
-
-        // Update custom attributes using the new attribute system
-        // Store in offering_attributes table or JSON field
-        if (Object.keys(customAttributes).length > 0) {
-          const { error: attrError } = await supabase
-            .from("products")
-            .update({ custom_attributes: customAttributes })
-            .eq("id", product.id);
-
-          if (attrError) console.warn("Custom attributes update warning:", attrError);
-        }
+        if (offeringError) throw offeringError;
 
         toast.success("Product updated successfully!");
       } else {
-        // Create new product
-        const { data: newProduct, error: productError } = await supabase
-          .from("products")
-          .insert({
-            ...productData,
-            custom_attributes: customAttributes,
-          })
+        // Create new offering
+        const { data: newOffering, error: offeringError } = await supabase
+          .from("offerings")
+          .insert(offeringData)
           .select()
           .single();
 
-        if (productError) throw productError;
+        if (offeringError) throw offeringError;
 
         toast.success("Product created successfully!");
       }
@@ -357,6 +417,7 @@ export function ComprehensiveProductModal({
               onSubmit={handleSubmit}
               onCancel={onClose}
               submitButtonText={mode === "edit" ? "Update Product" : "Create Product"}
+              useEnhancedVersion={true}
             />
           </div>
         )}
