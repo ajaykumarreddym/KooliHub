@@ -214,3 +214,14 @@ ALTER TABLE subcategories
 *Database: PostgreSQL (Supabase)*  
 *Pattern: Self-Referencing Hierarchy / Adjacency List Model*
 
+
+
+
+
+
+
+
+
+
+
+

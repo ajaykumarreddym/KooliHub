@@ -1,61 +1,77 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import {
-  Menu,
-  ShoppingCart,
-  User,
-  Search,
-  MapPin,
-  Heart,
-  ChevronDown,
-  Settings,
-} from "lucide-react";
-import { APP_CONFIG } from "@/lib/constants";
-import { cn } from "@/lib/utils";
-import { useCart } from "@/contexts/CartContext";
-import { useAuth } from "@/contexts/AuthContext";
-import { useWishlistContext } from "@/contexts/WishlistContext";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { UserProfile } from "@/components/auth/UserProfile";
 import { LocationPicker } from "@/components/location/LocationPicker";
-import {
-  getLocationFromStorage,
-  type LocationData,
-} from "@/lib/location-utils";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { SearchBox } from "@/components/search/SearchBox";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCart } from "@/contexts/CartContext";
+import { useLocation } from "@/contexts/LocationContext";
+import { useWishlistContext } from "@/contexts/WishlistContext";
+import { useLocationServiceTypes } from "@/hooks/use-location-services";
+import { type LocationData } from "@/lib/location-utils";
+import {
+  Heart,
+  Loader2,
+  Menu,
+  Settings,
+  ShoppingCart,
+  User
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+
+const getServiceIcon = (serviceTypeId: string, iconFromDb?: string | null) => {
+  if (iconFromDb) return iconFromDb;
+  
+  const icons: Record<string, string> = {
+    grocery: "🛒",
+    trips: "🚌",
+    "car-rental": "🚗",
+    handyman: "🔧",
+    electronics: "📱",
+    "home-kitchen": "🏠",
+    beauty: "💄",
+    fashion: "👗",
+    sarees: "🥻",
+    sports: "⚽",
+    default: "🏪"
+  };
+  return icons[serviceTypeId] || icons.default;
+};
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<LocationData | null>(
-    getLocationFromStorage(),
-  );
+  const { currentLocation, setLocation, serviceAreaId } = useLocation();
   const { state } = useCart();
   const { itemCount } = state;
   const { isAuthenticated, loading, isAdminUser, user } = useAuth();
   const { count: wishlistCount } = useWishlistContext();
 
+  // Load dynamic service types based on location
+  const { serviceTypes, loading: servicesLoading } = useLocationServiceTypes(serviceAreaId);
+
   const handleLocationSelect = (location: LocationData) => {
-    setCurrentLocation(location);
+    setLocation(location);
+    // Force re-render by updating state
+    window.dispatchEvent(new Event('locationUpdated'));
   };
 
-  const categories = [
-    { name: "Grocery", href: "/grocery", icon: "🛒" },
-    { name: "Trip Booking", href: "/trips", icon: "🚌" },
-    { name: "Car Rental", href: "/car-rental", icon: "🚗" },
-    { name: "Handyman", href: "/handyman", icon: "🔧" },
-    { name: "Home & Kitchen", href: "/home", icon: "🏠" },
-    { name: "Electronics", href: "/electronics", icon: "📱" },
-    { name: "Fashion", href: "/fashion", icon: "👗" },
-    { name: "Beauty", href: "/beauty", icon: "💄" },
-  ];
+  // Convert service types to navigation categories
+  const categories = useMemo(() => {
+    return serviceTypes.map(service => ({
+      name: service.title,
+      href: `/${service.service_type_id}`,
+      icon: getServiceIcon(service.service_type_id, service.icon),
+      count: service.product_count
+    }));
+  }, [serviceTypes]);
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b shadow-sm">
+    <header className="sticky top-0 z-40 w-full bg-white border-b shadow-sm">
       {/* Top notification bar */}
       <div className="bg-blue-600 text-white overflow-hidden">
         <div className="py-2">
@@ -88,13 +104,13 @@ export function Header() {
               </div>
             </Link>
 
-            <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-              <span>Deliver to</span>
+            <div className="hidden md:flex items-center gap-2 text-sm">
+              <span className="text-gray-600">Deliver to</span>
               <LocationPicker
                 showInDialog={true}
                 onLocationSelect={handleLocationSelect}
                 initialLocation={currentLocation}
-                className="border-0 shadow-none bg-transparent p-0 h-auto"
+                className="border-0 shadow-none bg-transparent p-0 h-auto hover:bg-gray-100 rounded-md transition-colors"
               />
             </div>
           </div>
@@ -234,19 +250,37 @@ export function Header() {
           </div>
         </div>
 
-        {/* Category navigation */}
+        {/* Category navigation - Dynamic based on location */}
         <div className="hidden lg:flex items-center justify-between py-2 border-t border-gray-100">
           <nav className="flex items-center space-x-6">
-            {categories.map((category) => (
-              <Link
-                key={category.href}
-                to={category.href}
-                className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary transition-colors py-2"
-              >
-                <span>{category.icon}</span>
-                <span>{category.name}</span>
-              </Link>
-            ))}
+            {servicesLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Loading services...</span>
+              </div>
+            ) : categories.length > 0 ? (
+              categories.map((category) => (
+                <Link
+                  key={category.href}
+                  to={category.href}
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary transition-colors py-2 relative"
+                >
+                  <span>{category.icon}</span>
+                  <span>{category.name}</span>
+                  {category.count > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1">
+                      {category.count}
+                    </Badge>
+                  )}
+                </Link>
+              ))
+            ) : (
+              <div className="text-sm text-gray-500">
+                {currentLocation 
+                  ? `No services available in ${currentLocation.city}. Please select a different location.`
+                  : "Select your location to see available services"}
+              </div>
+            )}
           </nav>
         </div>
       </div>

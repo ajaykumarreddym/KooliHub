@@ -9,10 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import {
+    AlertCircle,
     ChevronDown,
     ChevronRight,
     Database,
@@ -77,12 +79,535 @@ interface ValidationRule {
     message: string;
 }
 
+// Measurement Units Manager Component
+const MeasurementUnitsManager: React.FC = () => {
+    const [serviceTypes, setServiceTypes] = useState<any[]>([]);
+    const [selectedService, setSelectedService] = useState<string>("");
+    const [measurementAttribute, setMeasurementAttribute] = useState<any>(null);
+    const [serviceUnits, setServiceUnits] = useState<any[]>([]);
+    const [baseUnits, setBaseUnits] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [showAddUnitDialog, setShowAddUnitDialog] = useState(false);
+    const [newUnit, setNewUnit] = useState({ label: "", value: "" });
+    const [isUnitsEnabled, setIsUnitsEnabled] = useState(false);
+    const [serviceConfig, setServiceConfig] = useState<any>(null);
+    const [overrideLabel, setOverrideLabel] = useState("");
+    const [overrideHelpText, setOverrideHelpText] = useState("");
+
+    // Fetch service types and measurement attribute
+    useEffect(() => {
+        fetchServiceTypes();
+        fetchMeasurementAttribute();
+    }, []);
+
+    // Fetch service units when service is selected
+    useEffect(() => {
+        if (selectedService) {
+            fetchServiceUnits();
+        }
+    }, [selectedService]);
+
+    const fetchServiceTypes = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("service_types")
+                .select("*")
+                .eq("is_active", true)
+                .order("title");
+
+            if (error) throw error;
+            setServiceTypes(data || []);
+        } catch (error) {
+            console.error("Error fetching service types:", error);
+            toast({
+                title: "Error",
+                description: "Failed to load service types",
+                variant: "destructive",
+            });
+        }
+    };
+
+    const fetchMeasurementAttribute = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("attribute_registry")
+                .select("*")
+                .eq("name", "measurement_unit")
+                .single();
+
+            if (error) throw error;
+            setMeasurementAttribute(data);
+            setBaseUnits(data?.options || []);
+        } catch (error) {
+            console.error("Error fetching measurement attribute:", error);
+        }
+    };
+
+    const fetchServiceUnits = async () => {
+        if (!selectedService || !measurementAttribute) return;
+
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from("service_attribute_config")
+                .select("*")
+                .eq("service_type_id", selectedService)
+                .eq("attribute_id", measurementAttribute.id)
+                .single();
+
+            if (error && error.code !== "PGRST116") throw error;
+            
+            if (data) {
+                setServiceConfig(data);
+                setIsUnitsEnabled(data.is_visible === true);
+                setServiceUnits(data.custom_validation_rules?.options || []);
+                setOverrideLabel(data.override_label || "");
+                setOverrideHelpText(data.override_help_text || "");
+            } else {
+                setServiceConfig(null);
+                setIsUnitsEnabled(false);
+                setServiceUnits([]);
+                setOverrideLabel("");
+                setOverrideHelpText("");
+            }
+        } catch (error) {
+            console.error("Error fetching service units:", error);
+            toast({
+                title: "Error",
+                description: "Failed to load service units",
+                variant: "destructive",
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddUnit = () => {
+        if (!newUnit.label || !newUnit.value) {
+            toast({
+                title: "Validation Error",
+                description: "Please provide both label and value",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        const updatedUnits = [...serviceUnits, { label: newUnit.label, value: newUnit.value }];
+        setServiceUnits(updatedUnits);
+        setNewUnit({ label: "", value: "" });
+        setShowAddUnitDialog(false);
+        
+        toast({
+            title: "Unit Added",
+            description: `${newUnit.label} has been added. Don't forget to save changes!`,
+        });
+    };
+
+    const handleUpdateUnit = (index: number, field: 'label' | 'value', value: string) => {
+        const updatedUnits = [...serviceUnits];
+        updatedUnits[index] = { ...updatedUnits[index], [field]: value };
+        setServiceUnits(updatedUnits);
+    };
+
+    const handleDeleteUnit = (index: number) => {
+        const updatedUnits = serviceUnits.filter((_, i) => i !== index);
+        setServiceUnits(updatedUnits);
+        
+        toast({
+            title: "Unit Removed",
+            description: "Unit has been removed. Don't forget to save changes!",
+        });
+    };
+
+    const handleToggleUnits = async (enabled: boolean) => {
+        if (!selectedService || !measurementAttribute) return;
+
+        setSaving(true);
+        try {
+            if (serviceConfig) {
+                // Update existing
+                const { error } = await supabase
+                    .from("service_attribute_config")
+                    .update({
+                        is_visible: enabled,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", serviceConfig.id);
+
+                if (error) throw error;
+            } else {
+                // Create new
+                const { error } = await supabase
+                    .from("service_attribute_config")
+                    .insert({
+                        service_type_id: selectedService,
+                        attribute_id: measurementAttribute.id,
+                        is_required: true,
+                        is_visible: enabled,
+                        display_order: 5,
+                        field_group: "product_details",
+                        custom_validation_rules: { options: [] },
+                    });
+
+                if (error) throw error;
+            }
+
+            setIsUnitsEnabled(enabled);
+            toast({
+                title: "Success",
+                description: `Measurement units ${enabled ? 'enabled' : 'disabled'} for this service`,
+            });
+
+            await fetchServiceUnits();
+        } catch (error) {
+            console.error("Error toggling units:", error);
+            toast({
+                title: "Error",
+                description: "Failed to update measurement units status",
+                variant: "destructive",
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveUnits = async () => {
+        if (!selectedService || !measurementAttribute) return;
+
+        setSaving(true);
+        try {
+            const customValidationRules = {
+                options: serviceUnits
+            };
+
+            if (serviceConfig) {
+                const { error } = await supabase
+                    .from("service_attribute_config")
+                    .update({
+                        custom_validation_rules: customValidationRules,
+                        override_label: overrideLabel || null,
+                        override_help_text: overrideHelpText || null,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", serviceConfig.id);
+
+                if (error) throw error;
+            } else {
+                const { error } = await supabase
+                    .from("service_attribute_config")
+                    .insert({
+                        service_type_id: selectedService,
+                        attribute_id: measurementAttribute.id,
+                        is_required: true,
+                        is_visible: isUnitsEnabled,
+                        display_order: 5,
+                        field_group: "product_details",
+                        override_label: overrideLabel || null,
+                        override_help_text: overrideHelpText || null,
+                        custom_validation_rules: customValidationRules,
+                    });
+
+                if (error) throw error;
+            }
+
+            toast({
+                title: "Success",
+                description: "Measurement units configuration saved successfully!",
+            });
+
+            await fetchServiceUnits();
+        } catch (error) {
+            console.error("Error saving units:", error);
+            toast({
+                title: "Error",
+                description: "Failed to save measurement units",
+                variant: "destructive",
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card className="bg-blue-50 border-blue-200">
+                <CardContent className="pt-6">
+                    <div className="flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-medium text-blue-900">
+                                About Measurement Units
+                            </p>
+                            <p className="text-xs text-blue-700 mt-1">
+                                The measurement unit field can be enabled/disabled per service. When enabled, you can customize the label and available units for each service type.
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Base Units Section */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-lg">Base Units (Default Fallback)</CardTitle>
+                    <CardDescription>
+                        These units from attribute_registry serve as defaults when no service-specific units are configured
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="border rounded-lg p-4 bg-muted/30">
+                        <div className="flex flex-wrap gap-2">
+                            {baseUnits.map((unit, index) => (
+                                <Badge key={index} variant="secondary" className="text-sm py-1 px-3">
+                                    {unit.label} ({unit.value})
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        💡 To modify base units, edit the measurement_unit attribute in the registry (All Attributes tab)
+                    </p>
+                </CardContent>
+            </Card>
+
+            {/* Service-Specific Units Section */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-lg">Service-Specific Configuration</CardTitle>
+                    <CardDescription>
+                        Enable/disable and customize measurement units for each service type
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div>
+                        <Label>Select Service Type</Label>
+                        <Select value={selectedService} onValueChange={setSelectedService}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Choose a service to manage units" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {serviceTypes.map((service) => (
+                                    <SelectItem key={service.id} value={service.id}>
+                                        {service.title}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {selectedService && (
+                        <>
+                            {loading ? (
+                                <div className="text-center py-8">
+                                    <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                                    <p className="text-sm text-muted-foreground mt-2">Loading units...</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* Enable/Disable Toggle */}
+                                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                                        <div className="space-y-1">
+                                            <Label className="text-base font-medium">
+                                                Enable Measurement Units for this Service
+                                            </Label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Turn on to display the measurement unit field in product creation for this service
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            checked={isUnitsEnabled}
+                                            onCheckedChange={handleToggleUnits}
+                                            disabled={saving}
+                                        />
+                                    </div>
+
+                                    {/* Configuration (only show when enabled) */}
+                                    {isUnitsEnabled && (
+                                        <>
+                                            {/* Custom Label & Help Text */}
+                                            <div className="space-y-4 p-4 border rounded-lg">
+                                                <h4 className="font-medium text-sm">Field Display Settings</h4>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <Label htmlFor="override-label">Custom Label (Optional)</Label>
+                                                        <Input
+                                                            id="override-label"
+                                                            value={overrideLabel}
+                                                            onChange={(e) => setOverrideLabel(e.target.value)}
+                                                            placeholder="e.g., Rental Period, Service Unit, Package Size"
+                                                        />
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            Leave empty to use default "Measurement Unit"
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <Label htmlFor="override-help">Help Text (Optional)</Label>
+                                                        <Input
+                                                            id="override-help"
+                                                            value={overrideHelpText}
+                                                            onChange={(e) => setOverrideHelpText(e.target.value)}
+                                                            placeholder="e.g., Select rental duration, Choose service unit"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Units Management */}
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="font-medium">
+                                                        Available Units for {serviceTypes.find(s => s.id === selectedService)?.title}
+                                                    </h4>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setNewUnit({ label: "", value: "" });
+                                                                setShowAddUnitDialog(true);
+                                                            }}
+                                                        >
+                                                            <Plus className="h-4 w-4 mr-2" />
+                                                            Add Unit
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={handleSaveUnits}
+                                                            disabled={saving}
+                                                        >
+                                                            {saving && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                                                            <Save className="h-4 w-4 mr-2" />
+                                                            Save Configuration
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                    {serviceUnits.length === 0 ? (
+                                        <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                                            <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                                            <p className="text-sm text-muted-foreground">
+                                                No custom units configured for this service.
+                                                <br />
+                                                Add units or service will use base defaults.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="border rounded-lg overflow-hidden">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="w-12">#</TableHead>
+                                                        <TableHead>Label</TableHead>
+                                                        <TableHead>Value</TableHead>
+                                                        <TableHead className="w-24">Actions</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {serviceUnits.map((unit, index) => (
+                                                        <TableRow key={index}>
+                                                            <TableCell className="font-mono text-xs">
+                                                                {index + 1}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Input
+                                                                    value={unit.label}
+                                                                    onChange={(e) => handleUpdateUnit(index, 'label', e.target.value)}
+                                                                    className="max-w-xs"
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Input
+                                                                    value={unit.value}
+                                                                    onChange={(e) => handleUpdateUnit(index, 'value', e.target.value)}
+                                                                    className="max-w-xs font-mono text-sm"
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => handleDeleteUnit(index)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                        </>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Add Unit Dialog */}
+            <Dialog open={showAddUnitDialog} onOpenChange={setShowAddUnitDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Add Measurement Unit</DialogTitle>
+                        <DialogDescription>
+                            Add a new unit for {serviceTypes.find(s => s.id === selectedService)?.title || "this service"}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div>
+                            <Label htmlFor="unit-label">Unit Label</Label>
+                            <Input
+                                id="unit-label"
+                                placeholder="e.g., Kilogram (kg)"
+                                value={newUnit.label}
+                                onChange={(e) => setNewUnit({ ...newUnit, label: e.target.value })}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Display name shown to users
+                            </p>
+                        </div>
+
+                        <div>
+                            <Label htmlFor="unit-value">Unit Value</Label>
+                            <Input
+                                id="unit-value"
+                                placeholder="e.g., kg"
+                                value={newUnit.value}
+                                onChange={(e) => setNewUnit({ ...newUnit, value: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                                className="font-mono"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Internal value (lowercase, no spaces)
+                            </p>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowAddUnitDialog(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleAddUnit}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Unit
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+};
+
 const AttributeRegistryManager: React.FC = () => {
     // State
     const [attributes, setAttributes] = useState<AttributeRegistry[]>([]);
     const [filteredAttributes, setFilteredAttributes] = useState<AttributeRegistry[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [activeTab, setActiveTab] = useState("registry");
 
     // Search & Filter
     const [searchTerm, setSearchTerm] = useState("");
@@ -532,36 +1057,51 @@ const AttributeRegistryManager: React.FC = () => {
                 </div>
             </div>
 
-            {/* Statistics Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-                        <p className="text-xs text-muted-foreground">Total Attributes</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-                        <p className="text-xs text-muted-foreground">Active Attributes</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-gray-600">{stats.inactive}</div>
-                        <p className="text-xs text-muted-foreground">Inactive Attributes</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-purple-600">{Object.keys(stats.byGroup).length}</div>
-                        <p className="text-xs text-muted-foreground">Attribute Groups</p>
-                    </CardContent>
-                </Card>
-            </div>
+            {/* Tabs */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="registry">
+                        <Database className="h-4 w-4 mr-2" />
+                        All Attributes
+                    </TabsTrigger>
+                    <TabsTrigger value="units">
+                        <Filter className="h-4 w-4 mr-2" />
+                        Measurement Units
+                    </TabsTrigger>
+                </TabsList>
 
-            {/* Filters */}
-            <Card>
+                {/* All Attributes Tab */}
+                <TabsContent value="registry" className="space-y-6">
+                    {/* Statistics Cards */}
+                    <div className="grid gap-4 md:grid-cols-4">
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+                                <p className="text-xs text-muted-foreground">Total Attributes</p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+                                <p className="text-xs text-muted-foreground">Active Attributes</p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="text-2xl font-bold text-gray-600">{stats.inactive}</div>
+                                <p className="text-xs text-muted-foreground">Inactive Attributes</p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="text-2xl font-bold text-purple-600">{Object.keys(stats.byGroup).length}</div>
+                                <p className="text-xs text-muted-foreground">Attribute Groups</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Filters */}
+                    <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Filter className="h-5 w-5" />
@@ -1692,6 +2232,13 @@ const AttributeRegistryManager: React.FC = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+                </TabsContent>
+
+                {/* Measurement Units Tab */}
+                <TabsContent value="units">
+                    <MeasurementUnitsManager />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 };

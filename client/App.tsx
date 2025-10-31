@@ -104,6 +104,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminDataProvider } from "@/contexts/AdminDataContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { LocationProvider } from "@/contexts/LocationContext";
 import { WishlistProvider } from "@/contexts/WishlistContext";
 import { CustomFieldsTest } from "@/pages/admin/CustomFieldsTest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -112,6 +113,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 // Consumer Pages
+import { LocationGuard } from "@/components/guards/LocationGuard";
 import { AuthCallback } from "./pages/AuthCallback";
 import Beauty from "./pages/Beauty";
 import CarRental from "./pages/CarRental";
@@ -121,7 +123,9 @@ import Grocery from "./pages/Grocery";
 import Handyman from "./pages/Handyman";
 import HomeKitchen from "./pages/HomeKitchen";
 import Index from "./pages/Index";
+import LocationSelection from "./pages/LocationSelection";
 import NotFound from "./pages/NotFound";
+import ProductDetail from "./pages/ProductDetail";
 import Profile from "./pages/Profile";
 import Trips from "./pages/Trips";
 import UserTest from "./pages/UserTest";
@@ -164,23 +168,30 @@ const App: React.FC = () => {
         <AuthProvider>
           <AdminDataProvider>
             <FirebaseProvider>
-              <WishlistProvider>
-                <CartProvider>
-                  <TooltipProvider>
-                  <Toaster />
-                  <Sonner />
-                  <BrowserRouter>
+              <LocationProvider>
+                <WishlistProvider>
+                  <CartProvider>
+                    <TooltipProvider>
+                    <Toaster />
+                    <Sonner />
+                    <BrowserRouter>
                     <Routes>
-                      {/* Consumer App Routes */}
-                      <Route path="/" element={<Index />} />
-                      <Route path="/grocery" element={<Grocery />} />
-                      <Route path="/trips" element={<Trips />} />
-                      <Route path="/car-rental" element={<CarRental />} />
-                      <Route path="/handyman" element={<Handyman />} />
-                      <Route path="/home" element={<HomeKitchen />} />
-                      <Route path="/electronics" element={<Electronics />} />
-                      <Route path="/fashion" element={<Fashion />} />
-                      <Route path="/beauty" element={<Beauty />} />
+                      {/* Location Selection - Must be first before any protected routes */}
+                      <Route path="/location-selection" element={<LocationSelection />} />
+
+          {/* Consumer App Routes - Index handles its own location modal */}
+          <Route path="/" element={<Index />} />
+          <Route path="/grocery" element={<LocationGuard><Grocery /></LocationGuard>} />
+          <Route path="/trips" element={<LocationGuard><Trips /></LocationGuard>} />
+          <Route path="/car-rental" element={<LocationGuard><CarRental /></LocationGuard>} />
+          <Route path="/handyman" element={<LocationGuard><Handyman /></LocationGuard>} />
+          <Route path="/home" element={<LocationGuard><HomeKitchen /></LocationGuard>} />
+          <Route path="/electronics" element={<LocationGuard><Electronics /></LocationGuard>} />
+          <Route path="/fashion" element={<LocationGuard><Fashion /></LocationGuard>} />
+          <Route path="/beauty" element={<LocationGuard><Beauty /></LocationGuard>} />
+          
+          {/* Product Detail Page */}
+          <Route path="/product/:id" element={<LocationGuard><ProductDetail /></LocationGuard>} />
 
                       {/* User Profile Routes */}
                       <Route path="/profile" element={<Profile />} />
@@ -278,11 +289,12 @@ const App: React.FC = () => {
                       {/* 404 Route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>
-                  </BrowserRouter>
-                </TooltipProvider>
-              </CartProvider>
-            </WishlistProvider>
-          </FirebaseProvider>
+                    </BrowserRouter>
+                    </TooltipProvider>
+                  </CartProvider>
+                </WishlistProvider>
+              </LocationProvider>
+            </FirebaseProvider>
           </AdminDataProvider>
         </AuthProvider>
       </QueryClientProvider>

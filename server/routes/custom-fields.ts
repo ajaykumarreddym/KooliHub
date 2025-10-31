@@ -6,25 +6,207 @@ export const getCustomFields: RequestHandler = async (req, res) => {
   try {
     const { serviceTypeId } = req.params;
 
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 [CUSTOM FIELDS API] Request received');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📥 Service Type ID:', serviceTypeId);
+
     if (!serviceTypeId) {
+      console.error('❌ [VALIDATION ERROR] Service type ID is missing');
       return res.status(400).json({ error: "Service type ID is required" });
     }
 
-    const { data, error } = await supabase
-      .from("service_field_definitions")
-      .select("*")
-      .eq("service_type_id", serviceTypeId)
-      .order("sort_order", { ascending: true });
+    // Step 1: Verify service type exists in service_types table
+    console.log('\n📋 [STEP 1] Verifying service type exists...');
+    const { data: serviceTypeData, error: serviceTypeError } = await supabase
+      .from("service_types")
+      .select("id, title, is_active")
+      .eq("id", serviceTypeId)
+      .single();
 
-    if (error) {
-      console.error("Error fetching custom fields:", error);
-      return res.status(500).json({ error: "Failed to fetch custom fields" });
+    if (serviceTypeError) {
+      console.error('❌ [SERVICE TYPE ERROR]', serviceTypeError);
+      console.log('⚠️  Service type not found in service_types table');
+      console.log('💡 Available service types should be checked in service_types table');
+      return res.status(404).json({ 
+        error: "Service type not found",
+        details: serviceTypeError.message,
+        serviceTypeId: serviceTypeId
+      });
     }
 
-    res.json(data || []);
+    console.log('✅ [SERVICE TYPE] Found:', {
+      id: serviceTypeData.id,
+      title: serviceTypeData.title,
+      is_active: serviceTypeData.is_active
+    });
+
+    // Step 2: Fetch service-specific attribute configuration
+    console.log('\n📋 [STEP 2] Fetching service attribute configuration...');
+    const { data, error } = await supabase
+      .from("service_attribute_config")
+      .select(`
+        *,
+        attribute_registry (
+          id,
+          name,
+          label,
+          data_type,
+          input_type,
+          placeholder,
+          help_text,
+          validation_rules,
+          options,
+          default_value
+        )
+      `)
+      .eq("service_type_id", serviceTypeId)
+      .eq("is_visible", true)
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      console.error('❌ [DATABASE ERROR] Failed to fetch service_attribute_config:', error);
+      return res.status(500).json({ 
+        error: "Failed to fetch custom fields",
+        details: error.message
+      });
+    }
+
+    console.log(`✅ [QUERY SUCCESS] Retrieved ${data?.length || 0} attribute configurations`);
+    
+    if (!data || data.length === 0) {
+      console.warn('⚠️  [NO CONFIGURATIONS] No service_attribute_config entries found for:', serviceTypeId);
+      console.log('💡 This service type may not have custom fields configured yet');
+      console.log('💡 Returning empty array - form will use base fields only');
+      return res.json([]);
+    }
+
+    // Step 3: Process and log each attribute
+    console.log('\n📋 [STEP 3] Processing attributes...');
+    data.forEach((config: any, index: number) => {
+      const attrName = config.attribute_registry?.name || 'unknown';
+      console.log(`\n  [${index + 1}/${data.length}] Processing: ${attrName}`);
+      console.log(`    ├─ Has custom validation: ${!!config.custom_validation_rules}`);
+      console.log(`    ├─ Has custom options: ${!!config.custom_validation_rules?.options}`);
+      console.log(`    └─ Is visible: ${config.is_visible}`);
+    });
+    
+    // Step 4: Special handling for measurement_unit
+    console.log('\n📋 [STEP 4] Special check for measurement_unit...');
+    const measurementConfig = data?.find((d: any) => d.attribute_registry?.name === 'measurement_unit');
+    
+    if (measurementConfig) {
+      console.log('✅ [MEASUREMENT_UNIT FOUND]');
+      console.log('  📊 Configuration details:');
+      console.log('    ├─ Service Type ID:', measurementConfig.service_type_id);
+      console.log('    ├─ Has custom validation rules:', !!measurementConfig.custom_validation_rules);
+      console.log('    ├─ Has custom options:', !!measurementConfig.custom_validation_rules?.options);
+      console.log('    ├─ Custom options count:', measurementConfig.custom_validation_rules?.options?.length || 0);
+      console.log('    ├─ Base options count:', measurementConfig.attribute_registry?.options?.length || 0);
+      
+      if (measurementConfig.custom_validation_rules?.options) {
+        console.log('  📋 Custom options preview:');
+        measurementConfig.custom_validation_rules.options.slice(0, 3).forEach((opt: any) => {
+          console.log(`    ├─ ${opt.label} (${opt.value})`);
+        });
+        if (measurementConfig.custom_validation_rules.options.length > 3) {
+          console.log(`    └─ ... and ${measurementConfig.custom_validation_rules.options.length - 3} more`);
+        }
+      } else {
+        console.warn('  ⚠️  No custom options found, will use base options');
+      }
+    } else {
+      console.warn('⚠️  [MEASUREMENT_UNIT NOT FOUND] in service_attribute_config');
+      console.log('💡 This service type may not have measurement_unit configured');
+    }
+
+    // Step 5: Transform data for frontend
+    console.log('\n📋 [STEP 5] Transforming data for frontend...');
+    
+    const formattedFields = (data || []).map((config: any, index: number) => {
+      const attr = config.attribute_registry;
+      const fieldName = attr?.name || 'unknown';
+      
+      console.log(`\n  [${index + 1}/${data.length}] Transforming: ${fieldName}`);
+      
+      // CRITICAL: Extract custom options from custom_validation_rules first
+      let fieldOptions;
+      let optionsSource = 'none';
+      
+      if (config.custom_validation_rules && config.custom_validation_rules.options) {
+        fieldOptions = config.custom_validation_rules.options;
+        optionsSource = 'service-specific';
+        console.log(`    ✅ Using service-specific options: ${fieldOptions.length} items`);
+      } else if (attr?.options) {
+        fieldOptions = attr.options;
+        optionsSource = 'base';
+        console.log(`    ⚠️  Falling back to base options: ${fieldOptions.length} items`);
+      } else {
+        fieldOptions = undefined;
+        optionsSource = 'none';
+        console.log(`    ❌ No options found`);
+      }
+
+      // Special logging for measurement_unit
+      if (fieldName === 'measurement_unit') {
+        console.log('\n  🎯 [MEASUREMENT_UNIT TRANSFORMATION]');
+        console.log('    ├─ Options source:', optionsSource);
+        console.log('    ├─ Options count:', fieldOptions?.length || 0);
+        
+        if (fieldOptions && fieldOptions.length > 0) {
+          console.log('    ├─ First 3 options:');
+          fieldOptions.slice(0, 3).forEach((opt: any) => {
+            console.log(`    │  ├─ ${opt.label} = ${opt.value}`);
+          });
+        } else {
+          console.error('    ❌ CRITICAL: measurement_unit has NO OPTIONS!');
+          console.error('    💡 Check service_attribute_config.custom_validation_rules');
+          console.error('    💡 Service Type ID:', serviceTypeId);
+        }
+      }
+      
+      const formattedField = {
+        id: config.id,
+        service_type_id: config.service_type_id,
+        field_name: fieldName,
+        field_label: config.override_label || attr?.label || '',
+        field_type: attr?.data_type || 'text',
+        input_type: attr?.input_type || 'text',
+        field_group: config.field_group || 'basic',
+        validation_rules: config.custom_validation_rules || attr?.validation_rules || {},
+        field_options: fieldOptions,
+        default_value: attr?.default_value,
+        is_required: config.is_required || false,
+        is_searchable: true,
+        is_filterable: true,
+        is_translatable: false,
+        sort_order: config.display_order || 0,
+        help_text: config.override_help_text || attr?.help_text || config.override_placeholder || attr?.placeholder,
+      };
+      
+      console.log(`    └─ Transformed successfully`);
+      return formattedField;
+    });
+
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ [SUCCESS] Returning', formattedFields.length, 'formatted fields');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+    res.json(formattedFields);
   } catch (error) {
-    console.error("Error in getCustomFields:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('❌ [FATAL ERROR] in getCustomFields');
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('Error details:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    res.status(500).json({ 
+      error: "Internal server error",
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
@@ -390,7 +572,7 @@ export const applyFieldTemplate: RequestHandler = async (req, res) => {
     const { data, error } = await supabase
       .from("service_field_definitions")
       .insert([{
-        service_type_id,
+        service_type_id: serviceTypeId,
         ...template,
       }])
       .select()

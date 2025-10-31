@@ -68,8 +68,19 @@ interface Category {
     id: string;
     name: string;
     service_type: string;
-    parent_id: string | null;
     is_active: boolean;
+}
+
+interface Subcategory {
+    id: string;
+    name: string;
+    service_type_id: string;
+    category_id: string;
+    icon?: string | null;
+    color?: string | null;
+    image_url?: string | null;
+    is_active: boolean;
+    sort_order: number;
 }
 
 interface PreviewField {
@@ -80,18 +91,20 @@ interface PreviewField {
     placeholder: string;
     help_text: string;
     locked: boolean;
+    visible?: boolean;
 }
 
 const ComprehensiveAttributeManager: React.FC = () => {
     // State
     const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
-    const [subcategories, setSubcategories] = useState<Category[]>([]);
+    const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
     const [selectedService, setSelectedService] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
     const [availableAttributes, setAvailableAttributes] = useState<AttributeRegistry[]>([]);
     const [configuredAttributes, setConfiguredAttributes] = useState<ServiceAttributeConfig[]>([]);
+    const [defaultMandatoryFields, setDefaultMandatoryFields] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     
@@ -112,13 +125,27 @@ const ComprehensiveAttributeManager: React.FC = () => {
     useEffect(() => {
         fetchServiceTypes();
         fetchAvailableAttributes();
+        fetchDefaultMandatoryFields();
     }, []);
 
     // Load categories when service changes
     useEffect(() => {
+        console.log('🔄 [Attribute Manager] Service changed:', selectedService);
+        
         if (selectedService) {
+            console.log('📥 [Attribute Manager] Loading categories for service:', selectedService);
             fetchCategories(selectedService);
-            fetchConfiguredAttributes(selectedService);
+            fetchConfiguredAttributes(selectedService, null, null);
+            
+            // Reset category and subcategory when service changes
+            setSelectedCategory(null);
+            setSelectedSubcategory(null);
+            setCategories([]);
+            setSubcategories([]);
+        } else {
+            console.log('🚫 [Attribute Manager] No service selected, clearing all');
+            setCategories([]);
+            setSubcategories([]);
             setSelectedCategory(null);
             setSelectedSubcategory(null);
         }
@@ -126,15 +153,39 @@ const ComprehensiveAttributeManager: React.FC = () => {
 
     // Load subcategories when category changes
     useEffect(() => {
-        if (selectedCategory) {
+        console.log('🔄 [Attribute Manager] Category changed:', {
+            selectedCategory,
+            selectedService,
+            willFetch: !!(selectedCategory && selectedService)
+        });
+        
+        if (selectedCategory && selectedService) {
+            console.log('📥 [Attribute Manager] Loading subcategories for category:', selectedCategory);
             fetchSubcategories(selectedCategory);
+            // Reset subcategory selection when category changes
             setSelectedSubcategory(null);
         } else {
-            // Clear subcategories if no category selected
+            console.log('🚫 [Attribute Manager] Clearing subcategories - missing category or service');
             setSubcategories([]);
             setSelectedSubcategory(null);
         }
-    }, [selectedCategory]);
+    }, [selectedCategory]); // Only depend on selectedCategory, not selectedService
+
+    // Refresh attributes when hierarchy selection changes
+    useEffect(() => {
+        if (selectedService) {
+            if (selectedSubcategory) {
+                // Fetch subcategory attributes (includes inherited)
+                fetchConfiguredAttributes(selectedService, selectedCategory, selectedSubcategory);
+            } else if (selectedCategory) {
+                // Fetch category attributes
+                fetchConfiguredAttributes(selectedService, selectedCategory, null);
+            } else {
+                // Fetch service attributes
+                fetchConfiguredAttributes(selectedService, null, null);
+            }
+        }
+    }, [selectedService, selectedCategory, selectedSubcategory]);
 
     // Fetch service types
     const fetchServiceTypes = useCallback(async () => {
@@ -163,6 +214,8 @@ const ComprehensiveAttributeManager: React.FC = () => {
     // Fetch categories for selected service
     const fetchCategories = async (serviceId: string) => {
         try {
+            console.log('🔍 [Attribute Manager] Fetching categories for service:', serviceId);
+            
             const { data, error } = await supabase
                 .from("categories")
                 .select("id, name, service_type, parent_id, is_active")
@@ -171,39 +224,82 @@ const ComprehensiveAttributeManager: React.FC = () => {
                 .eq("is_active", true)
                 .order("sort_order");
 
-            if (error) throw error;
-            console.log('Loaded categories for service:', serviceId, data);
+            if (error) {
+                console.error('❌ [Attribute Manager] Error loading categories:', error);
+                throw error;
+            }
+            
+            console.log(`✅ [Attribute Manager] Loaded ${data?.length || 0} categories for service ${serviceId}:`, data);
             setCategories(data || []);
+            
+            // If no categories found, clear subcategories too
+            if (!data || data.length === 0) {
+                console.log('⚠️ [Attribute Manager] No categories found, clearing subcategories');
+                setSubcategories([]);
+            }
         } catch (error) {
-            console.error("Error fetching categories:", error);
+            console.error("❌ [Attribute Manager] Error fetching categories:", error);
             toast({
                 title: "Error",
                 description: "Failed to load categories",
                 variant: "destructive",
             });
+            setCategories([]);
+            setSubcategories([]);
         }
     };
 
-    // Fetch subcategories for selected category
+    // Fetch subcategories for selected category (from subcategories table)
     const fetchSubcategories = async (categoryId: string) => {
         try {
+            if (!selectedService) {
+                console.log('⚠️ [Attribute Manager] No service selected, cannot fetch subcategories');
+                setSubcategories([]);
+                return;
+            }
+
+            console.log('🔍 [Attribute Manager] Fetching subcategories from subcategories table with hierarchical filter:', {
+                categoryId,
+                selectedService,
+                hierarchy: `${selectedService} → ${categoryId}`
+            });
+
+            // Fetch from subcategories table with hierarchical filtering
+            // Filters: service_type_id = selected service AND category_id = selected category
             const { data, error } = await supabase
-                .from("categories")
-                .select("id, name, service_type, parent_id, is_active")
-                .eq("parent_id", categoryId)
+                .from("subcategories")
+                .select("id, name, service_type_id, category_id, icon, color, image_url, is_active, sort_order")
+                .eq("category_id", categoryId)
+                .eq("service_type_id", selectedService)
                 .eq("is_active", true)
                 .order("sort_order");
 
-            if (error) throw error;
-            console.log('Loaded subcategories for category:', categoryId, data);
+            if (error) {
+                console.error('❌ [Attribute Manager] Error loading subcategories:', error);
+                throw error;
+            }
+
+            console.log(`✅ [Attribute Manager] Loaded ${data?.length || 0} subcategories from hierarchical path:`, {
+                path: `${serviceTypes.find(s => s.id === selectedService)?.title} → ${categories.find(c => c.id === categoryId)?.name}`,
+                categoryId,
+                serviceId: selectedService,
+                count: data?.length || 0,
+                subcategories: data?.map(s => s.name)
+            });
+            
+            if (!data || data.length === 0) {
+                console.log('⚠️ [Attribute Manager] No subcategories found - they may not be created or mapped to this hierarchy');
+            }
+            
             setSubcategories(data || []);
         } catch (error) {
-            console.error("Error fetching subcategories:", error);
+            console.error("❌ [Attribute Manager] Error fetching subcategories:", error);
             toast({
                 title: "Error",
-                description: "Failed to load subcategories",
+                description: "Failed to load subcategories from database",
                 variant: "destructive",
             });
+            setSubcategories([]);
         }
     };
 
@@ -223,22 +319,105 @@ const ComprehensiveAttributeManager: React.FC = () => {
         }
     }, []);
 
-    // Fetch configured attributes for a service
-    const fetchConfiguredAttributes = useCallback(async (serviceId: string) => {
+    // Fetch default mandatory fields
+    const fetchDefaultMandatoryFields = useCallback(async () => {
         try {
-            setLoading(true);
             const { data, error } = await supabase
-                .from("service_attribute_config")
-                .select(`
-                    *,
-                    attribute_registry (*)
-                `)
-                .eq("service_type_id", serviceId)
-                .eq("is_visible", true)
+                .from("default_mandatory_fields")
+                .select("*")
                 .order("display_order");
 
-            if (error) throw error;
-            setConfiguredAttributes(data || []);
+            if (error) {
+                console.warn("No default_mandatory_fields table, using hardcoded fields");
+                // Fallback to hardcoded defaults
+                setDefaultMandatoryFields([
+                    { field_name: 'product_name', field_label: 'Product Name', field_type: 'text', input_type: 'text', placeholder: 'Enter product name', help_text: 'The name of your product', display_order: 0 },
+                    { field_name: 'product_description', field_label: 'Description', field_type: 'textarea', input_type: 'textarea', placeholder: 'Describe the product...', help_text: 'Detailed description', display_order: 1 },
+                    { field_name: 'price', field_label: 'Price', field_type: 'number', input_type: 'number', placeholder: 'Enter price', help_text: 'Product price', display_order: 2 },
+                    { field_name: 'vendor', field_label: 'Vendor', field_type: 'select', input_type: 'select', placeholder: 'Select vendor', help_text: 'Choose a vendor', display_order: 3 },
+                ]);
+                return;
+            }
+            setDefaultMandatoryFields(data || []);
+        } catch (error) {
+            console.error("Error fetching default mandatory fields:", error);
+        }
+    }, []);
+
+    // Fetch configured attributes based on current selection level
+    const fetchConfiguredAttributes = useCallback(async (serviceId: string, categoryId?: string | null, subcategoryId?: string | null) => {
+        try {
+            setLoading(true);
+            
+            // Determine which level to fetch from
+            if (subcategoryId) {
+                // Subcategory level - use RPC function to get inherited attributes
+                console.log('📊 Fetching attributes for subcategory:', subcategoryId);
+                const { data, error } = await supabase.rpc('get_subcategory_attributes', {
+                    p_subcategory_id: subcategoryId
+                });
+
+                if (error) throw error;
+                
+                // Transform the data to match our interface
+                const transformedData = (data || []).map((attr: any) => ({
+                    id: attr.config_id,
+                    service_type_id: serviceId,
+                    attribute_id: attr.attribute_id,
+                    is_required: attr.is_required,
+                    is_visible: attr.is_visible,
+                    display_order: attr.display_order,
+                    field_group: attr.field_group,
+                    override_label: attr.override_label,
+                    override_placeholder: attr.override_placeholder,
+                    override_help_text: attr.override_help_text,
+                    source_level: attr.source_level, // 'service', 'category', or 'subcategory'
+                    attribute_registry: {
+                        id: attr.attribute_id,
+                        name: attr.attribute_name,
+                        label: attr.attribute_label,
+                        data_type: attr.data_type,
+                        input_type: attr.input_type,
+                    }
+                }));
+                
+                console.log(`✅ Loaded ${transformedData.length} attributes (inherited + direct) for subcategory`);
+                setConfiguredAttributes(transformedData);
+                
+            } else if (categoryId) {
+                // Category level
+                console.log('📊 Fetching attributes for category:', categoryId);
+                const { data, error } = await supabase
+                    .from("category_attribute_config")
+                    .select(`
+                        *,
+                        attribute_registry (*)
+                    `)
+                    .eq("category_id", categoryId)
+                    .eq("is_visible", true)
+                    .order("display_order");
+
+                if (error) throw error;
+                console.log(`✅ Loaded ${data?.length || 0} attributes for category`);
+                setConfiguredAttributes(data || []);
+                
+            } else {
+                // Service level
+                console.log('📊 Fetching attributes for service:', serviceId);
+                const { data, error } = await supabase
+                    .from("service_attribute_config")
+                    .select(`
+                        *,
+                        attribute_registry (*)
+                    `)
+                    .eq("service_type_id", serviceId)
+                    .eq("is_visible", true)
+                    .order("display_order");
+
+                if (error) throw error;
+                console.log(`✅ Loaded ${data?.length || 0} attributes for service`);
+                setConfiguredAttributes(data || []);
+            }
         } catch (error) {
             console.error("Error fetching configured attributes:", error);
             toast({
@@ -251,7 +430,7 @@ const ComprehensiveAttributeManager: React.FC = () => {
         }
     }, []);
 
-    // Add attributes to service
+    // Add attributes to current entity level
     const handleAddAttributes = useCallback(async () => {
         if (!selectedService || selectedAttributes.length === 0) return;
         
@@ -260,30 +439,68 @@ const ComprehensiveAttributeManager: React.FC = () => {
             // Get max display order
             const maxOrder = Math.max(...configuredAttributes.map(c => c.display_order), 0);
             
-            // Create config entries
-            const newConfigs = selectedAttributes.map((attrId, idx) => ({
-                service_type_id: selectedService,
-                attribute_id: attrId,
-                display_order: maxOrder + idx + 1,
-                is_required: false,
-                is_visible: true,
-                field_group: 'custom',
-            }));
+            // Determine which table to insert into based on selection level
+            let table: string;
+            let configData: any[];
+            let entityName: string;
+            
+            if (selectedSubcategory) {
+                // Insert into subcategory_attribute_config
+                table = "subcategory_attribute_config";
+                entityName = `subcategory: ${subcategories.find(s => s.id === selectedSubcategory)?.name}`;
+                configData = selectedAttributes.map((attrId, idx) => ({
+                    subcategory_id: selectedSubcategory,
+                    attribute_id: attrId,
+                    display_order: maxOrder + idx + 1,
+                    is_required: false,
+                    is_visible: true,
+                    field_group: 'custom',
+                    inherit_from_category: false, // Direct attribute, not inherited
+                    inherit_from_service: false,
+                }));
+            } else if (selectedCategory) {
+                // Insert into category_attribute_config
+                table = "category_attribute_config";
+                entityName = `category: ${categories.find(c => c.id === selectedCategory)?.name}`;
+                configData = selectedAttributes.map((attrId, idx) => ({
+                    category_id: selectedCategory,
+                    attribute_id: attrId,
+                    display_order: maxOrder + idx + 1,
+                    is_required: false,
+                    is_visible: true,
+                    field_group: 'custom',
+                    inherit_from_service: false, // Direct attribute, not inherited
+                }));
+            } else {
+                // Insert into service_attribute_config
+                table = "service_attribute_config";
+                entityName = `service: ${serviceTypes.find(s => s.id === selectedService)?.title}`;
+                configData = selectedAttributes.map((attrId, idx) => ({
+                    service_type_id: selectedService,
+                    attribute_id: attrId,
+                    display_order: maxOrder + idx + 1,
+                    is_required: false,
+                    is_visible: true,
+                    field_group: 'custom',
+                }));
+            }
 
             const { error } = await supabase
-                .from("service_attribute_config")
-                .insert(newConfigs);
+                .from(table)
+                .insert(configData);
 
             if (error) throw error;
 
             toast({
                 title: "Success",
-                description: `Added ${selectedAttributes.length} attribute(s) to ${serviceTypes.find(s => s.id === selectedService)?.title}`,
+                description: `Added ${selectedAttributes.length} attribute(s) to ${entityName}`,
             });
 
             setSelectedAttributes([]);
             setShowAddModal(false);
-            fetchConfiguredAttributes(selectedService);
+            
+            // Refresh attributes for current level
+            fetchConfiguredAttributes(selectedService, selectedCategory, selectedSubcategory);
         } catch (error: any) {
             console.error("Error adding attributes:", error);
             toast({
@@ -294,7 +511,7 @@ const ComprehensiveAttributeManager: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [selectedService, selectedAttributes, configuredAttributes, serviceTypes]);
+    }, [selectedService, selectedCategory, selectedSubcategory, selectedAttributes, configuredAttributes, serviceTypes, categories, subcategories]);
 
     // Update attribute configuration
     const handleUpdateAttribute = useCallback(async () => {
@@ -302,8 +519,18 @@ const ComprehensiveAttributeManager: React.FC = () => {
 
         setSaving(true);
         try {
+            // Determine which table to update based on current selection level
+            let table: string;
+            if (selectedSubcategory) {
+                table = "subcategory_attribute_config";
+            } else if (selectedCategory) {
+                table = "category_attribute_config";
+            } else {
+                table = "service_attribute_config";
+            }
+
             const { error } = await supabase
-                .from("service_attribute_config")
+                .from(table)
                 .update({
                     is_required: editingAttribute.is_required,
                     override_label: editingAttribute.override_label,
@@ -323,7 +550,7 @@ const ComprehensiveAttributeManager: React.FC = () => {
             setShowEditModal(false);
             setEditingAttribute(null);
             if (selectedService) {
-                fetchConfiguredAttributes(selectedService);
+                fetchConfiguredAttributes(selectedService, selectedCategory, selectedSubcategory);
             }
         } catch (error: any) {
             console.error("Error updating attribute:", error);
@@ -335,7 +562,7 @@ const ComprehensiveAttributeManager: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [editingAttribute, selectedService]);
+    }, [editingAttribute, selectedService, selectedCategory, selectedSubcategory]);
 
     // Delete attributes
     const handleDeleteAttributes = useCallback(async () => {
@@ -343,11 +570,30 @@ const ComprehensiveAttributeManager: React.FC = () => {
 
         setSaving(true);
         try {
+            // Determine which table to delete from based on current selection level
+            let table: string;
+            let filterColumn: string;
+            let filterValue: string;
+            
+            if (selectedSubcategory) {
+                table = "subcategory_attribute_config";
+                filterColumn = "subcategory_id";
+                filterValue = selectedSubcategory;
+            } else if (selectedCategory) {
+                table = "category_attribute_config";
+                filterColumn = "category_id";
+                filterValue = selectedCategory;
+            } else {
+                table = "service_attribute_config";
+                filterColumn = "service_type_id";
+                filterValue = selectedService;
+            }
+
             const { error } = await supabase
-                .from("service_attribute_config")
+                .from(table)
                 .delete()
                 .in("attribute_id", selectedAttributes)
-                .eq("service_type_id", selectedService);
+                .eq(filterColumn, filterValue);
 
             if (error) throw error;
 
@@ -358,7 +604,7 @@ const ComprehensiveAttributeManager: React.FC = () => {
 
             setSelectedAttributes([]);
             setShowDeleteModal(false);
-            fetchConfiguredAttributes(selectedService);
+            fetchConfiguredAttributes(selectedService, selectedCategory, selectedSubcategory);
         } catch (error: any) {
             console.error("Error deleting attributes:", error);
             toast({
@@ -369,7 +615,7 @@ const ComprehensiveAttributeManager: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [selectedService, selectedAttributes]);
+    }, [selectedService, selectedCategory, selectedSubcategory, selectedAttributes]);
 
     // Reorder attributes
     const handleReorder = useCallback(async (attrId: string, direction: 'up' | 'down') => {
@@ -390,9 +636,19 @@ const ComprehensiveAttributeManager: React.FC = () => {
 
         setSaving(true);
         try {
+            // Determine which table to update
+            let table: string;
+            if (selectedSubcategory) {
+                table = "subcategory_attribute_config";
+            } else if (selectedCategory) {
+                table = "category_attribute_config";
+            } else {
+                table = "service_attribute_config";
+            }
+
             for (const update of updates) {
                 await supabase
-                    .from("service_attribute_config")
+                    .from(table)
                     .update({ display_order: update.display_order })
                     .eq("id", update.id);
             }
@@ -412,22 +668,41 @@ const ComprehensiveAttributeManager: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [configuredAttributes]);
+    }, [configuredAttributes, selectedSubcategory, selectedCategory]);
 
     // Toggle required status
     const handleToggleRequired = useCallback(async (attrId: string, currentStatus: boolean) => {
         setSaving(true);
         try {
+            // Determine which table to update based on current selection level
+            let table: string;
+            let filterColumn: string;
+            let filterValue: string;
+            
+            if (selectedSubcategory) {
+                table = "subcategory_attribute_config";
+                filterColumn = "subcategory_id";
+                filterValue = selectedSubcategory;
+            } else if (selectedCategory) {
+                table = "category_attribute_config";
+                filterColumn = "category_id";
+                filterValue = selectedCategory;
+            } else {
+                table = "service_attribute_config";
+                filterColumn = "service_type_id";
+                filterValue = selectedService!;
+            }
+
             const { error } = await supabase
-                .from("service_attribute_config")
+                .from(table)
                 .update({ is_required: !currentStatus })
-                .eq("service_type_id", selectedService)
+                .eq(filterColumn, filterValue)
                 .eq("attribute_id", attrId);
 
             if (error) throw error;
 
             if (selectedService) {
-                fetchConfiguredAttributes(selectedService);
+                fetchConfiguredAttributes(selectedService, selectedCategory, selectedSubcategory);
             }
         } catch (error: any) {
             console.error("Error toggling required:", error);
@@ -439,7 +714,61 @@ const ComprehensiveAttributeManager: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [selectedService]);
+    }, [selectedService, selectedCategory, selectedSubcategory]);
+
+    // Toggle field visibility (hide/show in form)
+    const handleToggleFieldVisibility = useCallback(async (attrId: string, isVisible: boolean) => {
+        if (!selectedService) return;
+        
+        setSaving(true);
+        try {
+            // Determine which table to update based on current selection level
+            let table: string;
+            let filterColumn: string;
+            let filterValue: string;
+            
+            if (selectedSubcategory) {
+                table = "subcategory_attribute_config";
+                filterColumn = "subcategory_id";
+                filterValue = selectedSubcategory;
+            } else if (selectedCategory) {
+                table = "category_attribute_config";
+                filterColumn = "category_id";
+                filterValue = selectedCategory;
+            } else {
+                table = "service_attribute_config";
+                filterColumn = "service_type_id";
+                filterValue = selectedService;
+            }
+
+            console.log(`🔄 Toggling visibility for ${attrId} to ${isVisible} in ${table}`);
+
+            const { error } = await supabase
+                .from(table)
+                .update({ is_visible: isVisible })
+                .eq(filterColumn, filterValue)
+                .eq("attribute_id", attrId);
+
+            if (error) throw error;
+
+            toast({
+                title: "Success",
+                description: `Field ${isVisible ? 'shown' : 'hidden'} in form`,
+            });
+
+            // Refresh to update UI
+            fetchConfiguredAttributes(selectedService, selectedCategory, selectedSubcategory);
+        } catch (error: any) {
+            console.error("Error toggling visibility:", error);
+            toast({
+                title: "Error",
+                description: error.message || "Failed to update field visibility",
+                variant: "destructive",
+            });
+        } finally {
+            setSaving(false);
+        }
+    }, [selectedService, selectedCategory, selectedSubcategory]);
 
     // Drag and drop handlers
     const [draggedItem, setDraggedItem] = useState<string | null>(null);
@@ -487,9 +816,19 @@ const ComprehensiveAttributeManager: React.FC = () => {
 
         setSaving(true);
         try {
+            // Determine which table to update
+            let table: string;
+            if (selectedSubcategory) {
+                table = "subcategory_attribute_config";
+            } else if (selectedCategory) {
+                table = "category_attribute_config";
+            } else {
+                table = "service_attribute_config";
+            }
+
             for (const update of updates) {
                 await supabase
-                    .from("service_attribute_config")
+                    .from(table)
                     .update({ display_order: update.display_order })
                     .eq("id", update.id);
             }
@@ -526,15 +865,34 @@ const ComprehensiveAttributeManager: React.FC = () => {
             console.log('📋 Sample attribute structure:', JSON.stringify(configuredAttributes[0], null, 2));
         }
         
-        const mandatoryFields: PreviewField[] = [
-            { name: 'product_name', label: 'Product Name', type: 'text', required: true, placeholder: 'Enter product name', help_text: 'The name of your product', locked: true },
-            { name: 'product_description', label: 'Description', type: 'textarea', required: true, placeholder: 'Describe the product...', help_text: 'Detailed description', locked: true },
-            { name: 'price', label: 'Price', type: 'number', required: true, placeholder: 'Enter price', help_text: 'Product price', locked: true },
-            { name: 'vendor', label: 'Vendor', type: 'select', required: true, placeholder: 'Select vendor', help_text: 'Choose a vendor', locked: true },
-        ];
+        // Generate mandatory fields from default_mandatory_fields table
+        // ONLY include fields that are visible (is_visible = true)
+        const mandatoryFields: PreviewField[] = defaultMandatoryFields
+            .filter(field => field.is_system_field)
+            .map(field => {
+                // Check if this field is configured at current level
+                const configuredAttr = configuredAttributes.find(
+                    attr => attr.attribute_registry?.name?.toLowerCase().includes(field.field_name.toLowerCase())
+                );
+                
+                // Only include if field is visible (or not configured yet, so show as recommendation)
+                const isVisible = configuredAttr?.is_visible ?? true;
+                
+                return {
+                    name: field.field_name,
+                    label: configuredAttr?.override_label || field.field_label,
+                    type: field.input_type || field.field_type,
+                    required: configuredAttr?.is_required ?? true,
+                    placeholder: configuredAttr?.override_placeholder || field.placeholder || '',
+                    help_text: configuredAttr?.override_help_text || field.help_text || '',
+                    locked: false,
+                    visible: isVisible, // Add visibility flag
+                };
+            })
+            .filter(field => field.visible); // FILTER OUT HIDDEN FIELDS
 
         const customFields: PreviewField[] = configuredAttributes
-            .filter(attr => attr.attribute_registry) // Only process if registry exists
+            .filter(attr => attr.attribute_registry && attr.is_visible) // Only visible fields
             .map(attr => {
                 // Access the nested attribute_registry data
                 const registry = attr.attribute_registry!;
@@ -571,7 +929,7 @@ const ComprehensiveAttributeManager: React.FC = () => {
         console.log(`📊 Preview fields: ${mandatoryFields.length} mandatory + ${customFields.length} custom = ${mandatoryFields.length + customFields.length} total`);
         
         return [...mandatoryFields, ...customFields];
-    }, [configuredAttributes]);
+    }, [configuredAttributes, defaultMandatoryFields]);
 
     // Filter available attributes
     const filteredAvailableAttributes = availableAttributes.filter(attr => {
@@ -627,11 +985,20 @@ const ComprehensiveAttributeManager: React.FC = () => {
                             <Label htmlFor="category-select">2. Category (Optional)</Label>
                             <Select 
                                 value={selectedCategory || ""} 
-                                onValueChange={setSelectedCategory}
-                                disabled={!selectedService || categories.length === 0}
+                                onValueChange={(value) => {
+                                    console.log('📌 [Attribute Manager] Category selected:', value);
+                                    setSelectedCategory(value || null);
+                                }}
+                                disabled={!selectedService}
                             >
                                 <SelectTrigger id="category-select" className="w-full">
-                                    <SelectValue placeholder={categories.length === 0 ? "No categories" : "Select category"} />
+                                    <SelectValue placeholder={
+                                        !selectedService 
+                                            ? "Select service first" 
+                                            : categories.length === 0 
+                                                ? "⚠️ No categories created or mapped to this service" 
+                                                : "Select category (or keep at service level)"
+                                    } />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="">None (Service Level)</SelectItem>
@@ -640,8 +1007,21 @@ const ComprehensiveAttributeManager: React.FC = () => {
                                             {category.name}
                                         </SelectItem>
                                     ))}
+                                    {selectedService && categories.length === 0 && (
+                                        <SelectItem value="_no_cats" disabled>
+                                            ⚠️ No categories created or mapped to this service
+                                        </SelectItem>
+                                    )}
                                 </SelectContent>
                             </Select>
+                            <p className="text-xs text-muted-foreground">
+                                {selectedService && categories.length > 0
+                                    ? `✓ ${categories.length} category(ies) mapped to this service`
+                                    : selectedService
+                                        ? "⚠️ No categories created or mapped - Create in Entity Management"
+                                        : "Select a service first to view mapped categories"
+                                }
+                            </p>
                         </div>
 
                         {/* Subcategory Selector */}
@@ -649,42 +1029,86 @@ const ComprehensiveAttributeManager: React.FC = () => {
                             <Label htmlFor="subcategory-select">3. Subcategory (Optional)</Label>
                             <Select 
                                 value={selectedSubcategory || ""} 
-                                onValueChange={setSelectedSubcategory}
+                                onValueChange={(value) => {
+                                    console.log('📌 [Attribute Manager] Subcategory selected:', value);
+                                    setSelectedSubcategory(value || null);
+                                }}
                                 disabled={!selectedCategory}
                             >
                                 <SelectTrigger id="subcategory-select" className="w-full">
                                     <SelectValue placeholder={
-                                        !selectedCategory 
-                                            ? "Select category first" 
-                                            : subcategories.length === 0 
-                                                ? "No subcategories available" 
-                                                : "Select subcategory"
+                                        !selectedService
+                                            ? "Select service first"
+                                            : !selectedCategory 
+                                                ? "Select category first" 
+                                                : subcategories.length === 0 
+                                                    ? "⚠️ No subcategories created or mapped to this category" 
+                                                    : "Select subcategory (or keep at category level)"
                                     } />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="">None (Category Level)</SelectItem>
-                                    {selectedCategory && subcategories
-                                        .filter(sub => sub.parent_id === selectedCategory)
-                                        .map(subcategory => (
-                                            <SelectItem key={subcategory.id} value={subcategory.id}>
-                                                {subcategory.name}
-                                            </SelectItem>
-                                        ))}
-                                    {selectedCategory && subcategories.filter(sub => sub.parent_id === selectedCategory).length === 0 && (
+                                    {subcategories.map(subcategory => (
+                                        <SelectItem key={subcategory.id} value={subcategory.id}>
+                                            {subcategory.name}
+                                        </SelectItem>
+                                    ))}
+                                    {selectedCategory && subcategories.length === 0 && (
                                         <SelectItem value="_no_subcats" disabled>
-                                            No subcategories defined for this category
+                                            ⚠️ No subcategories created or mapped to this category
                                         </SelectItem>
                                     )}
                                 </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                                {selectedCategory && subcategories.filter(sub => sub.parent_id === selectedCategory).length > 0
-                                    ? `${subcategories.filter(sub => sub.parent_id === selectedCategory).length} subcategories available`
-                                    : selectedCategory 
-                                        ? "Create subcategories in Entity Management"
-                                        : "Select a category to view subcategories"
+                                {!selectedService
+                                    ? "Select a service to begin hierarchical selection"
+                                    : !selectedCategory
+                                        ? "Select a category to view its mapped subcategories"
+                                        : subcategories.length > 0
+                                            ? `✓ ${subcategories.length} subcategory(ies) mapped to this service → category`
+                                            : "⚠️ No subcategories created or mapped - Create in Entity Management"
                                 }
                             </p>
+                            {/* Hierarchical Path Display */}
+                            {selectedService && (
+                                <div className="text-xs bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
+                                    <div className="font-semibold text-blue-900 dark:text-blue-100 mb-1">📍 Current Hierarchy:</div>
+                                    <div className="text-blue-800 dark:text-blue-200 space-y-1">
+                                        <div>
+                                            Service: <span className="font-semibold">{serviceTypes.find(s => s.id === selectedService)?.title || selectedService}</span>
+                                        </div>
+                                        {selectedCategory && (
+                                            <div className="ml-3">
+                                                ↳ Category: <span className="font-semibold">{categories.find(c => c.id === selectedCategory)?.name || selectedCategory}</span>
+                                            </div>
+                                        )}
+                                        {selectedSubcategory && (
+                                            <div className="ml-6">
+                                                ↳ Subcategory: <span className="font-semibold">{subcategories.find(s => s.id === selectedSubcategory)?.name || selectedSubcategory}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            {/* Debug Info */}
+                            {process.env.NODE_ENV === 'development' && (
+                                <div className="text-xs font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded border border-gray-300 dark:border-gray-700">
+                                    <div className="font-semibold mb-1">🔍 Debug Info:</div>
+                                    <div>Service: <span className="text-blue-600">{selectedService || 'none'}</span></div>
+                                    <div>Category: <span className="text-green-600">{selectedCategory || 'none'}</span></div>
+                                    <div>Subcategory: <span className="text-purple-600">{selectedSubcategory || 'none'}</span></div>
+                                    <div className="mt-1 pt-1 border-t border-gray-300 dark:border-gray-600">
+                                        <div>Categories loaded: <span className="font-semibold">{categories.length}</span></div>
+                                        <div>Subcategories loaded: <span className="font-semibold">{subcategories.length}</span></div>
+                                    </div>
+                                    {subcategories.length > 0 && (
+                                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                            IDs: {subcategories.map(s => s.id.substring(0, 8)).join(', ')}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     
@@ -803,24 +1227,93 @@ const ComprehensiveAttributeManager: React.FC = () => {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {/* Mandatory Fields (Locked) */}
+                                    {/* Default Mandatory Fields (Editable) */}
                                     <div className="mb-4">
-                                        <h4 className="text-sm font-semibold mb-2 text-muted-foreground">
-                                            Mandatory Fields (Locked)
-                                        </h4>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4 className="text-sm font-semibold text-muted-foreground">
+                                                Default System Fields
+                                            </h4>
+                                            <div className="text-xs text-blue-600">
+                                                These are recommended system fields - you can edit or remove them
+                                            </div>
+                                        </div>
                                         <div className="space-y-2">
-                                            {['Product Name', 'Description', 'Price', 'Vendor'].map((field, idx) => (
-                                                <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2 border-gray-200">
-                                                    <div className="flex items-center space-x-3">
-                                                        <Lock className="h-4 w-4 text-gray-400" />
-                                                        <div>
-                                                            <div className="font-medium text-sm">{field}</div>
-                                                            <div className="text-xs text-muted-foreground">System field - cannot be removed</div>
+                                            {defaultMandatoryFields
+                                                .filter(field => field.is_system_field)
+                                                .map((field, idx) => {
+                                                    // Check if this field is configured at current level
+                                                    const configuredAttr = configuredAttributes.find(
+                                                        attr => attr.attribute_registry?.name?.toLowerCase().includes(field.field_name.toLowerCase())
+                                                    );
+                                                    const isConfigured = !!configuredAttr;
+                                                    const isVisible = configuredAttr?.is_visible ?? true;
+                                                    
+                                                    return (
+                                                        <div 
+                                                            key={field.id || idx} 
+                                                            className={`flex items-center justify-between p-3 rounded-lg border-2 ${
+                                                                isConfigured && isVisible
+                                                                    ? 'bg-green-50 border-green-200' 
+                                                                    : isConfigured && !isVisible
+                                                                        ? 'bg-gray-50 border-gray-200'
+                                                                        : 'bg-yellow-50 border-yellow-200'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center space-x-3 flex-1">
+                                                                <Lock className={`h-4 w-4 ${
+                                                                    isConfigured && isVisible ? 'text-green-500' : 
+                                                                    isConfigured && !isVisible ? 'text-gray-400' :
+                                                                    'text-yellow-500'
+                                                                }`} />
+                                                                <div className="flex-1">
+                                                                    <div className="font-medium text-sm flex items-center gap-2">
+                                                                        {field.field_label}
+                                                                        {isConfigured && !isVisible && (
+                                                                            <span title="Hidden from form">
+                                                                                <Eye className="h-3 w-3 text-gray-400 line-through" />
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-xs text-muted-foreground">
+                                                                        {isConfigured && isVisible
+                                                                            ? '✓ Configured and visible' 
+                                                                            : isConfigured && !isVisible
+                                                                                ? '👁️ Hidden from form preview'
+                                                                                : '⚠️ Not configured - add from attributes'}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                {isConfigured ? (
+                                                                    <>
+                                                                        <Switch
+                                                                            checked={isVisible}
+                                                                            onCheckedChange={async (checked) => {
+                                                                                await handleToggleFieldVisibility(
+                                                                                    configuredAttr!.attribute_id,
+                                                                                    checked
+                                                                                );
+                                                                            }}
+                                                                            disabled={saving}
+                                                                            title={isVisible ? "Click to hide from form" : "Click to show in form"}
+                                                                        />
+                                                                        <Badge variant={isVisible ? "default" : "outline"}>
+                                                                            {isVisible ? "Visible" : "Hidden"}
+                                                                        </Badge>
+                                                                    </>
+                                                                ) : (
+                                                                    <Badge variant="secondary">Recommended</Badge>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <Badge variant="secondary">Required</Badge>
-                                                </div>
-                                            ))}
+                                                    );
+                                                })}
+                                        </div>
+                                        <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                            <p className="text-xs text-blue-800">
+                                                💡 <strong>Tip:</strong> Default system fields are recommendations. You can add them as regular attributes from the "Add Attributes" button, 
+                                                configure their settings, mark as required/optional, or remove them if not needed for this {selectedSubcategory ? 'subcategory' : selectedCategory ? 'category' : 'service'}.
+                                            </p>
                                         </div>
                                     </div>
 
@@ -858,8 +1351,37 @@ const ComprehensiveAttributeManager: React.FC = () => {
                                                     <div className="flex items-center space-x-3 flex-1">
                                                         <GripVertical className={`h-5 w-5 ${saving ? 'text-gray-300' : 'text-gray-400'}`} />
                                                         <div className="flex-1">
-                                                            <div className="font-medium text-sm">
-                                                                {attr.override_label || attr.attribute_registry?.label || attr.attribute_registry?.name}
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="font-medium text-sm">
+                                                                    {attr.override_label || attr.attribute_registry?.label || attr.attribute_registry?.name}
+                                                                </div>
+                                                                {/* Show inheritance source if at category/subcategory level */}
+                                                                {(attr as any).source_level && (attr as any).source_level !== 'service' && !selectedCategory && (
+                                                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                                                        {(attr as any).source_level === 'service' ? '📁 Service' : 
+                                                                         (attr as any).source_level === 'category' ? '📂 Category' : 
+                                                                         '📄 Subcategory'}
+                                                                    </Badge>
+                                                                )}
+                                                                {(attr as any).source_level && selectedCategory && !selectedSubcategory && (attr as any).source_level === 'service' && (
+                                                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                                                        ⬆️ Inherited from Service
+                                                                    </Badge>
+                                                                )}
+                                                                {(attr as any).source_level && selectedSubcategory && (
+                                                                    <Badge 
+                                                                        variant="outline" 
+                                                                        className={`text-xs ${
+                                                                            (attr as any).source_level === 'service' ? 'bg-blue-50 text-blue-700' :
+                                                                            (attr as any).source_level === 'category' ? 'bg-green-50 text-green-700' :
+                                                                            'bg-purple-50 text-purple-700'
+                                                                        }`}
+                                                                    >
+                                                                        {(attr as any).source_level === 'service' ? '⬆️⬆️ Service' : 
+                                                                         (attr as any).source_level === 'category' ? '⬆️ Category' : 
+                                                                         '📄 Direct'}
+                                                                    </Badge>
+                                                                )}
                                                             </div>
                                                             <div className="text-xs text-muted-foreground">
                                                                 {attr.attribute_registry?.data_type} • {attr.field_group}
@@ -867,14 +1389,30 @@ const ComprehensiveAttributeManager: React.FC = () => {
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center space-x-2">
-                                                        <Switch
-                                                            checked={attr.is_required}
-                                                            onCheckedChange={() => handleToggleRequired(attr.attribute_id, attr.is_required)}
-                                                            disabled={saving}
-                                                        />
-                                                        <Badge variant={attr.is_required ? "default" : "secondary"}>
-                                                            {attr.is_required ? "Required" : "Optional"}
-                                                        </Badge>
+                                                        {/* Visibility Toggle */}
+                                                        <div className="flex items-center gap-1">
+                                                            <Switch
+                                                                checked={attr.is_visible}
+                                                                onCheckedChange={(checked) => handleToggleFieldVisibility(attr.attribute_id, checked)}
+                                                                disabled={saving}
+                                                                title={attr.is_visible ? "Hide from form" : "Show in form"}
+                                                            />
+                                                            <Eye className={`h-3 w-3 ${attr.is_visible ? 'text-green-500' : 'text-gray-300'}`} />
+                                                        </div>
+                                                        
+                                                        {/* Required Toggle */}
+                                                        <div className="flex items-center gap-1">
+                                                            <Switch
+                                                                checked={attr.is_required}
+                                                                onCheckedChange={() => handleToggleRequired(attr.attribute_id, attr.is_required)}
+                                                                disabled={saving}
+                                                            />
+                                                            <Badge variant={attr.is_required ? "default" : "secondary"}>
+                                                                {attr.is_required ? "Required" : "Optional"}
+                                                            </Badge>
+                                                        </div>
+                                                        
+                                                        {/* Edit Button */}
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"
@@ -1199,22 +1737,23 @@ const ComprehensiveAttributeManager: React.FC = () => {
                                 </p>
                             </div>
                             
-                            {/* Mandatory Fields Section */}
+                            {/* System Recommended Fields Section */}
                             <div className="space-y-4">
                                 <div className="flex items-center gap-2">
-                                    <Lock className="h-4 w-4 text-gray-500" />
-                                    <h4 className="text-sm font-semibold uppercase text-gray-600">Mandatory Fields</h4>
+                                    <Lock className="h-4 w-4 text-blue-500" />
+                                    <h4 className="text-sm font-semibold uppercase text-blue-600">System Recommended Fields</h4>
                                     <Separator className="flex-1" />
                                 </div>
-                                {generatePreviewFields().filter(f => f.locked).map((field, idx) => (
-                                    <div key={`mandatory-${idx}`} className="space-y-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border-2 border-gray-200 dark:border-gray-700">
+                                {generatePreviewFields().slice(0, defaultMandatoryFields.filter(f => f.is_system_field).length).map((field, idx) => (
+                                    <div key={`mandatory-${idx}`} className="space-y-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border-2 border-blue-200 dark:border-blue-700">
                                         <div className="flex items-center justify-between">
                                             <Label className="font-semibold text-sm">{field.label}</Label>
                                             <div className="flex items-center gap-2">
                                                 {field.required && <Badge variant="destructive" className="text-xs">Required</Badge>}
-                                                <Badge variant="secondary" className="text-xs gap-1">
+                                                {!field.required && <Badge variant="outline" className="text-xs">Optional</Badge>}
+                                                <Badge variant="outline" className="text-xs gap-1 bg-blue-100 text-blue-700">
                                                     <Lock className="h-3 w-3" />
-                                                    System
+                                                    Recommended
                                                 </Badge>
                                             </div>
                                         </div>
@@ -1259,15 +1798,15 @@ const ComprehensiveAttributeManager: React.FC = () => {
                                 ))}
                             </div>
                             
-                            {/* Custom Fields Section */}
-                            {generatePreviewFields().filter(f => !f.locked).length > 0 && (
+                            {/* Custom Attributes Section */}
+                            {generatePreviewFields().slice(defaultMandatoryFields.filter(f => f.is_system_field).length).length > 0 && (
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-2">
                                         <Tags className="h-4 w-4 text-blue-500" />
                                         <h4 className="text-sm font-semibold uppercase text-blue-600">Custom Attributes</h4>
                                         <Separator className="flex-1" />
                                     </div>
-                                    {generatePreviewFields().filter(f => !f.locked).map((field, idx) => (
+                                    {generatePreviewFields().slice(defaultMandatoryFields.filter(f => f.is_system_field).length).map((field, idx) => (
                                         <div key={`custom-${idx}`} className="space-y-2 p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                                             <div className="flex items-center justify-between">
                                                 <Label className="font-medium text-sm">{field.label}</Label>
@@ -1334,7 +1873,10 @@ const ComprehensiveAttributeManager: React.FC = () => {
                             <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                                 <p className="text-xs text-gray-600 dark:text-gray-400">
                                     <strong>Total Fields:</strong> {generatePreviewFields().length} 
-                                    ({generatePreviewFields().filter(f => f.locked).length} mandatory + {generatePreviewFields().filter(f => !f.locked).length} custom)
+                                    ({defaultMandatoryFields.filter(f => f.is_system_field).length} system recommended + {generatePreviewFields().slice(defaultMandatoryFields.filter(f => f.is_system_field).length).length} custom)
+                                </p>
+                                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                    💡 System recommended fields can be marked as required/optional or removed based on your needs
                                 </p>
                             </div>
                         </div>

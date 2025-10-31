@@ -15,14 +15,22 @@ interface Category {
   id: string;
   name: string;
   service_type: string;
-  parent_id: string | null;
-  level: number;
-  path: string | null;
 }
 
-interface Subcategory extends Category {
-  parent_id: string;
-  parent?: {
+interface Subcategory {
+  id: string;
+  name: string;
+  description?: string | null;
+  icon?: string | null;
+  color?: string | null;
+  image_url?: string | null;
+  service_type: string;
+  category_id: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+  category?: {
     id: string;
     name: string;
   };
@@ -63,7 +71,7 @@ export const SubcategoryManager: React.FC<SubcategoryManagerProps> = ({ serviceT
         .from("categories")
         .select("*")
         .eq("service_type", serviceTypeId)
-        .eq("level", 0) // Root categories only
+        .is("parent_id", null) // Root categories only (no parent_id)
         .eq("is_active", true)
         .order("sort_order");
 
@@ -85,12 +93,12 @@ export const SubcategoryManager: React.FC<SubcategoryManagerProps> = ({ serviceT
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from("categories")
+        .from("subcategories")
         .select(`
           *,
-          parent:categories!parent_id(id, name)
+          category:categories!category_id(id, name)
         `)
-        .eq("parent_id", selectedCategory)
+        .eq("category_id", selectedCategory)
         .eq("is_active", true)
         .order("sort_order");
 
@@ -121,13 +129,13 @@ export const SubcategoryManager: React.FC<SubcategoryManagerProps> = ({ serviceT
     try {
       setLoading(true);
       const { error } = await supabase
-        .from("categories")
+        .from("subcategories")
         .insert([{
           name: formData.name,
           description: formData.description,
           image_url: formData.image_url,
-          service_type: serviceTypeId,
-          parent_id: selectedCategory,
+          service_type_id: serviceTypeId,
+          category_id: selectedCategory,
           is_active: true,
         }]);
 
@@ -160,7 +168,7 @@ export const SubcategoryManager: React.FC<SubcategoryManagerProps> = ({ serviceT
 
     try {
       const { error } = await supabase
-        .from("categories")
+        .from("subcategories")
         .update({ is_active: false })
         .eq("id", subcategoryId);
 
@@ -253,7 +261,11 @@ export const SubcategoryManager: React.FC<SubcategoryManagerProps> = ({ serviceT
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">Level {subcat.level}</Badge>
+                        {subcat.category && (
+                          <Badge variant="outline">
+                            Category: {subcat.category.name}
+                          </Badge>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"

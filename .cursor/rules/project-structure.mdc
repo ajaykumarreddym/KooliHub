@@ -58,3 +58,5 @@ KooliHub is a full-stack multi-vendor super app built with React 18, TypeScript,
 - **[tailwind.config.ts](mdc:tailwind.config.ts)**: TailwindCSS configuration
 - **[vite.config.ts](mdc:vite.config.ts)**: Vite configuration for client
 - **[vite.config.server.ts](mdc:vite.config.server.ts)**: Vite configuration for server build
+
+## Dont add the  .md or txt or summary file at the end of the response  if ask explicitly then do it 

@@ -15,6 +15,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminData } from "@/contexts/AdminDataContext";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import {
+    closestCenter,
+    DndContext,
+    DragEndEvent,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { EnhancedFormField } from "@shared/api";
 import {
     AlertCircle,
@@ -46,6 +63,8 @@ interface AttributeConfig {
     help_text: string | null;
     is_required: boolean;
     is_visible: boolean;
+    is_editable: boolean; // NEW: Can this attribute's settings be edited?
+    is_deletable: boolean; // NEW: Can this attribute be removed from the service?
     display_order: number;
     field_group: string;
     inherit_from_service?: boolean;
@@ -67,8 +86,224 @@ interface MandatoryField {
     applicable_to_all_services: boolean;
 }
 
+// Sortable Row Component for Drag and Drop
+interface SortableAttributeRowProps {
+    attribute: AttributeConfig;
+    index: number;
+    onToggleRequired: (id: string, current: boolean) => void;
+    onToggleVisibility: (id: string, current: boolean) => void;
+    onEdit: (attr: AttributeConfig) => void;
+    onDelete: (attr: AttributeConfig) => void;
+}
+
+const SortableAttributeRow: React.FC<SortableAttributeRowProps> = ({
+    attribute,
+    index,
+    onToggleRequired,
+    onToggleVisibility,
+    onEdit,
+    onDelete
+}) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: attribute.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        backgroundColor: isDragging ? 'rgba(0, 0, 0, 0.05)' : 'transparent',
+    };
+
+    const isInherited = attribute.inherit_from_service !== false;
+
+    return (
+        <TableRow ref={setNodeRef} style={style}>
+            <TableCell className="w-10">
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+                >
+                    <GripVertical className="h-5 w-5 text-gray-400" />
+                </div>
+            </TableCell>
+            <TableCell>{index + 1}</TableCell>
+            <TableCell>
+                <div className="space-y-1">
+                    <div className="font-medium">{attribute.attribute_label || attribute.attribute_name}</div>
+                    <div className="text-xs text-muted-foreground">{attribute.attribute_name}</div>
+                </div>
+            </TableCell>
+            <TableCell>
+                <Badge variant="outline">{attribute.data_type}</Badge>
+            </TableCell>
+            <TableCell>
+                <Badge variant="secondary">{attribute.input_type}</Badge>
+            </TableCell>
+            <TableCell>
+                <Switch
+                    checked={attribute.is_required}
+                    onCheckedChange={() => onToggleRequired(attribute.attribute_id, attribute.is_required)}
+                    disabled={isInherited}
+                />
+            </TableCell>
+            <TableCell>
+                <Switch
+                    checked={attribute.is_visible}
+                    onCheckedChange={() => onToggleVisibility(attribute.attribute_id, attribute.is_visible)}
+                />
+            </TableCell>
+            <TableCell>
+                <div className="flex items-center gap-2">
+                    {isInherited ? (
+                        <Badge variant="outline" className="text-xs">Inherited</Badge>
+                    ) : (
+                        <>
+                            {/* NEW: Edit button - disable if not editable */}
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => onEdit(attribute)}
+                                disabled={attribute.is_editable === false}
+                                title={attribute.is_editable === false ? "System-locked attribute" : "Edit attribute"}
+                            >
+                                {attribute.is_editable === false ? (
+                                    <Lock className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                    <Edit className="h-4 w-4" />
+                                )}
+                            </Button>
+                            {/* NEW: Delete button - only show if deletable */}
+                            {attribute.is_deletable !== false ? (
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => onDelete(attribute)}
+                                    title="Delete attribute"
+                                >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                            ) : (
+                                <div className="px-2 text-xs text-muted-foreground" title="System-required">
+                                    Required
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </TableCell>
+        </TableRow>
+    );
+};
+
+// Sortable Attribute Item Component (for card-style layout)
+interface SortableAttributeItemProps {
+    attribute: AttributeConfig;
+    isDirect: boolean;
+    inheritedFrom?: string;
+    onToggleRequired: (id: string, current: boolean) => void;
+    onEdit: (attr: AttributeConfig) => void;
+    saving: boolean;
+}
+
+const SortableAttributeItem: React.FC<SortableAttributeItemProps> = ({
+    attribute,
+    isDirect,
+    inheritedFrom,
+    onToggleRequired,
+    onEdit,
+    saving
+}) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: attribute.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.8 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`flex items-center justify-between p-3 rounded-lg border-2 transition-all ${
+                isDragging ? 'shadow-lg z-50 scale-105' : ''
+            } ${
+                isDirect 
+                    ? 'bg-white border-gray-200 hover:border-blue-300' 
+                    : 'bg-blue-50 border-blue-200'
+            }`}
+        >
+            <div className="flex items-center space-x-3 flex-1">
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+                >
+                    <GripVertical className="h-4 w-4 text-gray-400" />
+                </div>
+                <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                        <div className="font-medium text-sm">
+                            {attribute.attribute_label}
+                        </div>
+                        {!isDirect && inheritedFrom && (
+                            <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
+                                Inherited from {inheritedFrom}
+                            </Badge>
+                        )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                        {attribute.data_type} • {attribute.field_group}
+                    </div>
+                </div>
+            </div>
+            <div className="flex items-center space-x-2">
+                <Switch
+                    checked={attribute.is_required}
+                    onCheckedChange={() => onToggleRequired(attribute.attribute_id, attribute.is_required)}
+                    disabled={saving || !isDirect}
+                />
+                <Badge variant={attribute.is_required ? "default" : "secondary"}>
+                    {attribute.is_required ? "Required" : "Optional"}
+                </Badge>
+                {isDirect && (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onEdit(attribute)}
+                    >
+                        <Edit className="h-3 w-3" />
+                    </Button>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export const ComprehensiveAttributeManagement: React.FC = () => {
     const { serviceTypes, categories } = useAdminData();
+
+    // Drag and Drop Sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     // State
     const [activeTab, setActiveTab] = useState<"service" | "category" | "subcategory" | "defaults">("service");
@@ -213,6 +448,8 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                     help_text: item.override_help_text || item.attribute_registry?.help_text,
                     is_required: item.is_required,
                     is_visible: item.is_visible,
+                    is_editable: item.is_editable !== false, // NEW: Default to true if not specified
+                    is_deletable: item.is_deletable !== false, // NEW: Default to true if not specified
                     display_order: item.display_order,
                     field_group: item.field_group || "custom",
                     inherited_from: "service",
@@ -237,6 +474,8 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                 help_text: item.override_help_text,
                 is_required: item.is_required,
                 is_visible: item.is_visible,
+                is_editable: item.is_editable !== false, // NEW: Default to true if not specified
+                is_deletable: item.is_deletable !== false, // NEW: Default to true if not specified
                 display_order: item.display_order,
                 field_group: item.field_group || "custom",
                 inherited_from: item.inherited_from,
@@ -313,6 +552,8 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                     help_text: item.override_help_text || item.attribute_registry?.help_text,
                     is_required: item.is_required,
                     is_visible: item.is_visible,
+                    is_editable: item.is_editable !== false, // NEW
+                    is_deletable: item.is_deletable !== false, // NEW
                     display_order: item.display_order,
                     field_group: item.field_group || "custom",
                     inherit_from_service: item.inherit_from_service,
@@ -338,6 +579,8 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                 help_text: item.override_help_text,
                 is_required: item.is_required,
                 is_visible: item.is_visible,
+                is_editable: item.is_editable !== false, // NEW
+                is_deletable: item.is_deletable !== false, // NEW
                 display_order: item.display_order,
                 field_group: item.field_group || "custom",
                 inherited_from: item.inherited_from,
@@ -361,22 +604,54 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
         }
     }, [selectedCategory, selectedServiceType]);
 
-    // Fetch subcategories
+    // Fetch subcategories - FIXED
     const fetchSubcategories = async () => {
-        if (!selectedCategory) return;
+        if (!selectedCategory) {
+            setSubcategories([]);
+            return;
+        }
 
         try {
+            console.log('🔍 Fetching subcategories for category:', selectedCategory);
+            
             const { data, error } = await supabase
-                .from("categories")
-                .select("*")
-                .eq("parent_id", selectedCategory)
+                .from("subcategories")
+                .select(`
+                    id,
+                    name,
+                    description,
+                    service_type_id,
+                    category_id,
+                    icon,
+                    color,
+                    image_url,
+                    is_active,
+                    sort_order,
+                    created_at
+                `)
+                .eq("category_id", selectedCategory)
                 .eq("is_active", true)
                 .order("sort_order");
 
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error fetching subcategories:', error);
+                throw error;
+            }
+
+            console.log('✅ Loaded subcategories:', data?.length || 0, data);
             setSubcategories(data || []);
+
+            if (!data || data.length === 0) {
+                console.log('⚠️ No subcategories found for category:', selectedCategory);
+            }
         } catch (error) {
             console.error("Error fetching subcategories:", error);
+            toast({
+                title: "Error",
+                description: "Failed to load subcategories. Check console for details.",
+                variant: "destructive",
+            });
+            setSubcategories([]);
         }
     };
 
@@ -434,6 +709,8 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                     help_text: item.override_help_text || item.attribute_registry?.help_text,
                     is_required: item.is_required,
                     is_visible: item.is_visible,
+                    is_editable: item.is_editable !== false, // NEW
+                    is_deletable: item.is_deletable !== false, // NEW
                     display_order: item.display_order,
                     field_group: item.field_group || "custom",
                     inherit_from_service: item.inherit_from_service,
@@ -459,6 +736,8 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                 help_text: item.override_help_text,
                 is_required: item.is_required,
                 is_visible: item.is_visible,
+                is_editable: item.is_editable !== false, // NEW
+                is_deletable: item.is_deletable !== false, // NEW
                 display_order: item.display_order,
                 field_group: item.field_group || "custom",
                 inherited_from: item.inherited_from,
@@ -635,9 +914,35 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
         setSaving(true);
         try {
             const currentAttrs = getCurrentAttributes();
-            const idsToDelete = currentAttrs
-                .filter(attr => selectedAttributes.includes(attr.attribute_id))
-                .map(attr => attr.id);
+            
+            // NEW: Filter out non-deletable attributes
+            const deletableAttrs = currentAttrs.filter(attr => 
+                selectedAttributes.includes(attr.attribute_id) && 
+                attr.is_deletable !== false
+            );
+            
+            const nonDeletableAttrs = currentAttrs.filter(attr => 
+                selectedAttributes.includes(attr.attribute_id) && 
+                attr.is_deletable === false
+            );
+            
+            // Warn about non-deletable attributes
+            if (nonDeletableAttrs.length > 0) {
+                const names = nonDeletableAttrs.map(attr => attr.attribute_label).join(', ');
+                toast({
+                    title: "Some Attributes Cannot Be Deleted",
+                    description: `The following system-required attributes cannot be deleted: ${names}`,
+                    variant: "destructive",
+                });
+                
+                // If all selected attributes are non-deletable, stop here
+                if (deletableAttrs.length === 0) {
+                    setSaving(false);
+                    return;
+                }
+            }
+            
+            const idsToDelete = deletableAttrs.map(attr => attr.id);
 
             const tableName = activeTab === "service" ? "service_attribute_config" : "category_attribute_config";
 
@@ -751,7 +1056,66 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
         }
     }, [activeTab, getCurrentAttributes]);
 
-    // Update preview
+    // Drag end handler for reordering
+    const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (!over || active.id === over.id) {
+            return;
+        }
+
+        const currentAttrs = getCurrentAttributes();
+        const oldIndex = currentAttrs.findIndex(attr => attr.id === active.id);
+        const newIndex = currentAttrs.findIndex(attr => attr.id === over.id);
+
+        if (oldIndex === -1 || newIndex === -1) {
+            return;
+        }
+
+        const newOrder = arrayMove(currentAttrs, oldIndex, newIndex);
+        
+        // Update display order
+        const updates = newOrder.map((attr, index) => ({
+            ...attr,
+            display_order: index + 1
+        }));
+
+        // Optimistically update UI
+        setCurrentAttributes(updates);
+
+        // Save to database
+        setSaving(true);
+        try {
+            const tableName = activeTab === "service" ? "service_attribute_config" : "category_attribute_config";
+
+            for (const update of updates) {
+                await supabase
+                    .from(tableName)
+                    .update({ display_order: update.display_order })
+                    .eq("id", update.id);
+            }
+
+            toast({
+                title: "Success",
+                description: "Attribute order updated",
+            });
+        } catch (error: any) {
+            console.error("Error reordering:", error);
+            toast({
+                title: "Error",
+                description: "Failed to reorder attributes",
+                variant: "destructive",
+            });
+            // Revert on error
+            if (activeTab === "service") fetchServiceAttributes();
+            else if (activeTab === "category") fetchCategoryAttributes();
+            else fetchSubcategoryAttributes();
+        } finally {
+            setSaving(false);
+        }
+    }, [activeTab, getCurrentAttributes, setCurrentAttributes, fetchServiceAttributes, fetchCategoryAttributes, fetchSubcategoryAttributes]);
+
+    // Update preview - FIXED to ensure labels are included
     const updatePreview = async () => {
         try {
             const params: any = {
@@ -760,6 +1124,8 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                activeTab === "subcategory" ? selectedCategory : null,
                 p_subcategory_id: activeTab === "subcategory" ? selectedSubcategory : null,
             };
+
+            console.log('🔍 Fetching preview with params:', params);
 
             // Try v2 function first, fallback to v1 if not available
             let { data, error } = await supabase.rpc("get_product_form_attributes_v2", params);
@@ -785,7 +1151,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
             }
 
             if (error) {
-                console.error("Preview RPC error:", error);
+                console.error("❌ Preview RPC error:", error);
                 toast({
                     title: "Preview Error",
                     description: error.message || "Failed to load preview",
@@ -794,8 +1160,16 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                 return;
             }
 
-            console.log("Preview data received:", data);
-            setPreviewFields(data || []);
+            console.log("✅ Preview data received:", data);
+            
+            // Ensure all fields have proper labels
+            const fieldsWithLabels = (data || []).map((field: any) => ({
+                ...field,
+                attribute_label: field.attribute_label || field.field_label || field.label || field.attribute_name || field.field_name || 'Untitled Field',
+            }));
+            
+            console.log("📋 Fields with labels:", fieldsWithLabels);
+            setPreviewFields(fieldsWithLabels);
         } catch (error: any) {
             console.error("Error updating preview:", error);
             toast({
@@ -934,7 +1308,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                     <Plus className="h-4 w-4 mr-2" />
                                     Add Attributes
                                 </Button>
-                                <Button 
+                                {/* <Button 
                                     variant="outline" 
                                     onClick={() => {
                                         if (currentAttrs.length === 0) {
@@ -947,7 +1321,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                 >
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit Attributes
-                                </Button>
+                                </Button> */}
                                 <Button 
                                     variant="outline" 
                                     onClick={() => {
@@ -1006,10 +1380,10 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
 
                                             <Separator />
 
-                                            {/* Custom Attributes */}
+                                            {/* Custom Attributes with Drag and Drop */}
                                             <div className="mt-4">
                                                 <h4 className="text-sm font-semibold mb-2 text-muted-foreground">
-                                                    Custom Attributes
+                                                    Custom Attributes (Drag to Reorder)
                                                 </h4>
                                                 {currentAttrs.length === 0 ? (
                                                     <div className="text-center py-8 text-muted-foreground">
@@ -1024,84 +1398,38 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <div className="space-y-2">
-                                                        {currentAttrs.map((attr, idx) => {
-                                                            const isDirect = (attr as any).is_direct !== false;
-                                                            const inheritedFrom = (attr as any).inherited_from;
-                                                            
-                                                            return (
-                                                                <div 
-                                                                    key={attr.id} 
-                                                                    className={`flex items-center justify-between p-3 rounded-lg border-2 transition-colors ${
-                                                                        isDirect 
-                                                                            ? 'bg-white border-gray-200 hover:border-blue-300' 
-                                                                            : 'bg-blue-50 border-blue-200'
-                                                                    }`}
-                                                                >
-                                                                    <div className="flex items-center space-x-3 flex-1">
-                                                                        <GripVertical className="h-4 w-4 text-gray-400 cursor-move" />
-                                                                        <div className="flex-1">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <div className="font-medium text-sm">
-                                                                                    {attr.attribute_label}
-                                                                                </div>
-                                                                                {!isDirect && inheritedFrom && (
-                                                                                    <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
-                                                                                        Inherited from {inheritedFrom}
-                                                                                    </Badge>
-                                                                                )}
-                                                                            </div>
-                                                                            <div className="text-xs text-muted-foreground">
-                                                                                {attr.data_type} • {attr.field_group}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex items-center space-x-2">
-                                                                        <Switch
-                                                                            checked={attr.is_required}
-                                                                            onCheckedChange={() => handleToggleRequired(attr.attribute_id, attr.is_required)}
-                                                                            disabled={saving || !isDirect}
+                                                    <DndContext
+                                                        sensors={sensors}
+                                                        collisionDetection={closestCenter}
+                                                        onDragEnd={handleDragEnd}
+                                                    >
+                                                        <SortableContext
+                                                            items={currentAttrs.map(attr => attr.id)}
+                                                            strategy={verticalListSortingStrategy}
+                                                        >
+                                                            <div className="space-y-2">
+                                                                {currentAttrs.map((attr, idx) => {
+                                                                    const isDirect = (attr as any).is_direct !== false;
+                                                                    const inheritedFrom = (attr as any).inherited_from;
+                                                                    
+                                                                    return (
+                                                                        <SortableAttributeItem
+                                                                            key={attr.id}
+                                                                            attribute={attr}
+                                                                            isDirect={isDirect}
+                                                                            inheritedFrom={inheritedFrom}
+                                                                            onToggleRequired={handleToggleRequired}
+                                                                            onEdit={(attr) => {
+                                                                                setEditingAttribute(attr);
+                                                                                setShowEditModal(true);
+                                                                            }}
+                                                                            saving={saving}
                                                                         />
-                                                                        <Badge variant={attr.is_required ? "default" : "secondary"}>
-                                                                            {attr.is_required ? "Required" : "Optional"}
-                                                                        </Badge>
-                                                                        {isDirect && (
-                                                                            <>
-                                                                                <div className="flex flex-col space-y-1">
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        variant="ghost"
-                                                                                        onClick={() => handleReorder(attr.attribute_id, 'up')}
-                                                                                        disabled={idx === 0 || saving}
-                                                                                    >
-                                                                                        <ArrowUp className="h-3 w-3" />
-                                                                                    </Button>
-                                                                                    <Button
-                                                                                        size="sm"
-                                                                                        variant="ghost"
-                                                                                        onClick={() => handleReorder(attr.attribute_id, 'down')}
-                                                                                        disabled={idx === currentAttrs.length - 1 || saving}
-                                                                                    >
-                                                                                        <ArrowDown className="h-3 w-3" />
-                                                                                    </Button>
-                                                                                </div>
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    variant="ghost"
-                                                                                    onClick={() => {
-                                                                                        setEditingAttribute(attr);
-                                                                                        setShowEditModal(true);
-                                                                                    }}
-                                                                                >
-                                                                                    <Edit className="h-3 w-3" />
-                                                                                </Button>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </SortableContext>
+                                                    </DndContext>
                                                 )}
                                             </div>
                                         </div>
@@ -1201,7 +1529,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                     <Plus className="h-4 w-4 mr-2" />
                                     Add Attributes
                                 </Button>
-                                <Button 
+                                {/* <Button 
                                     variant="outline" 
                                     onClick={() => {
                                         if (currentAttrs.length === 0) {
@@ -1214,7 +1542,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                 >
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit Attributes
-                                </Button>
+                                </Button> */}
                                 <Button 
                                     variant="outline" 
                                     onClick={() => {
@@ -1272,9 +1600,10 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
 
                                             <Separator />
 
+                                            {/* Custom Attributes with Drag and Drop */}
                                             <div className="mt-4">
                                                 <h4 className="text-sm font-semibold mb-2 text-muted-foreground">
-                                                    Custom Attributes
+                                                    Custom Attributes (Drag to Reorder)
                                                 </h4>
                                                 {currentAttrs.length === 0 ? (
                                                     <div className="text-center py-8 text-muted-foreground">
@@ -1289,69 +1618,38 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                                         </Button>
                                                     </div>
                                                 ) : (
-                                                    <div className="space-y-2">
-                                                        {currentAttrs.map((attr, idx) => (
-                                                            <div 
-                                                                key={attr.id} 
-                                                                className="flex items-center justify-between p-3 bg-white rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors"
-                                                            >
-                                                                <div className="flex items-center space-x-3 flex-1">
-                                                                    <GripVertical className="h-4 w-4 text-gray-400 cursor-move" />
-                                                                    <div className="flex-1">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className="font-medium text-sm">
-                                                                                {attr.attribute_label}
-                                                                            </div>
-                                                                            {attr.inherit_from_service && (
-                                                                                <Badge variant="outline" className="text-xs">Inherited</Badge>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="text-xs text-muted-foreground">
-                                                                            {attr.data_type} • {attr.field_group}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center space-x-2">
-                                                                    <Switch
-                                                                        checked={attr.is_required}
-                                                                        onCheckedChange={() => handleToggleRequired(attr.attribute_id, attr.is_required)}
-                                                                        disabled={saving || attr.inherit_from_service}
-                                                                    />
-                                                                    <Badge variant={attr.is_required ? "default" : "secondary"}>
-                                                                        {attr.is_required ? "Required" : "Optional"}
-                                                                    </Badge>
-                                                                    <div className="flex flex-col space-y-1">
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="ghost"
-                                                                            onClick={() => handleReorder(attr.attribute_id, 'up')}
-                                                                            disabled={idx === 0 || saving}
-                                                                        >
-                                                                            <ArrowUp className="h-3 w-3" />
-                                                                        </Button>
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="ghost"
-                                                                            onClick={() => handleReorder(attr.attribute_id, 'down')}
-                                                                            disabled={idx === currentAttrs.length - 1 || saving}
-                                                                        >
-                                                                            <ArrowDown className="h-3 w-3" />
-                                                                        </Button>
-                                                                    </div>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="ghost"
-                                                                        onClick={() => {
-                                                                            setEditingAttribute(attr);
-                                                                            setShowEditModal(true);
-                                                                        }}
-                                                                    >
-                                                                        <Edit className="h-3 w-3" />
-                                                                    </Button>
-                                                                </div>
+                                                    <DndContext
+                                                        sensors={sensors}
+                                                        collisionDetection={closestCenter}
+                                                        onDragEnd={handleDragEnd}
+                                                    >
+                                                        <SortableContext
+                                                            items={currentAttrs.map(attr => attr.id)}
+                                                            strategy={verticalListSortingStrategy}
+                                                        >
+                                                            <div className="space-y-2">
+                                                                {currentAttrs.map((attr, idx) => {
+                                                                    const isDirect = (attr as any).is_direct !== false;
+                                                                    const inheritedFrom = (attr as any).inherited_from;
+                                                                    
+                                                                    return (
+                                                                        <SortableAttributeItem
+                                                                            key={attr.id}
+                                                                            attribute={attr}
+                                                                            isDirect={isDirect}
+                                                                            inheritedFrom={inheritedFrom}
+                                                                            onToggleRequired={handleToggleRequired}
+                                                                            onEdit={(attr) => {
+                                                                                setEditingAttribute(attr);
+                                                                                setShowEditModal(true);
+                                                                            }}
+                                                                            saving={saving}
+                                                                        />
+                                                                    );
+                                                                })}
                                                             </div>
-                                                        ))}
-                                                    </div>
+                                                        </SortableContext>
+                                                    </DndContext>
                                                 )}
                                             </div>
                                         </div>
@@ -1471,7 +1769,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                     <Plus className="h-4 w-4 mr-2" />
                                     Add Attributes
                                 </Button>
-                                <Button 
+                                {/* <Button 
                                     variant="outline" 
                                     onClick={() => {
                                         if (currentAttrs.length === 0) {
@@ -1484,7 +1782,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                 >
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit Attributes
-                                </Button>
+                                </Button> */}
                                 <Button 
                                     variant="outline" 
                                     onClick={() => {

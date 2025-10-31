@@ -1,8 +1,8 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Star, Heart } from "lucide-react";
-import { useRealtimeProducts } from "@/hooks/use-realtime-products";
+import { Card, CardContent } from "@/components/ui/card";
+import { useLocation } from "@/contexts/LocationContext";
+import { AlertCircle, Heart, MapPin, Star } from "lucide-react";
 
 const getServiceIcon = (serviceType: string) => {
   const icons: Record<string, string> = {
@@ -20,7 +20,7 @@ const getServiceIcon = (serviceType: string) => {
 };
 
 export function RecommendedSection() {
-  const { products: recommendations, loading } = useRealtimeProducts(undefined, 6);
+  const { locationBasedProducts: recommendations, isLoadingProducts: loading, currentLocation } = useLocation();
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -66,33 +66,44 @@ export function RecommendedSection() {
       </section>
     );
   }
+  // Display only first 6 products
+  const displayProducts = recommendations.slice(0, 6);
+
   return (
     <section className="py-8">
       <div className="container">
         {/* Section header */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Recommended for you</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Recommended for you</h2>
+            {currentLocation && (
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                Available in {currentLocation.city}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Products grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {recommendations.length > 0 ? (
-            recommendations.map((item, index) => {
+          {displayProducts.length > 0 ? (
+            displayProducts.map((item, index) => {
               const badge = getRandomBadges(index);
               return (
-                <Card key={item.id} className="group hover:shadow-md transition-shadow cursor-pointer">
+                <Card key={item.offering_id || item.id} className="group hover:shadow-md transition-shadow cursor-pointer">
                   <CardContent className="p-0">
                     {/* Image section */}
                     <div className="relative bg-gray-50 h-40 flex items-center justify-center">
-                      {item.image_url ? (
+                      {item.primary_image_url || item.image_url ? (
                         <img
-                          src={item.image_url}
-                          alt={item.name}
+                          src={item.primary_image_url || item.image_url}
+                          alt={item.offering_name || item.name}
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <span className="text-4xl opacity-60">
-                          {getServiceIcon(item.categories?.service_type || 'default')}
+                          {getServiceIcon(item.service_type || item.categories?.service_type || 'default')}
                         </span>
                       )}
 
@@ -118,7 +129,7 @@ export function RecommendedSection() {
                       {/* Discount badge */}
                       {item.discount_price && (
                         <Badge className="absolute bottom-2 left-2 bg-red-500 text-white text-xs">
-                          {calculateDiscount(item.price, item.discount_price)}% OFF
+                          {calculateDiscount(item.base_price || item.price, item.location_price || item.discount_price)}% OFF
                         </Badge>
                       )}
                     </div>
@@ -126,7 +137,7 @@ export function RecommendedSection() {
                     {/* Content section */}
                     <div className="p-3">
                       <h3 className="text-sm font-medium text-gray-900 mb-2 line-clamp-2 leading-tight">
-                        {item.name}
+                        {item.offering_name || item.name}
                       </h3>
 
                       {/* Rating */}
@@ -143,11 +154,11 @@ export function RecommendedSection() {
                       {/* Price */}
                       <div className="flex items-center gap-1 mb-3">
                         <span className="text-sm font-bold text-gray-900">
-                          {formatPrice(item.discount_price || item.price)}
+                          {formatPrice(item.location_price || item.discount_price || item.base_price || item.price)}
                         </span>
-                        {item.discount_price && (
+                        {(item.location_price || item.discount_price) && (
                           <span className="text-xs text-gray-500 line-through">
-                            {formatPrice(item.price)}
+                            {formatPrice(item.base_price || item.price)}
                           </span>
                         )}
                       </div>
@@ -162,8 +173,18 @@ export function RecommendedSection() {
               );
             })
           ) : (
-            <div className="col-span-full text-center py-8">
-              <p className="text-gray-500">No recommendations available</p>
+            <div className="col-span-full text-center py-12">
+              <Card className="max-w-md mx-auto border-yellow-200 bg-yellow-50">
+                <CardContent className="p-6">
+                  <AlertCircle className="h-12 w-12 text-yellow-600 mx-auto mb-3" />
+                  <p className="font-medium text-gray-900 mb-1">No products available</p>
+                  <p className="text-sm text-gray-600">
+                    {currentLocation 
+                      ? `We don't have any products available in ${currentLocation.city} yet.`
+                      : "Please select your location to see available products."}
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>

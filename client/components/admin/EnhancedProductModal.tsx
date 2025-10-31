@@ -2,20 +2,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,23 +24,23 @@ import { getCustomFieldValues, saveCustomFieldValues, useCustomFields } from "@/
 import { useVendorAuth } from "@/hooks/use-vendor-auth";
 import { productApi, uploadApi, vendorApi } from "@/lib/api";
 import {
-    baseFields,
-    FormField,
-    getServiceTypeConfig,
-    getServiceTypeFromCategory,
-    serviceTypeConfigs,
+  baseFields,
+  FormField,
+  getServiceTypeConfig,
+  getServiceTypeFromCategory,
+  serviceTypeConfigs,
 } from "@/lib/service-field-configs";
 import { supabase } from "@/lib/supabase";
 import {
-    ArrowRight,
-    DollarSign,
-    Image as ImageIcon,
-    Info,
-    Package,
-    Sparkles,
-    Tag,
-    Upload,
-    X,
+  ArrowRight,
+  DollarSign,
+  Image as ImageIcon,
+  Info,
+  Package,
+  Sparkles,
+  Tag,
+  Upload,
+  X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -75,6 +75,7 @@ export function EnhancedProductModal({
   const vendorAuth = useVendorAuth();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [selectedServiceType, setSelectedServiceType] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, any>>({
@@ -82,6 +83,7 @@ export function EnhancedProductModal({
     description: "",
     price: "",
     category_id: "",
+    subcategory_id: "", // NEW: Optional subcategory field
     vendor_id: "",
     brand: "",
     sku: "",
@@ -108,6 +110,17 @@ export function EnhancedProductModal({
     console.log('🔍 EnhancedProductModal - dynamicFormFields:', dynamicFormFields);
     console.log('🔍 EnhancedProductModal - customFieldsLoading:', customFieldsLoading);
     console.log('🔍 EnhancedProductModal - customFieldsError:', customFieldsError);
+    
+    // Find and log measurement_unit field specifically
+    const measurementField = dynamicFormFields.find(f => f.name === 'measurement_unit');
+    if (measurementField) {
+      console.log('📊 MEASUREMENT UNIT FIELD:', {
+        name: measurementField.name,
+        label: measurementField.label,
+        options: measurementField.options,
+        optionsCount: measurementField.options?.length || 0
+      });
+    }
   }, [selectedServiceType, customFields, dynamicFormFields, customFieldsLoading, customFieldsError]);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -199,14 +212,67 @@ export function EnhancedProductModal({
       description: "",
       price: "",
       category_id: "",
+      subcategory_id: "", // Reset subcategory
       vendor_id: defaultVendorId,
       brand: "",
       sku: "",
       is_active: true,
     });
     setSelectedServiceType("");
+    setSubcategories([]); // Clear subcategories
     setImages([]);
     setCurrentStep("category");
+  };
+
+  // NEW: Fetch subcategories when category is selected
+  const fetchSubcategories = async (categoryId: string) => {
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 [SUBCATEGORIES] Fetching subcategories');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📥 Category ID:', categoryId);
+    
+    try {
+      const { data, error } = await supabase
+        .from("subcategories")
+        .select("id, name, description, icon, color")
+        .eq("category_id", categoryId)
+        .eq("is_active", true)
+        .order("sort_order");
+
+      if (error) {
+        console.error('❌ [SUBCATEGORIES ERROR]', error);
+        console.error('  ├─ Code:', error.code);
+        console.error('  ├─ Message:', error.message);
+        console.error('  └─ Details:', error.details);
+        setSubcategories([]);
+        toast.error('Failed to load subcategories');
+        return;
+      }
+
+      console.log('✅ [SUBCATEGORIES SUCCESS]');
+      console.log('  ├─ Count:', data?.length || 0);
+      
+      if (data && data.length > 0) {
+        console.log('  └─ Subcategories:');
+        data.forEach((sub, index) => {
+          console.log(`      [${index + 1}] ${sub.icon || '📁'} ${sub.name} (${sub.id})`);
+        });
+      } else {
+        console.log('  └─ No subcategories found for this category');
+      }
+      
+      setSubcategories(data || []);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    } catch (error) {
+      console.error('\n❌ [SUBCATEGORIES EXCEPTION]', error);
+      if (error instanceof Error) {
+        console.error('  ├─ Message:', error.message);
+        console.error('  └─ Stack:', error.stack);
+      }
+      setSubcategories([]);
+      toast.error('An error occurred while loading subcategories');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    }
   };
 
   const fetchCategories = async () => {
@@ -309,74 +375,107 @@ export function EnhancedProductModal({
 
   const handleCategoryChange = useCallback(
     (categoryId: string) => {
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🎯 [CATEGORY CHANGE] Handler triggered');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       if (!categoryId) {
+        console.log('❌ No category ID - resetting form');
         setSelectedServiceType("");
-        setFormData((prev) => ({ ...prev, category_id: "" }));
+        setFormData((prev) => ({ ...prev, category_id: "", subcategory_id: "" }));
+        setSubcategories([]);
         setCurrentStep("category");
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         return;
       }
 
       const category = categories.find((c) => c.id === categoryId);
-      if (category) {
-        const serviceType =
-          category.service_type || getServiceTypeFromCategory(category.name);
-        const previousServiceType = selectedServiceType;
-        
-        console.log('🎯 Category selected:', {
-          categoryId,
-          categoryName: category.name,
-          categoryServiceType: category.service_type,
-          derivedServiceType: getServiceTypeFromCategory(category.name),
-          finalServiceType: serviceType,
-          previousServiceType
-        });
-
-        // Show transition animation if service type changes
-        if (serviceType !== previousServiceType && previousServiceType) {
-          setShowFieldTransition(true);
-          setTimeout(() => {
-            console.log('🔄 Setting service type after timeout:', serviceType);
-            setSelectedServiceType(serviceType);
-            setShowFieldTransition(false);
-            setCurrentStep("details");
-          }, 300);
-        } else {
-          console.log('🔄 Setting service type directly:', serviceType);
-          setSelectedServiceType(serviceType);
-          setCurrentStep("details");
-        }
-
-        // Reset service-specific fields when service type changes
-        if (serviceType !== previousServiceType) {
-          const newFormData: Record<string, any> = {
-            name: formData.name,
-            description: formData.description,
-            price: formData.price,
-            category_id: categoryId,
-            brand: formData.brand,
-            sku: formData.sku,
-            is_active: formData.is_active,
-          };
-
-          // Initialize service-specific fields with default values
-          const config = getServiceTypeConfig(serviceType);
-          if (config) {
-            config.specificFields.forEach((field) => {
-              if (field.type === "switch" || field.type === "checkbox") {
-                newFormData[field.name] = false;
-              } else if (field.type === "number") {
-                newFormData[field.name] = "";
-              } else {
-                newFormData[field.name] = "";
-              }
-            });
-          }
-
-          setFormData(newFormData);
-        } else {
-          setFormData((prev) => ({ ...prev, category_id: categoryId }));
-        }
+      
+      if (!category) {
+        console.error('❌ Category not found in categories array!');
+        console.error('  ├─ Requested ID:', categoryId);
+        console.error('  └─ Available categories:', categories.length);
+        toast.error('Selected category not found');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        return;
       }
+      
+      console.log('📋 Category details:');
+      console.log('  ├─ ID:', categoryId);
+      console.log('  ├─ Name:', category.name);
+      console.log('  └─ Service Type:', category.service_type || '(not set)');
+      
+      const serviceType = category.service_type || getServiceTypeFromCategory(category.name);
+      const previousServiceType = selectedServiceType;
+      
+      console.log('\n🔍 Service Type Resolution:');
+      console.log('  ├─ From category.service_type:', category.service_type || '(not set)');
+      console.log('  ├─ Derived from name:', getServiceTypeFromCategory(category.name));
+      console.log('  ├─ Final service type:', serviceType);
+      console.log('  └─ Previous service type:', previousServiceType || '(none)');
+
+      // NEW: Fetch subcategories for the selected category
+      console.log('\n📂 Fetching subcategories...');
+      fetchSubcategories(categoryId);
+
+      // Show transition animation if service type changes
+      if (serviceType !== previousServiceType && previousServiceType) {
+        console.log('\n⏱️  Service type changed - applying transition');
+        setShowFieldTransition(true);
+        setTimeout(() => {
+          console.log('🔄 Applying new service type after transition:', serviceType);
+          setSelectedServiceType(serviceType);
+          setShowFieldTransition(false);
+          setCurrentStep("details");
+        }, 300);
+      } else {
+        console.log('\n✅ Setting service type immediately:', serviceType);
+        setSelectedServiceType(serviceType);
+        setCurrentStep("details");
+      }
+
+      // Reset service-specific fields when service type changes
+      if (serviceType !== previousServiceType) {
+        console.log('\n🔄 Service type changed - resetting form fields');
+        
+        const newFormData: Record<string, any> = {
+          name: formData.name,
+          description: formData.description,
+          price: formData.price,
+          category_id: categoryId,
+          subcategory_id: "", // Reset subcategory when category changes
+          vendor_id: formData.vendor_id, // Preserve vendor selection
+          brand: formData.brand,
+          sku: formData.sku,
+          is_active: formData.is_active,
+        };
+
+        // Initialize service-specific fields with default values
+        const config = getServiceTypeConfig(serviceType);
+        if (config) {
+          console.log('  ├─ Found config for:', serviceType);
+          console.log('  └─ Initializing', config.specificFields.length, 'service-specific fields');
+          
+          config.specificFields.forEach((field) => {
+            if (field.type === "switch" || field.type === "checkbox") {
+              newFormData[field.name] = false;
+            } else if (field.type === "number") {
+              newFormData[field.name] = "";
+            } else {
+              newFormData[field.name] = "";
+            }
+          });
+        } else {
+          console.warn('  ⚠️  No config found for service type:', serviceType);
+        }
+
+        setFormData(newFormData);
+      } else {
+        console.log('\n✅ Same service type - updating category only');
+        setFormData((prev) => ({ ...prev, category_id: categoryId, subcategory_id: "" }));
+      }
+      
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     },
     [categories, selectedServiceType, formData],
   );
@@ -461,19 +560,35 @@ export function EnhancedProductModal({
     // Add dynamic database fields (prioritize these and merge with static ones)
     if (dynamicFormFields.length > 0) {
       console.log("getAllFields - adding dynamic fields:", dynamicFormFields.length);
+      console.log("getAllFields - dynamic fields:", dynamicFormFields.map(f => f.name));
       
-      // Merge with static fields, giving priority to dynamic fields
-      const staticFieldNames = allFields.map(f => f.name);
-      const uniqueDynamicFields = dynamicFormFields.filter(
-        field => !staticFieldNames.includes(field.name)
-      );
+      // CRITICAL FIX: Replace static fields with dynamic fields when they exist
+      // This ensures service-specific configurations (like measurement units) take precedence
+      const dynamicFieldNames = dynamicFormFields.map(f => f.name);
       
+      // Remove static fields that have dynamic replacements
+      allFields = allFields.filter(field => !dynamicFieldNames.includes(field.name));
+      
+      // Add all dynamic fields
       allFields = [
         ...allFields,
-        ...uniqueDynamicFields,
+        ...dynamicFormFields,
       ];
 
-      console.log("getAllFields - unique dynamic fields added:", uniqueDynamicFields.length);
+      console.log("getAllFields - merged fields count:", allFields.length);
+      console.log("getAllFields - final field names:", allFields.map(f => f.name));
+      
+      // Special logging for measurement_unit
+      const measurementField = allFields.find(f => f.name === 'measurement_unit');
+      if (measurementField) {
+        console.log("✅ measurement_unit field in final fields:", {
+          name: measurementField.name,
+          label: measurementField.label,
+          type: measurementField.type,
+          optionsCount: measurementField.options?.length || 0,
+          options: measurementField.options
+        });
+      }
     }
 
     // If no config and no dynamic fields, add basic fields
@@ -736,6 +851,9 @@ export function EnhancedProductModal({
       const submitData: Record<string, any> = {
         vendor_id: formData.vendor_id,
         name: formData.name,
+        // NEW: Optional subcategory mapping - if subcategory is selected, map to it, otherwise map to category
+        category_id: formData.category_id,
+        subcategory_id: formData.subcategory_id || null, // Will be null if not selected
       };
 
       // Process all form fields
@@ -930,6 +1048,37 @@ export function EnhancedProductModal({
                     }
                     return renderField(categoryField);
                   })()}
+
+                  {/* NEW: Subcategory selector (optional) */}
+                  {selectedServiceType && subcategories.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="subcategory_id">
+                        Subcategory <span className="text-xs text-muted-foreground">(Optional)</span>
+                      </Label>
+                      <Select
+                        value={formData.subcategory_id}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, subcategory_id: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select subcategory (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None (map to category only)</SelectItem>
+                          {subcategories.map((subcategory) => (
+                            <SelectItem key={subcategory.id} value={subcategory.id}>
+                              {subcategory.icon && `${subcategory.icon} `}
+                              {subcategory.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        If subcategory is selected, the product will be mapped to it. Otherwise, it will be mapped to the category.
+                      </p>
+                    </div>
+                  )}
 
                   {selectedServiceType && (
                     <div className="mt-4 p-4 bg-primary/5 rounded-lg border border-primary/20">

@@ -1,11 +1,12 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, Heart, Plus, Minus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useCart } from "@/contexts/CartContext";
 import { useWishlistContext } from "@/contexts/WishlistContext";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Heart, Minus, Plus, Star } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface Product {
   id: string;
@@ -31,6 +32,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const navigate = useNavigate();
   const { state, dispatch } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlistContext();
   const [quantity, setQuantity] = useState(1);
@@ -43,7 +45,13 @@ export function ProductCard({ product }: ProductCardProps) {
   const handleAddToCart = () => {
     dispatch({
       type: "ADD_ITEM",
-      payload: { product, quantity },
+      payload: { 
+        product: {
+          ...product,
+          description: product.description || '',
+        }, 
+        quantity 
+      },
     });
   };
 
@@ -74,8 +82,12 @@ export function ProductCard({ product }: ProductCardProps) {
     });
   };
 
+  const handleCardClick = () => {
+    navigate(`/product/${product.id}`);
+  };
+
   return (
-    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
+    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer" onClick={handleCardClick}>
       <CardContent className="p-0">
         {/* Image section */}
         <div className="relative bg-gray-50 h-48 flex items-center justify-center">
@@ -114,8 +126,13 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* Wishlist button */}
           <button
-            onClick={handleWishlistToggle}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleWishlistToggle(e);
+            }}
             className="absolute top-3 right-3 p-2 rounded-full bg-white shadow-sm hover:bg-gray-50 transition-colors"
+            aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
           >
             <Heart
               className={cn(
@@ -163,11 +180,16 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* Add to cart controls */}
           {!isInCart ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center border rounded-lg">
                 <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setQuantity(Math.max(1, quantity - 1));
+                  }}
                   className="p-2 hover:bg-gray-50 transition-colors"
+                  aria-label="Decrease quantity"
+                  title="Decrease quantity"
                 >
                   <Minus className="h-3 w-3" />
                 </button>
@@ -175,14 +197,22 @@ export function ProductCard({ product }: ProductCardProps) {
                   {quantity}
                 </span>
                 <button
-                  onClick={() => setQuantity(quantity + 1)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setQuantity(quantity + 1);
+                  }}
                   className="p-2 hover:bg-gray-50 transition-colors"
+                  aria-label="Increase quantity"
+                  title="Increase quantity"
                 >
                   <Plus className="h-3 w-3" />
                 </button>
               </div>
               <Button
-                onClick={handleAddToCart}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddToCart();
+                }}
                 className="flex-1 bg-primary text-black hover:bg-primary/90"
                 size="sm"
               >
@@ -190,11 +220,16 @@ export function ProductCard({ product }: ProductCardProps) {
               </Button>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center border rounded-lg">
                 <button
-                  onClick={() => handleUpdateQuantity(cartQuantity - 1)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleUpdateQuantity(cartQuantity - 1);
+                  }}
                   className="p-2 hover:bg-gray-50 transition-colors"
+                  aria-label="Decrease cart quantity"
+                  title="Decrease cart quantity"
                 >
                   <Minus className="h-3 w-3" />
                 </button>
@@ -202,8 +237,13 @@ export function ProductCard({ product }: ProductCardProps) {
                   {cartQuantity}
                 </span>
                 <button
-                  onClick={() => handleUpdateQuantity(cartQuantity + 1)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleUpdateQuantity(cartQuantity + 1);
+                  }}
                   className="p-2 hover:bg-gray-50 transition-colors"
+                  aria-label="Increase cart quantity"
+                  title="Increase cart quantity"
                 >
                   <Plus className="h-3 w-3" />
                 </button>

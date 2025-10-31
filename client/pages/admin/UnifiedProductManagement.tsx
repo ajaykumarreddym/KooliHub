@@ -1,42 +1,42 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,27 +62,25 @@ import { EnhancedProductModal } from "@/components/admin/EnhancedProductModal";
 
 // Icons
 import {
-    Activity,
-    AlertCircle,
-    BarChart3,
-    Clock,
-    Download,
-    Edit,
-    Layers,
-    Map,
-    MapPin,
-    MoreHorizontal,
-    Navigation,
-    Package,
-    Plus,
-    RefreshCw,
-    Search,
-    Settings,
-    ShoppingCart,
-    Store,
-    Tag,
-    Trash2,
-    TrendingUp
+  Activity,
+  AlertCircle,
+  BarChart3,
+  Clock,
+  Download,
+  Edit,
+  Layers,
+  Map,
+  MapPin,
+  MoreHorizontal,
+  Navigation,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Store,
+  Trash2,
+  TrendingUp
 } from "lucide-react";
 
 // Types from AdminDataContext
@@ -199,8 +197,8 @@ export const UnifiedProductManagement: React.FC = () => {
     const searchTerm = productSearchTerm.toLowerCase();
     return products.filter(product => 
       product.name.toLowerCase().includes(searchTerm) ||
-      product.brand?.toLowerCase().includes(searchTerm) ||
-      product.sku?.toLowerCase().includes(searchTerm) ||
+      (product as any).brand?.toLowerCase().includes(searchTerm) ||
+      (product as any).sku?.toLowerCase().includes(searchTerm) ||
       product.category?.name?.toLowerCase().includes(searchTerm)
     );
   }, [products, productSearchTerm]);
@@ -840,23 +838,124 @@ export const UnifiedProductManagement: React.FC = () => {
     }
   };
 
-  // Overview Component
+  // Overview Component - Redesigned with clean minimal design
   const OverviewSection = () => (
     <div className="space-y-6">
-      {/* Cache Status Indicator */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+      {/* Stats Grid - Clean modern design */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Products</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalProducts}</p>
+                <p className="text-sm text-green-600 mt-1">{stats.activeProducts} active</p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Package className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Value</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  {formatPrice(stats.totalValue)}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">Inventory worth</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <TrendingUp className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Service Areas</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.activeAreas}</p>
+                <p className="text-sm text-gray-500 mt-1">{stats.totalStates} states covered</p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-xl">
+                <MapPin className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Categories</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalCategories}</p>
+                <p className="text-sm text-gray-500 mt-1">{stats.totalServiceTypes} service types</p>
+              </div>
+              <div className="p-3 bg-indigo-100 rounded-xl">
+                <Layers className="h-6 w-6 text-indigo-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions - Clean minimal design */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common product management tasks</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Button
+              onClick={() => {
+                setSelectedProduct(null);
+                setShowComprehensiveProductModal(true);
+              }}
+              className="h-20 flex-col bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+            >
+              <Plus className="h-6 w-6 mb-2" />
+              Add Product
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddServiceAreaModal(true)}
+              className="h-20 flex-col"
+            >
+              <MapPin className="h-6 w-6 mb-2" />
+              Add Service Area
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setActiveTab('products')}
+              className="h-20 flex-col"
+            >
+              <Package className="h-6 w-6 mb-2" />
+              View All Products
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Performance Indicator - Subtle and clean */}
+      <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <Activity className="h-5 w-5 text-white" />
-              </div>
+              <Activity className="h-5 w-5 text-blue-600" />
               <div>
                 <p className="text-sm font-medium text-blue-900">
-                  🚀 Optimized Performance Mode
+                  Real-time sync active
                 </p>
                 <p className="text-xs text-blue-700">
-                  Data cached & real-time sync active • Total items: {getCacheStats().totalItems}
+                  {getCacheStats().totalItems} items cached for optimal performance
                 </p>
               </div>
             </div>
@@ -864,174 +963,32 @@ export const UnifiedProductManagement: React.FC = () => {
               variant="outline" 
               size="sm" 
               onClick={() => handleManualRefresh('products')}
-              disabled={loading.products}
+              disabled={typeof loading === 'object' ? (loading as any)?.products : loading}
               className="border-blue-300 text-blue-700 hover:bg-blue-100"
             >
-              {loading.products ? (
-                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+              {(typeof loading === 'object' ? (loading as any)?.products : loading) ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
               ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
+                <RefreshCw className="h-4 w-4" />
               )}
-              Refresh All
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <Package className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-blue-900">{stats.totalProducts}</p>
-                <p className="text-sm text-blue-700 font-medium">Products</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-green-600 rounded-lg">
-                <Activity className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-green-900">{stats.activeProducts}</p>
-                <p className="text-sm text-green-700 font-medium">Active</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-purple-600 rounded-lg">
-                <TrendingUp className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-purple-900">
-                  {formatPrice(stats.totalValue)}
-                </p>
-                <p className="text-sm text-purple-700 font-medium">Total Value</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-orange-600 rounded-lg">
-                <MapPin className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-orange-900">{stats.activeAreas}</p>
-                <p className="text-sm text-orange-700 font-medium">Service Areas</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-indigo-600 rounded-lg">
-                <Layers className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-indigo-900">{stats.totalCategories}</p>
-                <p className="text-sm text-indigo-700 font-medium">Categories</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-pink-600 rounded-lg">
-                <Settings className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-pink-900">{stats.totalServiceTypes}</p>
-                <p className="text-sm text-pink-700 font-medium">Service Types</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Quick Actions
-          </CardTitle>
-          <CardDescription>Manage your product ecosystem efficiently (no loading delays!)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Button
-              onClick={() => {
-                setSelectedProduct(null);
-                setShowComprehensiveProductModal(true);
-              }}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 h-12"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowAddServiceAreaModal(true)}
-              className="h-12"
-            >
-              <MapPin className="h-4 w-4 mr-2" />
-              Add Service Area
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowAddCategoryModal(true)}
-              className="h-12"
-            >
-              <Tag className="h-4 w-4 mr-2" />
-              Add Category
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowAddServiceTypeModal(true)}
-              className="h-12"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Add Service Type
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Alerts */}
+      {/* Alerts - Only show if there are issues */}
       {(stats.lowStockProducts > 0 || stats.outOfStockProducts > 0) && (
-        <Card className="border-orange-200 bg-orange-50/50">
+        <Card className="border-orange-200 bg-orange-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-orange-800">
               <AlertCircle className="h-5 w-5" />
               Inventory Alerts
             </CardTitle>
-            <CardDescription className="text-orange-700">
-              Products requiring attention
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {stats.outOfStockProducts > 0 && (
-                <div className="flex items-center gap-2 text-red-700">
+                <div className="flex items-center gap-2 text-red-700 bg-red-50 p-3 rounded-lg">
                   <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                   <span className="font-medium">
                     {stats.outOfStockProducts} products are out of stock
@@ -1039,7 +996,7 @@ export const UnifiedProductManagement: React.FC = () => {
                 </div>
               )}
               {stats.lowStockProducts > 0 && (
-                <div className="flex items-center gap-2 text-orange-700">
+                <div className="flex items-center gap-2 text-orange-700 bg-orange-100 p-3 rounded-lg">
                   <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                   <span className="font-medium">
                     {stats.lowStockProducts} products have low stock
@@ -1053,24 +1010,24 @@ export const UnifiedProductManagement: React.FC = () => {
     </div>
   );
 
-  // Products Section - MEMOIZED to prevent component recreation and focus loss
+  // Products Section - MEMOIZED with clean modern design
   const ProductsSection = useMemo(() => (
     <div className="space-y-6">
-      {/* Filters */}
-      <Card>
+      {/* Filters - Clean modern design */}
+      <Card className="border-gray-200">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search products..."
+                placeholder="Search products by name, brand, or SKU..."
                 value={productSearchTerm}
                 onChange={handleProductSearch}
-                className="pl-10"
+                className="pl-10 h-10"
               />
             </div>
             <Select value={vendorFilter} onValueChange={setVendorFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full sm:w-48 h-10">
                 <SelectValue placeholder="All Vendors" />
               </SelectTrigger>
               <SelectContent>
@@ -1083,7 +1040,7 @@ export const UnifiedProductManagement: React.FC = () => {
               </SelectContent>
             </Select>
             <Select value={selectedServiceType} onValueChange={setSelectedServiceType}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full sm:w-48 h-10">
                 <SelectValue placeholder="All Service Types" />
               </SelectTrigger>
               <SelectContent>
@@ -1100,7 +1057,7 @@ export const UnifiedProductManagement: React.FC = () => {
                 setSelectedProduct(null);
                 setShowComprehensiveProductModal(true);
               }}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 h-10 whitespace-nowrap"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Product
@@ -1109,13 +1066,22 @@ export const UnifiedProductManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Products Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Products ({filteredProducts.length})</CardTitle>
-          <CardDescription>Manage your product catalog • Real-time sync active</CardDescription>
+      {/* Products Table - Clean design */}
+      <Card className="border-gray-200">
+        <CardHeader className="border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Products</CardTitle>
+              <CardDescription className="mt-1">
+                {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} in catalog
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-sm px-3 py-1">
+              Real-time sync active
+            </Badge>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12">
               <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -1150,9 +1116,9 @@ export const UnifiedProductManagement: React.FC = () => {
                   <TableRow key={product.id}>
                     <TableCell>
                       <div className="flex items-center space-x-3">
-                        {product.image_url ? (
+                        {(product as any).image_url || product.primary_image_url ? (
                           <img
-                            src={product.image_url}
+                            src={(product as any).image_url || product.primary_image_url}
                             alt={product.name}
                             className="w-10 h-10 rounded object-cover"
                           />
@@ -1164,7 +1130,7 @@ export const UnifiedProductManagement: React.FC = () => {
                         <div>
                           <div className="font-medium">{product.name}</div>
                           <div className="text-sm text-muted-foreground">
-                            {product.brand}
+                            {(product as any).brand || ''}
                           </div>
                           {product.tags && product.tags.length > 0 && (
                             <div className="flex gap-1 mt-1">
@@ -1196,7 +1162,7 @@ export const UnifiedProductManagement: React.FC = () => {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => {
-                            setSelectedProduct(product);
+                            setSelectedProduct(product as any);
                             setShowComprehensiveProductModal(true);
                           }}>
                             <Edit className="h-4 w-4 mr-2" />
@@ -1223,62 +1189,74 @@ export const UnifiedProductManagement: React.FC = () => {
     </div>
   ), [filteredProducts, productSearchTerm, vendorFilter, selectedServiceType, handleProductSearch, deleteLoading, formatPrice, setSelectedProduct, setShowComprehensiveProductModal, handleDeleteProduct]);
 
-  // Service Areas Section - MEMOIZED to prevent component recreation and focus loss
+  // Area Inventory Section - Clean modern design
   const ServiceAreasSection = useMemo(() => (
     <div className="space-y-6">
-      {/* Area stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Area stats - Clean cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <MapPin className="h-5 w-5 text-green-600" />
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{stats.activeAreas}</p>
-                <p className="text-xs text-gray-500">Active Areas</p>
+                <p className="text-sm font-medium text-gray-600">Active Areas</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.activeAreas}</p>
+                <p className="text-sm text-gray-500 mt-1">Currently serviceable</p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-xl">
+                <MapPin className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Navigation className="h-5 w-5 text-blue-600" />
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{stats.totalAreas}</p>
-                <p className="text-xs text-gray-500">Total Areas</p>
+                <p className="text-sm font-medium text-gray-600">Total Areas</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalAreas}</p>
+                <p className="text-sm text-gray-500 mt-1">Coverage zones</p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Navigation className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-orange-600" />
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{stats.avgDeliveryTime}h</p>
-                <p className="text-xs text-gray-500">Avg Delivery</p>
+                <p className="text-sm font-medium text-gray-600">Avg Delivery</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.avgDeliveryTime}h</p>
+                <p className="text-sm text-gray-500 mt-1">Delivery time</p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-xl">
+                <Clock className="h-6 w-6 text-orange-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Map className="h-5 w-5 text-purple-600" />
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{stats.totalStates}</p>
-                <p className="text-xs text-gray-500">States</p>
+                <p className="text-sm font-medium text-gray-600">States Covered</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalStates}</p>
+                <p className="text-sm text-gray-500 mt-1">Geographic reach</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <Map className="h-6 w-6 text-purple-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search and Add */}
-      <Card>
+      {/* Search and Add - Clean design */}
+      <Card className="border-gray-200">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
@@ -1287,10 +1265,13 @@ export const UnifiedProductManagement: React.FC = () => {
                 placeholder="Search by city, pincode, or state..."
                 value={serviceAreaSearchTerm}
                 onChange={handleServiceAreaSearch}
-                className="pl-10"
+                className="pl-10 h-10"
               />
             </div>
-            <Button onClick={() => setShowAddServiceAreaModal(true)}>
+            <Button 
+              onClick={() => setShowAddServiceAreaModal(true)}
+              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 h-10 whitespace-nowrap"
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add Service Area
             </Button>
@@ -1298,13 +1279,22 @@ export const UnifiedProductManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Service Areas Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Service Areas ({filteredServiceAreas.length})</CardTitle>
-          <CardDescription>Manage your delivery coverage zones • Real-time sync active</CardDescription>
+      {/* Service Areas Table - Clean design */}
+      <Card className="border-gray-200">
+        <CardHeader className="border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Service Areas</CardTitle>
+              <CardDescription className="mt-1">
+                {filteredServiceAreas.length} {filteredServiceAreas.length === 1 ? 'area' : 'areas'} configured
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-sm px-3 py-1">
+              Real-time sync active
+            </Badge>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {filteredServiceAreas.length === 0 ? (
             <div className="text-center py-12">
               <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -1819,22 +1809,20 @@ export const UnifiedProductManagement: React.FC = () => {
     );
   };
 
-  // 🚀 OPTIMIZED: Only show loading if data hasn't been loaded yet (not on tab switches)
+  // Loading state with clean design
   if (!isDataLoaded) {
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
+      <div className="min-h-screen bg-gray-50">
+        <div className="p-6 bg-white border-b border-gray-200">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-              Product Management
-            </h1>
-            <p className="text-gray-600 mt-1">🚀 Loading optimized data cache...</p>
+            <h1 className="text-3xl font-bold text-gray-900">Product Management</h1>
+            <p className="text-gray-600 mt-2">Loading your product catalog...</p>
           </div>
         </div>
-        <div className="flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
           <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="text-sm text-gray-500">Setting up real-time sync & cache...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600"></div>
+            <p className="text-sm text-gray-500">Setting up real-time sync...</p>
           </div>
         </div>
       </div>
@@ -1842,80 +1830,69 @@ export const UnifiedProductManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-            🚀 Product Management
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Unified management • Optimized performance • Real-time sync active
-          </p>
-        </div>
-        <div className="flex space-x-3">
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button
-            onClick={() => {
-              setSelectedProduct(null);
-              setShowComprehensiveProductModal(true);
-            }}
-            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Product
-          </Button>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - Sticky with better design */}
+      <div className="p-6 bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Product Management</h1>
+            <p className="text-gray-600 mt-2">
+              Manage your product catalog and inventory across all services
+            </p>
+          </div>
+          <div className="flex space-x-3">
+            <Button variant="outline" size="sm" className="h-10">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+            <Button
+              onClick={() => {
+                setSelectedProduct(null);
+                setShowComprehensiveProductModal(true);
+              }}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 h-10"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Product
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="products" className="flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            Products
-          </TabsTrigger>
-          <TabsTrigger value="service-areas" className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            Service Areas
-          </TabsTrigger>
-          <TabsTrigger value="categories" className="flex items-center gap-2">
-            <Layers className="h-4 w-4" />
-            Categories & Types
-          </TabsTrigger>
-          <TabsTrigger value="custom-fields" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Custom Fields
-          </TabsTrigger>
-        </TabsList>
+      <div className="p-6 space-y-6">
+        {/* Tabs - Cleaner 3-column layout */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+            <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <BarChart3 className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="products" className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <Package className="h-4 w-4" />
+              Products
+            </TabsTrigger>
+            <TabsTrigger value="area-inventory" className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <MapPin className="h-4 w-4" />
+              Area Inventory
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <OverviewSection />
-        </TabsContent>
+          <TabsContent value="overview" className="space-y-6 mt-6">
+            <OverviewSection />
+          </TabsContent>
 
-        <TabsContent value="products" className="space-y-6">
-          {ProductsSection}
-        </TabsContent>
+          <TabsContent value="products" className="space-y-6 mt-6">
+            {ProductsSection}
+          </TabsContent>
 
-        <TabsContent value="service-areas" className="space-y-6">
-          {ServiceAreasSection}
-        </TabsContent>
+          <TabsContent value="area-inventory" className="space-y-6 mt-6">
+            {ServiceAreasSection}
+          </TabsContent>
+        </Tabs>
+      </div>
 
-        <TabsContent value="categories" className="space-y-6">
-          <ServiceTypesSection />
-        </TabsContent>
-
-        <TabsContent value="custom-fields" className="space-y-6">
-          <CustomFieldsSection />
-        </TabsContent>
-      </Tabs>
+      {/* Bottom padding for proper scrolling */}
+      <div className="pb-20"></div>
 
       {/* Modals */}
       {/* New Comprehensive Product Modal with Dynamic Attribute System */}
@@ -1942,14 +1919,13 @@ export const UnifiedProductManagement: React.FC = () => {
           
           // Refresh data
           await Promise.all([
-            refreshOfferings(),
+            refreshProducts(),
             refreshCategories(),
             refreshServiceAreas(),
           ]);
           
           // Update toast
-          loadingToast.update({
-            id: loadingToast.id,
+          toast({
             title: "Success!",
             description: "Product data refreshed successfully.",
           });

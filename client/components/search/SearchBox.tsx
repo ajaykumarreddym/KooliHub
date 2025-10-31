@@ -1,9 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -12,23 +8,26 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Search,
-  X,
-  Loader2,
-  TrendingUp,
-  Package,
-  Star,
-  Clock,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSearch, type SearchResult } from "@/hooks/use-search";
 import { formatCurrency } from "@/lib/payment-utils";
+import { cn } from "@/lib/utils";
+import {
+  Clock,
+  Loader2,
+  Package,
+  Search,
+  Star,
+  TrendingUp,
+  X,
+} from "lucide-react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 
 interface SearchBoxProps {
   placeholder?: string;
@@ -56,7 +55,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
   const popularSearches = getPopularSearches();
 
-  const handleInputChange = (value: string) => {
+  const handleInputChange = useCallback((value: string) => {
     setInputValue(value);
     if (value.length >= 2) {
       setIsOpen(true);
@@ -64,35 +63,35 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     } else {
       setIsOpen(false);
     }
-  };
+  }, [handleSearch]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim()) {
       handleSearch(inputValue);
       setIsOpen(false);
     }
-  };
+  }, [inputValue, handleSearch]);
 
-  const handleResultSelect = (result: SearchResult) => {
+  const handleResultSelect = useCallback((result: SearchResult) => {
     handleResultClick(result);
     setInputValue("");
     setIsOpen(false);
-  };
+  }, [handleResultClick]);
 
-  const handlePopularSearchClick = (searchTerm: string) => {
+  const handlePopularSearchClick = useCallback((searchTerm: string) => {
     setInputValue(searchTerm);
     handleSearch(searchTerm);
     setIsOpen(false);
-  };
+  }, [handleSearch]);
 
-  const clearInput = () => {
+  const clearInput = useCallback(() => {
     setInputValue("");
     setIsOpen(false);
     inputRef.current?.focus();
-  };
+  }, []);
 
-  const getResultIcon = (result: SearchResult) => {
+  const getResultIcon = useCallback((result: SearchResult) => {
     switch (result.type) {
       case "service":
         return <Package className="h-4 w-4 text-blue-600" />;
@@ -101,18 +100,20 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
       default:
         return <Search className="h-4 w-4 text-gray-600" />;
     }
-  };
+  }, []);
 
-  const SearchContent = () => (
+  const SearchContent = useMemo(() => (
     <div className="w-full max-w-2xl">
       <form onSubmit={handleSubmit} className="relative">
         <Input
+          key="search-input"
           ref={inputRef}
           type="text"
           placeholder={placeholder}
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
           className="w-full pl-4 pr-20 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-primary bg-gray-50"
+          autoComplete="off"
         />
 
         <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
@@ -246,7 +247,21 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         </div>
       )}
     </div>
-  );
+  ), [
+    handleSubmit,
+    placeholder,
+    inputValue,
+    handleInputChange,
+    clearInput,
+    isSearching,
+    isOpen,
+    hasResults,
+    searchResults,
+    handleResultSelect,
+    getResultIcon,
+    popularSearches,
+    handlePopularSearchClick,
+  ]);
 
   if (showInPopover) {
     return (
@@ -307,7 +322,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
   return (
     <div className={cn("relative", className)}>
-      <SearchContent />
+      {SearchContent}
     </div>
   );
 };

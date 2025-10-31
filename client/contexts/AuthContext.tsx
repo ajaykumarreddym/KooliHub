@@ -1,12 +1,12 @@
+import { getProfile, isAdmin, supabase } from "@/lib/supabase";
+import { Session, User } from "@supabase/supabase-js";
 import React, {
   createContext,
   useContext,
   useEffect,
-  useState,
   useRef,
+  useState,
 } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase, getProfile, isAdmin } from "@/lib/supabase";
 
 interface Profile {
   id: string;
@@ -268,6 +268,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setProfileError(null);
     retryCountRef.current = 0;
     isRefreshingRef.current = false;
+    
+    // Clear location data from localStorage on logout
+    localStorage.removeItem('userLocation');
+    
+    // Clear cart data on logout
+    localStorage.removeItem('cart');
+    
+    // Clear any other user-specific data
+    localStorage.removeItem('wishlist');
   };
 
   const value = {

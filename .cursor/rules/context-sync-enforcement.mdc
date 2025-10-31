@@ -1,0 +1,478 @@
+# Context Synchronization & Rule Enforcement System
+**Domain**: Rule Enforcement, Context Management, Auto-Sync  
+**Version**: 1.0.0  
+**Last Updated**: October 22, 2025
+
+---
+
+## Overview
+
+This document defines the automated system for ensuring all code changes, updates, and new functionality automatically align with project rules and update the corresponding context and related files.
+
+---
+
+## Rule Enforcement Principles
+
+### ENFORCE-001: Rule Application
+**Priority**: CRITICAL
+
+**Every change MUST**:
+1. Check applicable rules before implementation
+2. Validate against existing patterns
+3. Update related documentation
+4. Sync context across affected files
+5. Update tests accordingly
+
+### ENFORCE-002: Automatic Context Updates
+**Priority**: HIGH
+
+When modifying code, **automatically update**:
+- Related TypeScript types in `shared/api.ts`
+- Database schema documentation
+- API endpoint documentation
+- Component documentation
+- Test files
+
+---
+
+## File Change Triggers
+
+### Trigger: New React Component
+
+**When creating a new component, automatically:**
+
+1. **Check applicable rules**:
+   - R-QUALITY-001 (React Component Standards)
+   - R-QUALITY-003 (Accessibility Standards)
+   - R-DEV-005 (Component Naming Conventions)
+
+2. **Required updates**:
+   - Add TypeScript interface for props
+   - Implement error handling
+   - Add accessibility attributes
+   - Create corresponding test file
+   - Update component index if in ui/
+
+3. **Template to follow**:
+```typescript
+import React from 'react';
+
+interface MyComponentProps {
+  // Define props with TypeScript
+  userId: string;
+  onUpdate?: (data: any) => void;
+}
+
+/**
+ * MyComponent - Brief description
+ * 
+ * @param userId - User identifier
+ * @param onUpdate - Callback when update occurs
+ */
+export const MyComponent: React.FC<MyComponentProps> = ({ 
+  userId, 
+  onUpdate 
+}) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Implementation...
+  
+  return (
+    // JSX with proper accessibility
+  );
+};
+```
+
+### Trigger: New API Endpoint
+
+**When creating a new API endpoint, automatically:**
+
+1. **Check applicable rules**:
+   - R-API-001 (Endpoint Strategy)
+   - R-API-002 (RESTful Design)
+   - R-API-004 (Shared Types)
+   - R-SEC-001 (Authentication)
+
+2. **Required updates**:
+   - Add types to `shared/api.ts`
+   - Create route handler in `server/routes/`
+   - Register in `server/index.ts`
+   - Add authentication middleware if needed
+   - Document in API rules file
+   - Create integration tests
+
+3. **Template**:
+```typescript
+// shared/api.ts
+export interface MyEndpointResponse {
+  success: boolean;
+  data?: {
+    // Define response shape
+  };
+}
+
+// server/routes/my-endpoint.ts
+import { RequestHandler } from 'express';
+import { MyEndpointResponse } from '@shared/api';
+
+export const handleMyEndpoint: RequestHandler = async (req, res) => {
+  try {
+    // Implementation
+    const response: MyEndpointResponse = {
+      success: true,
+      data: {}
+    };
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal error' });
+  }
+};
+
+// server/index.ts
+import { handleMyEndpoint } from './routes/my-endpoint';
+app.get('/api/my-endpoint', requireAdmin, handleMyEndpoint);
+```
+
+### Trigger: Database Schema Change
+
+**When modifying database schema, automatically:**
+
+1. **Check applicable rules**:
+   - R-DB-001 (Schema Design)
+   - R-DB-002 (Naming Conventions)
+   - R-DB-003 (Migration Management)
+
+2. **Required updates**:
+   - Create new migration file in `supabase/migrations/`
+   - Update TypeScript types in `client/lib/supabase.ts`
+   - Update shared types in `shared/api.ts` if needed
+   - Add RLS policies
+   - Update database documentation
+   - Create rollback script
+
+3. **Migration template**:
+```sql
+-- Migration: Description
+-- Date: YYYY-MM-DD
+
+-- Create table
+CREATE TABLE IF NOT EXISTS public.my_table (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    deleted_at timestamptz DEFAULT NULL
+);
+
+-- Indexes
+CREATE INDEX idx_my_table_tenant ON public.my_table(tenant_id);
+
+-- RLS Policies
+ALTER TABLE public.my_table ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read own tenant data"
+    ON public.my_table FOR SELECT
+    USING (tenant_id IN (SELECT get_user_tenant_id()));
+
+-- Grants
+GRANT SELECT ON public.my_table TO authenticated;
+
+-- Comments
+COMMENT ON TABLE public.my_table IS 'Description of table purpose';
+```
+
+### Trigger: New Context Provider
+
+**When creating a new React Context, automatically:**
+
+1. **Check applicable rules**:
+   - R-CTX-004 (Context Best Practices)
+   - R-SCALE-004 (State Management)
+
+2. **Required updates**:
+   - Add to provider hierarchy in `client/App.tsx`
+   - Create TypeScript interface for context value
+   - Document provided values
+   - Create custom hook for usage
+   - Update context documentation
+
+3. **Template**:
+```typescript
+import React, { createContext, useContext, useState } from 'react';
+
+interface MyContextValue {
+  // Define context value shape
+  data: any;
+  loading: boolean;
+  refresh: () => Promise<void>;
+}
+
+const MyContext = createContext<MyContextValue | undefined>(undefined);
+
+export const MyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  
+  const refresh = async () => {
+    // Implementation
+  };
+  
+  return (
+    <MyContext.Provider value={{ data, loading, refresh }}>
+      {children}
+    </MyContext.Provider>
+  );
+};
+
+export const useMyContext = () => {
+  const context = useContext(MyContext);
+  if (!context) {
+    throw new Error('useMyContext must be used within MyProvider');
+  }
+  return context;
+};
+```
+
+---
+
+## Context Synchronization Rules
+
+### SYNC-001: Type Synchronization
+**Priority**: CRITICAL
+
+**When updating TypeScript types:**
+
+1. **Central source of truth**: `shared/api.ts`
+2. **Propagate to**:
+   - Client-side Supabase types (`client/lib/supabase.ts`)
+   - Server-side types (if different)
+   - Component prop interfaces
+   - API response interfaces
+
+3. **Validation**:
+   - Run `pnpm typecheck` after changes
+   - Ensure no type errors
+   - Update related tests
+
+### SYNC-002: Documentation Synchronization
+**Priority**: HIGH
+
+**When adding/modifying features:**
+
+1. **Update documentation files**:
+   - Comprehensive rules (`comprehensive-project-rules.mdc`)
+   - Specific domain rules (if applicable)
+   - README files (if user-facing)
+   - API documentation
+   - Database schema docs
+
+2. **Markdown structure**:
+```markdown
+## Feature Name
+
+### Overview
+Brief description of what the feature does.
+
+### Implementation
+Technical details of how it's implemented.
+
+### Usage
+Code examples showing how to use it.
+
+### Related Rules
+- R-XXX-001: Rule name
+- R-XXX-002: Rule name
+
+### Files Modified
+- `path/to/file.ts`: Description of changes
+```
+
+### SYNC-003: Test Synchronization
+**Priority**: HIGH
+
+**When modifying functionality:**
+
+1. **Update affected tests**:
+   - Unit tests for modified functions
+   - Integration tests for API changes
+   - E2E tests for user-facing changes
+
+2. **Test coverage requirements**:
+   - Critical logic: 90%+
+   - API routes: 80%+
+   - UI components: 70%+
+
+3. **Test file naming**:
+   - `*.spec.ts` or `*.test.ts`
+   - Colocated with source or in `__tests__/`
+
+---
+
+## Automated Checks
+
+### CHECK-001: Pre-Commit Hooks
+**Priority**: HIGH
+
+**Checks to implement**:
+```json
+{
+  "husky": {
+    "hooks": {
+      "pre-commit": "pnpm typecheck && pnpm test:changed",
+      "pre-push": "pnpm build"
+    }
+  }
+}
+```
+
+### CHECK-002: CI/CD Pipeline
+**Priority**: HIGH
+
+**GitHub Actions workflow**:
+```yaml
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: pnpm/action-setup@v2
+      - name: Install dependencies
+        run: pnpm install
+      - name: Type check
+        run: pnpm typecheck
+      - name: Run tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+```
+
+### CHECK-003: Rule Compliance Checker
+**Priority**: MEDIUM
+
+**Custom script to check**:
+- Component structure compliance
+- Naming convention adherence
+- Required documentation presence
+- Test coverage thresholds
+
+---
+
+## Context Update Checklist
+
+When making ANY change, use this checklist:
+
+### For New Features
+- [ ] Check applicable rules
+- [ ] Create/update TypeScript types in `shared/api.ts`
+- [ ] Update database schema (if needed)
+- [ ] Create/update API endpoints (if needed)
+- [ ] Create/update React components
+- [ ] Add error handling
+- [ ] Add loading states
+- [ ] Implement accessibility features
+- [ ] Write tests
+- [ ] Update documentation
+- [ ] Update related files
+
+### For Bug Fixes
+- [ ] Identify root cause
+- [ ] Check if rules need updating
+- [ ] Fix the issue
+- [ ] Add regression test
+- [ ] Update documentation if behavior changed
+- [ ] Verify no other files affected
+
+### For Refactoring
+- [ ] Ensure backward compatibility
+- [ ] Update all references
+- [ ] Update types
+- [ ] Update tests
+- [ ] Update documentation
+- [ ] Run full test suite
+
+---
+
+## Continuous Improvement
+
+### IMPROVE-001: Rule Review Cycle
+**Priority**: MEDIUM
+
+**Schedule**:
+- Monthly: Review rules for relevance
+- Quarterly: Update based on learnings
+- Annually: Major rules revision
+
+**Process**:
+1. Gather feedback from team
+2. Identify outdated rules
+3. Add new rules for new patterns
+4. Archive obsolete rules
+5. Update version number
+
+### IMPROVE-002: Pattern Recognition
+**Priority**: MEDIUM
+
+**When repeated patterns emerge**:
+1. Document the pattern
+2. Create a rule
+3. Refactor existing code to follow
+4. Add to code generation templates
+
+---
+
+## Emergency Rule Updates
+
+### EMERGENCY-001: Critical Security Issue
+**Priority**: CRITICAL
+
+If a security vulnerability is discovered:
+1. **Immediate**: Fix the vulnerability
+2. **Within 24h**: Update security rules
+3. **Within 48h**: Audit codebase for similar issues
+4. **Within 1 week**: Update documentation and training
+
+### EMERGENCY-002: Breaking Changes
+**Priority**: HIGH
+
+If a breaking change is necessary:
+1. Document the change
+2. Update all affected code
+3. Update migration guide
+4. Notify team/users
+5. Version increment (major version)
+
+---
+
+## Rule Enforcement Automation
+
+### AUTO-001: VS Code Extensions
+**Priority**: MEDIUM
+
+**Recommended extensions**:
+- ESLint: Code quality
+- Prettier: Code formatting
+- TypeScript: Type checking
+- Tailwind CSS IntelliSense: CSS utilities
+
+### AUTO-002: Code Generation
+**Priority**: LOW
+
+**Templates for**:
+- New React components
+- New API endpoints
+- New database migrations
+- New tests
+
+**Implementation**: Custom CLI tool or VS Code snippets
+
+---
+
+**Enforcement Status**: Active  
+**Next Audit**: November 22, 2025  
+**Compliance Level**: Mandatory for all new code

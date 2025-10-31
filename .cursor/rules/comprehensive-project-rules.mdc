@@ -1,0 +1,805 @@
+# KooliHub Comprehensive Project Rules
+**Auto-Generated**: October 22, 2025  
+**Version**: 1.0.0  
+**Status**: Active
+
+---
+
+## 📋 Table of Contents
+1. [Project Development Rules](#project-development-rules)
+2. [Code Quality & Standards Rules](#code-quality--standards-rules)
+3. [Testing Rules](#testing-rules)
+4. [Scalability Rules](#scalability-rules)
+5. [Performance Rules](#performance-rules)
+6. [Security Rules](#security-rules)
+7. [Database Rules](#database-rules)
+8. [API Design Rules](#api-design-rules)
+9. [Business Logic Rules](#business-logic-rules)
+10. [Deployment Rules](#deployment-rules)
+11. [Context Management Rules](#context-management-rules)
+12. [Error Handling Rules](#error-handling-rules)
+
+---
+
+## Project Development Rules
+
+### R-DEV-001: Package Management
+**Priority**: CRITICAL  
+**Category**: Development
+
+- **ALWAYS** use `pnpm` for package management (never npm or yarn)
+- Use `pnpm add` for production dependencies
+- Use `pnpm add -D` for development dependencies
+- Never commit `package-lock.json` or `yarn.lock` files
+- Always update `pnpm-lock.yaml` when dependencies change
+
+**Enforcement**: Pre-commit hooks should verify package manager
+
+### R-DEV-002: TypeScript Configuration
+**Priority**: HIGH  
+**Category**: Development
+
+- Strict mode is **disabled** for flexibility (as per tsconfig.json)
+- All files MUST use TypeScript (.ts/.tsx extensions)
+- Path aliases are configured and MUST be used:
+  - `@/*` for client code
+  - `@shared/*` for shared types
+- Never use `any` type without proper justification
+
+### R-DEV-003: Code Style Standards
+**Priority**: HIGH  
+**Category**: Development
+
+- Use functional components with hooks (no class components)
+- Prefer arrow functions for component definitions
+- Use the `cn()` utility for conditional CSS classes
+- Import React hooks from 'react' (not destructured)
+- Use Zod for runtime validation where appropriate
+- Follow SOLID principles for all implementations
+
+### R-DEV-004: File Organization
+**Priority**: MEDIUM  
+**Category**: Development
+
+**Client Structure**:
+```
+client/
+├── pages/           # Route components (Index.tsx = home page)
+├── components/      # Reusable components
+│   ├── ui/         # Radix UI primitives (50 components)
+│   ├── admin/      # Admin-specific components
+│   ├── auth/       # Authentication components
+│   └── common/     # Shared components
+├── contexts/        # React Context providers (4 contexts)
+├── hooks/          # Custom React hooks (11 hooks)
+└── lib/            # Utilities and configurations (23 files)
+```
+
+**Server Structure**:
+```
+server/
+├── index.ts        # Main Express app setup
+├── routes/         # API route handlers (12 files)
+└── lib/            # Server utilities (2 files)
+```
+
+**Shared Structure**:
+```
+shared/
+└── api.ts          # TypeScript interfaces (907 lines of types)
+```
+
+### R-DEV-005: Component Naming Conventions
+**Priority**: MEDIUM  
+**Category**: Development
+
+- Components: PascalCase (e.g., `UserProfile.tsx`)
+- Utilities: camelCase (e.g., `formatCurrency.ts`)
+- Hooks: camelCase with `use` prefix (e.g., `useAuth.ts`)
+- Contexts: PascalCase with `Context` suffix (e.g., `AuthContext.tsx`)
+- Constants: SCREAMING_SNAKE_CASE (e.g., `MAX_UPLOAD_SIZE`)
+
+---
+
+## Code Quality & Standards Rules
+
+### R-QUALITY-001: React Component Standards
+**Priority**: HIGH  
+**Category**: Code Quality
+
+All React components MUST:
+- Use functional components with TypeScript
+- Define proper TypeScript interfaces for props
+- Use React.memo() for expensive components
+- Implement proper loading states
+- Handle error states gracefully
+- Use React Query for server state management
+- Lazy load routes and components where appropriate
+
+**Example**:
+```typescript
+interface UserProfileProps {
+  userId: string;
+  onUpdate?: (user: User) => void;
+}
+
+export const UserProfile: React.FC<UserProfileProps> = React.memo(({ userId, onUpdate }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Component logic...
+});
+```
+
+### R-QUALITY-002: Error Boundary Implementation
+**Priority**: HIGH  
+**Category**: Code Quality
+
+- Enhanced ResizeObserver error handling is already implemented in App.tsx
+- Implement proper error boundaries for React components
+- Use try-catch blocks for async operations
+- Provide meaningful error messages to users
+- Log errors appropriately for debugging
+
+### R-QUALITY-003: Accessibility Standards
+**Priority**: HIGH  
+**Category**: Code Quality
+
+All UI components MUST:
+- Be keyboard navigable
+- Use semantic HTML elements
+- Include proper ARIA labels and roles
+- Ensure sufficient color contrast
+- Support screen readers with proper labeling
+- Follow WCAG 2.1 AA standards
+
+### R-QUALITY-004: Performance Optimization
+**Priority**: MEDIUM  
+**Category**: Code Quality
+
+- Use React.memo() for expensive components
+- Implement proper loading states
+- Use React Query for server state management
+- Lazy load routes and components where appropriate
+- Optimize images before upload
+- Use code splitting for large bundles
+
+### R-QUALITY-005: Import Organization
+**Priority**: LOW  
+**Category**: Code Quality
+
+Import order:
+1. React and external libraries
+2. Internal components
+3. Contexts and hooks
+4. Utilities and types
+5. Styles and assets
+
+---
+
+## Testing Rules
+
+### R-TEST-001: Testing Framework
+**Priority**: HIGH  
+**Category**: Testing
+
+- Use Vitest for all testing
+- Test files should be colocated with source files or in `__tests__` directories
+- File naming: `*.spec.ts` or `*.test.ts`
+
+### R-TEST-002: Test Coverage Requirements
+**Priority**: MEDIUM  
+**Category**: Testing
+
+Minimum coverage requirements:
+- Critical business logic: 90%+
+- API routes: 80%+
+- UI components: 70%+
+- Utility functions: 85%+
+
+### R-TEST-003: Test Structure
+**Priority**: MEDIUM  
+**Category**: Testing
+
+All tests MUST:
+- Follow AAA pattern (Arrange, Act, Assert)
+- Have descriptive test names
+- Test one thing per test
+- Be independent and idempotent
+- Clean up after themselves
+
+### R-TEST-004: Integration Testing
+**Priority**: HIGH  
+**Category**: Testing
+
+Integration tests MUST:
+- Test complete user workflows
+- Use test database separate from development
+- Clean up test data after execution
+- Mock external API calls
+- Test error scenarios
+
+---
+
+## Scalability Rules
+
+### R-SCALE-001: Database Query Optimization
+**Priority**: CRITICAL  
+**Category**: Scalability
+
+- Use proper indexing for frequently queried columns
+- Implement pagination for all list endpoints (default: 50 items)
+- Use database functions for complex queries
+- Avoid N+1 queries
+- Use `.select()` to specify needed columns only
+
+### R-SCALE-002: Caching Strategy
+**Priority**: HIGH  
+**Category**: Scalability
+
+- AdminDataContext provides centralized caching for admin entities
+- Real-time subscriptions use debouncing (500ms default)
+- Implement optimistic updates where appropriate
+- Cache frequently accessed data (categories, service types, vendors)
+- Invalidate cache on relevant mutations
+
+### R-SCALE-003: Real-time Updates
+**Priority**: MEDIUM  
+**Category**: Scalability
+
+- Use Supabase real-time subscriptions for live data
+- Implement debouncing for rapid updates
+- Clean up subscriptions in useEffect cleanup
+- Handle reconnection scenarios gracefully
+- Prevent duplicate subscriptions
+
+### R-SCALE-004: State Management
+**Priority**: HIGH  
+**Category**: Scalability
+
+State management hierarchy:
+1. Local state (useState, useReducer)
+2. Context API (AuthContext, AdminDataContext, CartContext, WishlistContext)
+3. React Query for server state
+4. Supabase real-time for live updates
+
+### R-SCALE-005: Code Splitting
+**Priority**: MEDIUM  
+**Category**: Scalability
+
+- Lazy load admin pages
+- Split vendor bundle from application code
+- Use dynamic imports for heavy components
+- Implement route-based code splitting
+
+---
+
+## Performance Rules
+
+### R-PERF-001: Bundle Size
+**Priority**: HIGH  
+**Category**: Performance
+
+- Monitor bundle size (warn at 500KB, error at 1MB)
+- Tree-shake unused dependencies
+- Use dynamic imports for large dependencies
+- Optimize images (WebP format preferred)
+
+### R-PERF-002: Rendering Optimization
+**Priority**: HIGH  
+**Category**: Performance
+
+- Use React.memo() for components that receive complex props
+- Use useCallback for event handlers passed to children
+- Use useMemo for expensive calculations
+- Avoid inline object/array creation in render
+- Debounce search inputs (300ms default)
+
+### R-PERF-003: Data Fetching
+**Priority**: HIGH  
+**Category**: Performance
+
+- AdminDataContext: Cache data, avoid refetching on tab switches
+- Use pagination for large datasets
+- Implement infinite scroll where appropriate
+- Prefetch data for anticipated navigation
+- Cancel pending requests on unmount
+
+### R-PERF-004: Image Optimization
+**Priority**: MEDIUM  
+**Category**: Performance
+
+- Max file size: 10MB
+- Supported formats: JPG, PNG, WebP, GIF
+- Optimize images before upload
+- Use lazy loading for images below fold
+- Provide placeholder images during load
+
+---
+
+## Security Rules
+
+### R-SEC-001: Authentication & Authorization
+**Priority**: CRITICAL  
+**Category**: Security
+
+- Use Supabase Auth for all authentication
+- Implement Row Level Security (RLS) on all sensitive tables
+- Admin routes MUST use `requireAdmin` middleware
+- Validate JWT tokens server-side
+- Never expose admin credentials in client code
+
+### R-SEC-002: Input Validation
+**Priority**: CRITICAL  
+**Category**: Security
+
+- Validate ALL user inputs server-side
+- Use Zod schemas for runtime validation
+- Sanitize HTML inputs to prevent XSS
+- Validate file uploads (type, size, content)
+- Implement rate limiting on API endpoints
+
+### R-SEC-003: Data Protection
+**Priority**: CRITICAL  
+**Category**: Security
+
+- Never log sensitive data (passwords, tokens, PII)
+- Use HTTPS in production
+- Implement CORS properly
+- Store secrets in environment variables
+- Never commit `.env` files
+
+### R-SEC-004: RLS Policies
+**Priority**: CRITICAL  
+**Category**: Security
+
+All database tables MUST have RLS policies:
+- Public read access: Only for public data
+- Authenticated access: For user-specific data
+- Admin access: Full control for admins
+- Vendor isolation: Vendors see only their data
+
+### R-SEC-005: API Security
+**Priority**: HIGH  
+**Category**: Security
+
+- Implement request validation
+- Use parameterized queries (prevent SQL injection)
+- Implement rate limiting
+- Log security events
+- Handle errors without exposing internals
+
+---
+
+## Database Rules
+
+### R-DB-001: Schema Design
+**Priority**: CRITICAL  
+**Category**: Database
+
+Current schema (50+ tables):
+- **Multi-tenant**: tenants, vendor hierarchy
+- **Offerings**: Unified offerings (not products), variants, attributes
+- **Inventory**: merchants, merchant_inventory (location-based)
+- **Pricing**: price_lists, price_list_items (zone/vendor)
+- **Orders**: Enhanced order system with workflow
+- **Geography**: service_zones, serviceable_areas, zone_service_availability
+- **Attributes**: attribute_registry, offering_attributes (dynamic fields)
+- **Audit**: domain_events, audit_logs (event sourcing)
+
+### R-DB-002: Naming Conventions
+**Priority**: HIGH  
+**Category**: Database
+
+- Tables: snake_case, plural (e.g., `service_types`)
+- Columns: snake_case (e.g., `created_at`)
+- Foreign keys: `{table_singular}_id` (e.g., `vendor_id`)
+- Indexes: `idx_{table}_{columns}` (e.g., `idx_products_category`)
+- Functions: snake_case with verb (e.g., `get_product_attributes`)
+- Enums: snake_case (e.g., `offering_type`)
+
+### R-DB-003: Migration Management
+**Priority**: CRITICAL  
+**Category**: Database
+
+- All schema changes MUST be in migration files
+- Migration files in `supabase/migrations/` directory
+- Naming: `YYYYMMDD_description.sql`
+- Migrations MUST be idempotent
+- Never modify existing migrations
+- Always provide rollback scripts
+
+### R-DB-004: Data Integrity
+**Priority**: CRITICAL  
+**Category**: Database
+
+- Use foreign keys for referential integrity
+- Implement CHECK constraints for validation
+- Use NOT NULL for required fields
+- Use DEFAULT values appropriately
+- Implement soft deletes with `deleted_at`
+
+### R-DB-005: Indexes and Performance
+**Priority**: HIGH  
+**Category**: Database
+
+- Index foreign keys
+- Index frequently queried columns
+- Use composite indexes for multi-column queries
+- Use partial indexes for filtered queries
+- Monitor and optimize slow queries
+
+---
+
+## API Design Rules
+
+### R-API-001: Endpoint Strategy
+**Priority**: CRITICAL  
+**Category**: API
+
+**MINIMIZE** server endpoints - only create when strictly necessary:
+- Private key/secret handling (Firebase Admin, payment keys)
+- Complex database operations requiring server-side logic
+- File upload handling
+- Authentication/authorization middleware
+- Third-party API integrations requiring secrets
+
+**AVOID** creating endpoints for simple CRUD operations that can be done client-side with Supabase.
+
+### R-API-002: RESTful Design
+**Priority**: HIGH  
+**Category**: API
+
+- Use standard HTTP methods (GET, POST, PUT, PATCH, DELETE)
+- Use plural resource names (`/api/products`, not `/api/product`)
+- Use nesting for relationships (`/api/products/:id/variants`)
+- Return appropriate HTTP status codes
+- Prefix all API routes with `/api/`
+
+### R-API-003: Request/Response Format
+**Priority**: HIGH  
+**Category**: API
+
+Standard response format:
+```typescript
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+interface PaginatedResponse<T = any> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+```
+
+### R-API-004: Shared Types
+**Priority**: HIGH  
+**Category**: API
+
+- ALL types MUST be defined in `shared/api.ts`
+- Use shared types in both client and server
+- Export types for use across codebase
+- Maintain type documentation
+
+### R-API-005: Error Handling
+**Priority**: HIGH  
+**Category**: API
+
+- Return consistent error format
+- Use appropriate HTTP status codes
+- Log errors server-side
+- Never expose internal errors to client
+- Provide actionable error messages
+
+---
+
+## Business Logic Rules
+
+### R-BIZ-001: Multi-Vendor Architecture
+**Priority**: CRITICAL  
+**Category**: Business
+
+**Vendor Hierarchy**:
+- Marketplace Tenant (main KooliHub platform)
+- Vendor Tenants (individual vendor stores)
+- Franchise Tenants (franchise operations)
+- White-label Tenants (custom branded solutions)
+
+**Vendor Lifecycle**:
+1. Registration (vendor or franchise application)
+2. Approval (admin review with verification)
+3. Onboarding (setup offerings, merchants, service zones)
+4. Multi-Location Operations (multiple outlets with location-specific inventory)
+5. Active Operations (unified order fulfillment)
+
+### R-BIZ-002: Unified Offering Model
+**Priority**: CRITICAL  
+**Category**: Business
+
+**Everything is an Offering** - not "products":
+- `offering_type`: product, service, ride, delivery, booking, rental, subscription, digital
+- `offering_status`: draft, pending_approval, active, inactive, out_of_stock, discontinued, scheduled
+- Use `offerings` table (not `products` table)
+- Backward compatibility: Product interface extends Offering
+
+### R-BIZ-003: Attribute Inheritance System
+**Priority**: CRITICAL  
+**Category**: Business
+
+**Hierarchy**: Default → Service → Category → Subcategory
+
+**Attribute Resolution**:
+1. Mandatory System Fields (Level 0): Always present, not editable
+2. Service-Level Attributes (Level 1): Service-specific fields
+3. Category-Level Attributes (Level 2): Category overrides
+4. Subcategory-Level Attributes (Level 3): Most specific
+
+**Database Functions**:
+- `get_product_form_attributes_v2()`: Returns complete attribute list with inheritance
+- `get_attributes_with_inheritance()`: Admin view with inheritance details
+
+### R-BIZ-004: Service Area Product Mapping
+**Priority**: HIGH  
+**Category**: Business
+
+**Location-Based Features**:
+- Products assigned to specific service areas (pincodes)
+- Location-specific pricing via `price_override`
+- Location-specific inventory via `stock_quantity`
+- Location-specific delivery time
+- Featured products per location
+- Scheduled availability per location
+
+**Database Tables**:
+- `service_area_products`: Product-area mapping with overrides
+- `service_area_categories`: Category-level area management
+
+### R-BIZ-005: Order Management
+**Priority**: HIGH  
+**Category**: Business
+
+**Order Status Workflow**:
+1. pending
+2. confirmed
+3. processing
+4. packed (fulfillment)
+5. shipped
+6. out_for_delivery
+7. delivered
+8. (cancelled/returned/refunded)
+
+**Order Components**:
+- `orders`: Main order table
+- `order_items`: Line items with snapshots
+- `order_workflow`: Status history
+- `order_addresses`: Shipping/billing
+- `order_adjustments`: Discounts, taxes, fees
+- `order_promotions`: Applied promotions
+- `order_delivery`: Delivery tracking
+
+### R-BIZ-006: Pricing Strategy
+**Priority**: HIGH  
+**Category**: Business
+
+**Pricing Hierarchy**:
+1. Base price (`offerings.base_price`)
+2. Service area override (`service_area_products.price_override`)
+3. Price list override (`price_lists` / `price_list_items`)
+4. Promotional pricing
+5. Tier pricing (bulk discounts)
+
+### R-BIZ-007: Inventory Management
+**Priority**: HIGH  
+**Category**: Business
+
+**Multi-Location Inventory**:
+- Inventory tracked at merchant level (`merchant_inventory`)
+- Location-specific stock quantities
+- Reserved quantities for pending orders
+- Safety stock and reorder points
+- Last counted timestamp for accuracy
+
+---
+
+## Deployment Rules
+
+### R-DEPLOY-001: Build Configuration
+**Priority**: CRITICAL  
+**Category**: Deployment
+
+**Production Build**:
+```bash
+pnpm build        # Builds both client and server
+pnpm build:client # Vite build → dist/spa
+pnpm build:server # Vite build → dist/server
+```
+
+**Environment Variables** (NEVER commit):
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server only)
+- `FIREBASE_CONFIG` (JSON)
+- `FIREBASE_ADMIN_CREDENTIALS` (JSON, server only)
+
+### R-DEPLOY-002: Netlify Configuration
+**Priority**: HIGH  
+**Category**: Deployment
+
+Current configuration (`netlify.toml`):
+- Build command: `npm run build:client`
+- Publish directory: `dist/spa`
+- Functions directory: `netlify/functions`
+- API redirects: `/api/*` → `/.netlify/functions/api/:splat`
+
+### R-DEPLOY-003: Production Checklist
+**Priority**: CRITICAL  
+**Category**: Deployment
+
+Before deploying to production:
+- [ ] Run type checking (`pnpm typecheck`)
+- [ ] Run all tests (`pnpm test`)
+- [ ] Build succeeds without errors
+- [ ] Environment variables configured
+- [ ] Database migrations applied
+- [ ] RLS policies enabled
+- [ ] CORS configured correctly
+- [ ] Error logging configured
+- [ ] Analytics configured
+- [ ] Rate limiting configured
+
+### R-DEPLOY-004: Database Deployment
+**Priority**: CRITICAL  
+**Category**: Deployment
+
+Production database setup:
+1. Apply all migrations in `supabase/migrations/` directory
+2. Run in order: `20240101000010_create_admin_tables.sql`, `20250115_add_naming_convention_system.sql`, `20250118_comprehensive_attribute_inheritance.sql`, `20250119_service_area_product_mapping.sql`
+3. Verify RLS policies enabled
+4. Create admin account
+5. Seed initial data (service types, mandatory fields)
+
+### R-DEPLOY-005: Monitoring & Logging
+**Priority**: HIGH  
+**Category**: Deployment
+
+Implement monitoring for:
+- API response times
+- Error rates
+- Database query performance
+- User activity metrics
+- Server resource usage
+
+---
+
+## Context Management Rules
+
+### R-CTX-001: Context Providers Hierarchy
+**Priority**: HIGH  
+**Category**: Context
+
+**Provider Wrapping Order** (as in App.tsx):
+1. QueryClientProvider (React Query)
+2. AuthProvider (Authentication)
+3. AdminDataProvider (Admin data)
+4. FirebaseProvider (Firebase services)
+5. WishlistProvider (Wishlist state)
+6. CartProvider (Shopping cart)
+7. TooltipProvider (UI tooltips)
+
+This hierarchy ensures proper dependency injection and avoids circular dependencies.
+
+### R-CTX-002: AuthContext Usage
+**Priority**: CRITICAL  
+**Category**: Context
+
+**Provided Values**:
+- `user`, `profile`, `session`: Auth state
+- `loading`, `isAuthenticated`, `isAdminUser`: Status flags
+- `profileError`: Error handling
+- `signIn()`, `signUp()`, `signOut()`: Auth operations
+- `refreshProfile()`, `clearProfileError()`: Utility functions
+
+**Best Practices**:
+- Check `isAuthenticated` before showing protected UI
+- Use `isAdminUser` for admin-only features
+- Handle `profileError` gracefully
+- Call `refreshProfile()` after profile updates
+
+### R-CTX-003: AdminDataContext Usage
+**Priority**: HIGH  
+**Category**: Context
+
+**Cached Entities**:
+- offerings (products)
+- serviceAreas
+- serviceTypes
+- categories
+- vendors
+- merchants
+
+**Features**:
+- Real-time subscriptions (automatic updates)
+- Debounced updates (500ms)
+- Loading states per entity
+- Manual refresh functions
+- Cache statistics
+
+**Optimization**:
+- Data fetched ONCE on auth
+- No refetch on tab switches
+- Optimistic updates supported
+
+### R-CTX-004: Context Best Practices
+**Priority**: HIGH  
+**Category**: Context
+
+- Keep contexts focused (single responsibility)
+- Minimize context re-renders (split large contexts)
+- Provide meaningful defaults
+- Use TypeScript for type safety
+- Document context values and usage
+
+---
+
+## Error Handling Rules
+
+### R-ERROR-001: Client-Side Error Handling
+**Priority**: HIGH  
+**Category**: Error Handling
+
+- Use try-catch for async operations
+- Display user-friendly error messages via toast
+- Log errors to console for debugging
+- Implement error boundaries for React components
+- Handle network errors gracefully
+
+### R-ERROR-002: Server-Side Error Handling
+**Priority**: HIGH  
+**Category**: Error Handling
+
+- Catch all errors in route handlers
+- Log errors with context (user, request, stack trace)
+- Return appropriate HTTP status codes
+- Never expose internal errors to client
+- Implement global error handler
+
+### R-ERROR-003: Database Error Handling
+**Priority**: HIGH  
+**Category**: Error Handling
+
+- Handle connection errors
+- Handle constraint violations
+- Handle RLS policy errors
+- Provide fallback values where appropriate
+- Log database errors for monitoring
+
+### R-ERROR-004: Validation Errors
+**Priority**: MEDIUM  
+**Category**: Error Handling
+
+- Validate inputs before processing
+- Return clear validation error messages
+- Highlight invalid fields in forms
+- Provide examples of valid input
+- Use Zod for schema validation
+
+---
+
+## Auto-Sync & Enforcement
+
+This rules file MUST be:
+- Updated whenever new features are added
+- Referenced during code reviews
+- Enforced via automated checks where possible
+- Reviewed monthly for relevance
+- Versioned with the codebase
+
+**Last Updated**: Auto-generated October 22, 2025  
+**Next Review**: November 22, 2025
+

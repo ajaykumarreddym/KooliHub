@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
-import { Layout } from "@/components/layout/Layout";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { ProductCard } from "@/components/grocery/ProductCard";
-import { Search, Filter, Grid, List, MapPin, Clock } from "lucide-react";
+import { Layout } from "@/components/layout/Layout";
+import { NoServiceAvailable } from "@/components/location/NoServiceAvailable";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useLocation } from "@/contexts/LocationContext";
 import { supabase } from "@/lib/supabase";
+import { AlertCircle, Clock, Grid, List, MapPin, Search } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface Product {
   id: string;
@@ -45,54 +48,143 @@ export default function Grocery() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Get location context
+  const { 
+    currentLocation, 
+    serviceAreaId, 
+    hasLocation, 
+    isServiceAvailable, 
+    isCheckingService,
+    availableServiceTypes 
+  } = useLocation();
+
+  // Check if grocery service is available in the current location
+  const hasGroceryService = isServiceAvailable && availableServiceTypes.includes('grocery');
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    // Only fetch data if grocery service is available
+    if (hasGroceryService) {
+      fetchData();
+    } else {
+      setLoading(false);
+      setProducts([]);
+      setCategories([]);
+    }
+  }, [serviceAreaId, hasGroceryService]); // Refetch when location changes
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      // Fetch products and categories
-      const [productsResult, categoriesResult] = await Promise.all([
-        supabase
-          .from("products")
-          .select(
-            `
+      // If location is selected, fetch location-based products
+      if (serviceAreaId) {
+        // Use the Postgres function to get location-based products
+        const { data: locationProducts, error: productsError } = await supabase.rpc(
+          'get_products_by_service_area',
+          {
+            p_service_area_id: serviceAreaId,
+            p_service_type: 'grocery',
+            p_category_id: null,
+            p_search_term: null,
+            p_limit: 100,
+            p_offset: 0,
+          }
+        );
+
+        if (productsError) {
+          console.error("Error fetching location-based products:", productsError);
+          setProducts([]);
+        } else {
+          console.log("GROCERY DEBUG - Location-based products:", locationProducts);
+          // Transform the data to match the Product interface
+          const transformedProducts = (locationProducts || []).map((p: any) => ({
+            id: p.offering_id,
+            name: p.offering_name,
+            description: null,
+            price: p.location_price,
+            discount_price: null,
+            image_url: p.primary_image_url,
+            stock_quantity: p.location_stock || 0,
+            is_active: p.is_available,
+            rating: null,
+            reviews_count: 0,
+            sku: null,
+            brand: null,
+            tags: [],
+            categories: {
+              id: '',
+              name: p.category_name || '',
+              service_type: p.service_type || 'grocery',
+            },
+          }));
+          setProducts(transformedProducts);
+        }
+
+        // Fetch location-based categories
+        const { data: locationCategories, error: categoriesError } = await supabase
+          .from('service_area_categories')
+          .select(`
             *,
-            categories!inner (
+            categories:category_id (
               id,
               name,
-              service_type
+              service_type,
+              image_url,
+              is_active,
+              sort_order
             )
-          `,
-          )
-          .eq("is_active", true)
-          .eq("categories.service_type", "grocery"),
-        supabase
-          .from("categories")
-          .select("*")
-          .eq("service_type", "grocery")
-          .eq("is_active", true)
-          .order("sort_order"),
-      ]);
+          `)
+          .eq('service_area_id', serviceAreaId)
+          .eq('is_available', true)
+          .order('display_order');
 
-      if (productsResult.error) {
-        console.error("Error fetching products:", productsResult.error);
+        if (categoriesError) {
+          console.error("Error fetching location-based categories:", categoriesError);
+          setCategories([]);
+        } else {
+          const transformedCategories = (locationCategories || [])
+            .map((sc: any) => sc.categories)
+            .filter((c: any) => c && c.service_type === 'grocery');
+          setCategories(transformedCategories);
+        }
       } else {
-        console.log("GROCERY DEBUG - Products fetched:", productsResult.data);
-        console.log(
-          "GROCERY DEBUG - Products count:",
-          productsResult.data?.length,
-        );
-        setProducts(productsResult.data || []);
-      }
+        // Fallback to all products if no location selected
+        const [productsResult, categoriesResult] = await Promise.all([
+          supabase
+            .from("products")
+            .select(
+              `
+              *,
+              categories!inner (
+                id,
+                name,
+                service_type
+              )
+            `,
+            )
+            .eq("is_active", true)
+            .eq("categories.service_type", "grocery"),
+          supabase
+            .from("categories")
+            .select("*")
+            .eq("service_type", "grocery")
+            .eq("is_active", true)
+            .order("sort_order"),
+        ]);
 
-      if (categoriesResult.error) {
-        console.error("Error fetching categories:", categoriesResult.error);
-      } else {
-        setCategories(categoriesResult.data || []);
+        if (productsResult.error) {
+          console.error("Error fetching products:", productsResult.error);
+        } else {
+          console.log("GROCERY DEBUG - Products fetched:", productsResult.data);
+          setProducts(productsResult.data || []);
+        }
+
+        if (categoriesResult.error) {
+          console.error("Error fetching categories:", categoriesResult.error);
+        } else {
+          setCategories(categoriesResult.data || []);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -152,12 +244,18 @@ export default function Grocery() {
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
                   <MapPin className="h-4 w-4 text-primary" />
-                  <span>Rayachoty, Annamayya District</span>
+                  <span>
+                    {hasLocation && currentLocation
+                      ? `${currentLocation.city || ''}, ${currentLocation.state || ''}`
+                      : 'Select location to see available products'}
+                  </span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <span>30-minute delivery</span>
-                </div>
+                {hasLocation && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <span>30-minute delivery</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -166,6 +264,26 @@ export default function Grocery() {
             </Badge>
           </div>
         </div>
+
+        {/* Location Alert */}
+        {!hasLocation && (
+          <Alert className="mb-6 bg-blue-50 border-blue-200">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              Please select your location from the header to see products available in your area.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Service Not Available Alert */}
+        {hasLocation && !isCheckingService && !hasGroceryService && (
+          <div className="mb-6">
+            <NoServiceAvailable
+              locationName={currentLocation ? `${currentLocation.city}, ${currentLocation.state}` : undefined}
+              variant="card"
+            />
+          </div>
+        )}
 
         {/* Quick categories */}
         <div className="mb-8">
@@ -225,6 +343,7 @@ export default function Grocery() {
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              aria-label="Sort products by"
             >
               <option value="popular">Most Popular</option>
               <option value="price-low">Price: Low to High</option>
@@ -238,12 +357,16 @@ export default function Grocery() {
               <button
                 onClick={() => setViewMode("grid")}
                 className={`p-2 ${viewMode === "grid" ? "bg-primary text-black" : "bg-white text-gray-600"}`}
+                aria-label="Grid view"
+                title="Grid view"
               >
                 <Grid className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setViewMode("list")}
                 className={`p-2 ${viewMode === "list" ? "bg-primary text-black" : "bg-white text-gray-600"}`}
+                aria-label="List view"
+                title="List view"
               >
                 <List className="h-4 w-4" />
               </button>
@@ -332,7 +455,7 @@ export default function Grocery() {
         )}
 
         {/* Empty state */}
-        {sortedProducts.length === 0 && (
+        {!loading && sortedProducts.length === 0 && hasGroceryService && (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🔍</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -350,6 +473,15 @@ export default function Grocery() {
               Clear all filters
             </Button>
           </div>
+        )}
+
+        {/* Service not available - full empty state */}
+        {!loading && hasLocation && !isCheckingService && !hasGroceryService && (
+          <NoServiceAvailable
+            locationName={currentLocation ? `${currentLocation.city}, ${currentLocation.state}` : undefined}
+            variant="full"
+            showSuggestions={true}
+          />
         )}
       </div>
     </Layout>

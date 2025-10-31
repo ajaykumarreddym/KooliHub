@@ -4,8 +4,6 @@ import { ComprehensiveAttributeManagement } from '@/components/admin/Comprehensi
 import ComprehensiveAttributeManager from '@/components/admin/ComprehensiveAttributeManager';
 import EntityManagement from '@/components/admin/EntityManagement';
 import { NamingConventionManager } from '@/components/admin/NamingConventionManager';
-import ServiceAdminLayout from '@/components/admin/ServiceAdminLayout';
-import { ServiceAttributeManager } from '@/components/admin/ServiceAttributeManager';
 import { ServiceTypeCRUD } from '@/components/admin/ServiceTypeCRUD';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,11 +27,7 @@ import React from 'react';
 import { Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import ServiceAreaManagement from './ServiceAreaManagement';
 import { ComprehensiveServiceDashboard } from './services/ComprehensiveServiceDashboard';
-import { FashionDashboard } from './services/FashionDashboard';
-import { GroceryDashboard } from './services/GroceryDashboard';
-import { HandymanDashboard } from './services/HandymanDashboard';
 import { ServiceOperations } from './services/ServiceOperations';
-import { TransportDashboard } from './services/TransportDashboard';
 
 // Service overview component
 const ServiceOverview: React.FC = () => {
@@ -384,14 +378,6 @@ const ServiceOverview: React.FC = () => {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Button 
-              variant="outline" 
-              className="h-20 flex-col"
-              onClick={() => navigate('/admin/services/manage')}
-            >
-              <Package className="h-6 w-6 mb-2" />
-              Manage Service Types
-            </Button>
-            <Button 
               variant="default" 
               className="h-20 flex-col bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
               onClick={() => navigate('/admin/services/entity-management')}
@@ -414,14 +400,6 @@ const ServiceOverview: React.FC = () => {
             >
               <Layers className="h-6 w-6 mb-2" />
               Attribute Manager
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-20 flex-col"
-              onClick={() => navigate('/admin/services/attributes')}
-            >
-              <Package className="h-6 w-6 mb-2" />
-              Sync Attributes (Legacy)
             </Button>
             <Button 
               variant="outline" 
@@ -737,27 +715,18 @@ const ServiceOperationsWrapper: React.FC = () => {
 export const ServiceManagement: React.FC = () => {
   return (
     <ServiceManagementErrorBoundary>
-      <ServiceAdminLayout>
+      {/* <ServiceAdminLayout> */}
         <Routes>
           <Route index element={<ServiceOverview />} />
           <Route path="manage" element={<ServiceTypeCRUD />} />
           <Route path="entity-management" element={<EntityManagement />} />
           <Route path="attribute-registry" element={<AttributeRegistryManager />} />
-          <Route path="attributes" element={<ServiceAttributeManager />} />
           <Route path="service-areas" element={<ServiceAreaManagement />} />
           <Route path="attribute-config" element={<ComprehensiveAttributeManager />} />
           <Route path="comprehensive-attributes" element={<ComprehensiveAttributeManagement />} />
           <Route path="category-attributes" element={<CategoryAttributeManager />} />
           <Route path="naming-convention" element={<NamingConventionManager />} />
-          <Route path="fashion/*" element={<FashionDashboard />} />
-          <Route path="grocery/*" element={<GroceryDashboard />} />
-          <Route path="liquor/*" element={<LiquorDashboard />} />
-          <Route path="home-kitchen/*" element={<HomeKitchenDashboard />} />
-          <Route path="electronics/*" element={<ElectronicsDashboard />} />
-          <Route path="handyman/*" element={<HandymanDashboard />} />
-          <Route path="trips/*" element={<TripsDashboard />} />
-          <Route path="car-rental/*" element={<CarRentalDashboard />} />
-          <Route path="transport/*" element={<TransportDashboard />} />
+          
           {/* Service operations route */}
           <Route 
             path=":serviceId/operations/:operationType" 
@@ -765,10 +734,12 @@ export const ServiceManagement: React.FC = () => {
               <ServiceOperationsWrapper />
             } 
           />
-          {/* Comprehensive route for any service */}
+          
+          {/* Comprehensive dashboard for ALL services - This must be last to catch all service routes */}
+          <Route path=":serviceId/*" element={<ComprehensiveServiceDashboard />} />
           <Route path=":serviceId" element={<ComprehensiveServiceDashboard />} />
         </Routes>
-      </ServiceAdminLayout>
+      {/* </ServiceAdminLayout> */}
     </ServiceManagementErrorBoundary>
   );
 };
