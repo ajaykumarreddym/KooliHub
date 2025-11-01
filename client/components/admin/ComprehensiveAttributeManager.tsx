@@ -319,16 +319,18 @@ const ComprehensiveAttributeManager: React.FC = () => {
         }
     }, []);
 
-    // Fetch default mandatory fields
+    // Fetch default fields from attribute_registry (replacing default_mandatory_fields)
     const fetchDefaultMandatoryFields = useCallback(async () => {
         try {
             const { data, error } = await supabase
-                .from("default_mandatory_fields")
+                .from("attribute_registry")
                 .select("*")
+                .eq("is_default_field", true)
+                .eq("is_active", true)
                 .order("display_order");
 
             if (error) {
-                console.warn("No default_mandatory_fields table, using hardcoded fields");
+                console.warn("Error fetching default fields from attribute_registry, using hardcoded fields");
                 // Fallback to hardcoded defaults
                 setDefaultMandatoryFields([
                     { field_name: 'product_name', field_label: 'Product Name', field_type: 'text', input_type: 'text', placeholder: 'Enter product name', help_text: 'The name of your product', display_order: 0 },
@@ -338,9 +340,22 @@ const ComprehensiveAttributeManager: React.FC = () => {
                 ]);
                 return;
             }
-            setDefaultMandatoryFields(data || []);
+            
+            // Map to expected format
+            const mapped = (data || []).map(attr => ({
+                field_name: attr.name,
+                field_label: attr.label,
+                field_type: attr.data_type,
+                input_type: attr.input_type || attr.data_type,
+                placeholder: attr.placeholder,
+                help_text: attr.help_text,
+                display_order: attr.display_order || 0,
+                is_system_field: attr.is_system_field || false
+            }));
+            
+            setDefaultMandatoryFields(mapped);
         } catch (error) {
-            console.error("Error fetching default mandatory fields:", error);
+            console.error("Error fetching default fields:", error);
         }
     }, []);
 
@@ -865,7 +880,7 @@ const ComprehensiveAttributeManager: React.FC = () => {
             console.log('📋 Sample attribute structure:', JSON.stringify(configuredAttributes[0], null, 2));
         }
         
-        // Generate mandatory fields from default_mandatory_fields table
+        // Generate default fields from attribute_registry
         // ONLY include fields that are visible (is_visible = true)
         const mandatoryFields: PreviewField[] = defaultMandatoryFields
             .filter(field => field.is_system_field)

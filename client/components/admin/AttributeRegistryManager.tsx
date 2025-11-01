@@ -42,8 +42,12 @@ interface AttributeRegistry {
     help_text: string | null;
     group_name: string | null;
     sort_order: number | null;
+    display_order: number | null; // NEW
     is_required: boolean;
     is_active: boolean;
+    is_default_field?: boolean; // NEW
+    is_system_field?: boolean; // NEW
+    applicable_to_all_services?: boolean; // NEW
     applicable_types: string[] | null;
     validation_rules: any;
     options: any;
@@ -60,8 +64,12 @@ interface NewAttribute {
     placeholder: string;
     help_text: string;
     group_name: string;
+    display_order: number; // NEW
     is_required: boolean;
     is_active: boolean;
+    is_default_field: boolean; // NEW
+    is_system_field: boolean; // NEW
+    applicable_to_all_services: boolean; // NEW
     applicable_types: string[];
     validation_rules: Record<string, any>;
     options: any[];
@@ -637,8 +645,12 @@ const AttributeRegistryManager: React.FC = () => {
         placeholder: "",
         help_text: "",
         group_name: "general",
+        display_order: 0,
         is_required: false,
         is_active: true,
+        is_default_field: false,
+        is_system_field: false,
+        applicable_to_all_services: false,
         applicable_types: [],
         validation_rules: {},
         options: [],
@@ -854,8 +866,12 @@ const AttributeRegistryManager: React.FC = () => {
                     placeholder: newAttribute.placeholder || null,
                     help_text: newAttribute.help_text || null,
                     group_name: newAttribute.group_name || null,
+                    display_order: newAttribute.display_order || 0,
                     is_required: newAttribute.is_required,
                     is_active: newAttribute.is_active,
+                    is_default_field: newAttribute.is_default_field || false,
+                    is_system_field: newAttribute.is_system_field || false,
+                    applicable_to_all_services: newAttribute.applicable_to_all_services || false,
                     applicable_types: newAttribute.applicable_types.length > 0 ? newAttribute.applicable_types : null,
                     validation_rules: validRules.length > 0 ? rulesObject : null,
                     options: validOptions.length > 0 ? validOptions : null,
@@ -878,8 +894,12 @@ const AttributeRegistryManager: React.FC = () => {
                 placeholder: "",
                 help_text: "",
                 group_name: "general",
+                display_order: 0,
                 is_required: false,
                 is_active: true,
+                is_default_field: false,
+                is_system_field: false,
+                applicable_to_all_services: false,
                 applicable_types: [],
                 validation_rules: {},
                 options: [],
@@ -1225,7 +1245,9 @@ const AttributeRegistryManager: React.FC = () => {
                                         <TableHead className="min-w-[130px] bg-gray-50">Data Type</TableHead>
                                         <TableHead className="min-w-[130px] bg-gray-50">Input Type</TableHead>
                                         <TableHead className="min-w-[130px] bg-gray-50">Group</TableHead>
+                                        <TableHead className="min-w-[80px] bg-gray-50 text-center">Order</TableHead>
                                         <TableHead className="min-w-[100px] bg-gray-50">Status</TableHead>
+                                        <TableHead className="min-w-[100px] bg-gray-50 text-center">Flags</TableHead>
                                         <TableHead className="min-w-[160px] bg-gray-50 text-right">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -1253,12 +1275,35 @@ const AttributeRegistryManager: React.FC = () => {
                                                 <TableCell>
                                                     <Badge>{attr.group_name || "ungrouped"}</Badge>
                                                 </TableCell>
+                                                <TableCell className="text-center">
+                                                    <span className="text-sm font-mono">{attr.display_order || 0}</span>
+                                                </TableCell>
                                                 <TableCell>
                                                     {attr.is_active ? (
                                                         <Badge className="bg-green-100 text-green-800">Active</Badge>
                                                     ) : (
                                                         <Badge className="bg-gray-100 text-gray-800">Inactive</Badge>
                                                     )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="flex items-center justify-center gap-1 flex-wrap">
+                                                        {attr.is_default_field && (
+                                                            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                                                <Database className="h-3 w-3 mr-1" />
+                                                                Default
+                                                            </Badge>
+                                                        )}
+                                                        {attr.is_system_field && (
+                                                            <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">
+                                                                System
+                                                            </Badge>
+                                                        )}
+                                                        {attr.applicable_to_all_services && (
+                                                            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                                                                All
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex items-center justify-end space-x-2">
@@ -1514,7 +1559,7 @@ const AttributeRegistryManager: React.FC = () => {
                             />
                         </div>
 
-                        <div className="flex items-center space-x-4">
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="flex items-center space-x-2">
                                 <Switch
                                     id="attr-required"
@@ -1530,6 +1575,47 @@ const AttributeRegistryManager: React.FC = () => {
                                     onCheckedChange={(checked) => setNewAttribute({ ...newAttribute, is_active: checked })}
                                 />
                                 <Label htmlFor="attr-active">Active</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="attr-default-field"
+                                    checked={newAttribute.is_default_field}
+                                    onCheckedChange={(checked) => setNewAttribute({ ...newAttribute, is_default_field: checked })}
+                                />
+                                <Label htmlFor="attr-default-field">
+                                    <Database className="h-3 w-3 inline mr-1" />
+                                    Default Field
+                                </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="attr-system-field"
+                                    checked={newAttribute.is_system_field}
+                                    onCheckedChange={(checked) => setNewAttribute({ ...newAttribute, is_system_field: checked })}
+                                />
+                                <Label htmlFor="attr-system-field">System Field</Label>
+                            </div>
+                            <div className="flex items-center space-x-2 col-span-2">
+                                <Switch
+                                    id="attr-all-services"
+                                    checked={newAttribute.applicable_to_all_services}
+                                    onCheckedChange={(checked) => setNewAttribute({ ...newAttribute, applicable_to_all_services: checked })}
+                                />
+                                <Label htmlFor="attr-all-services">Applicable to All Services</Label>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="attr-display-order">Display Order</Label>
+                                <Input
+                                    id="attr-display-order"
+                                    type="number"
+                                    placeholder="0"
+                                    value={newAttribute.display_order}
+                                    onChange={(e) => setNewAttribute({ ...newAttribute, display_order: parseInt(e.target.value) || 0 })}
+                                />
+                                <p className="text-xs text-muted-foreground">Lower numbers appear first in forms</p>
                             </div>
                         </div>
 

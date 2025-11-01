@@ -22,6 +22,14 @@ interface Category {
   service_type: string;
 }
 
+interface Subcategory {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+}
+
 interface ServiceType {
   id: string;
   title: string;
@@ -52,10 +60,12 @@ export function ComprehensiveProductModal({
   const { session } = useAuth();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedServiceType, setSelectedServiceType] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>("");
   const [currentStep, setCurrentStep] = useState<"service" | "category" | "details">("service");
   const [initialValues, setInitialValues] = useState<Record<string, any>>({});
 
@@ -66,6 +76,13 @@ export function ComprehensiveProductModal({
         // Load product data for editing
         setSelectedServiceType(product.service_type || "");
         setSelectedCategory(product.category_id || "");
+        setSelectedSubcategory(product.subcategory_id || "");
+        
+        // Fetch subcategories if we have a category
+        if (product.category_id) {
+          fetchSubcategories(product.category_id);
+        }
+        
         setInitialValues({
           product_name: product.name,
           product_description: product.description,
@@ -84,6 +101,8 @@ export function ComprehensiveProductModal({
         // Reset for adding new product
         setSelectedServiceType("");
         setSelectedCategory("");
+        setSelectedSubcategory("");
+        setSubcategories([]);
         setInitialValues({});
         setCurrentStep("service");
       }
@@ -93,15 +112,33 @@ export function ComprehensiveProductModal({
     }
   }, [isOpen, mode, product]);
 
+  // Debug log for DynamicFormGenerator props
+  useEffect(() => {
+    if (currentStep === "details" && selectedCategory) {
+      const actualServiceType = categories.find(cat => cat.id === selectedCategory)?.service_type || "";
+      console.log('\n🔍 [DYNAMIC FORM] Props for DynamicFormGenerator:');
+      console.log('  ├─ Service Type (actualServiceType):', actualServiceType);
+      console.log('  ├─ Category ID:', selectedCategory);
+      console.log('  ├─ Subcategory ID:', selectedSubcategory || '(none)');
+      console.log('  └─ Enhanced Version: true');
+    }
+  }, [currentStep, selectedCategory, selectedSubcategory, categories]);
+
   const fetchServiceTypes = async () => {
     try {
       const { data, error } = await supabase
         .from("service_types")
-        .select("id, title, description")
+        .select("*")
         .eq("is_active", true)
         .order("title");
 
       if (error) throw error;
+      
+      console.log('📋 [SERVICE TYPES] Fetched service types:', data);
+      if (data && data.length > 0) {
+        console.log('  └─ First service type:', data[0]);
+      }
+      
       setServiceTypes(data || []);
     } catch (error) {
       console.error("Error fetching service types:", error);
@@ -118,10 +155,56 @@ export function ComprehensiveProductModal({
         .order("service_type, name");
 
       if (error) throw error;
+      
+      console.log('📋 [CATEGORIES] Fetched categories:', data?.length || 0);
+      if (data && data.length > 0) {
+        console.log('  ├─ Sample category:', data[0]);
+        console.log('  └─ Unique service_types:', [...new Set(data.map(c => c.service_type))]);
+      }
+      
       setCategories(data || []);
     } catch (error) {
       console.error("Error fetching categories:", error);
       toast.error("Failed to load categories");
+    }
+  };
+
+  const fetchSubcategories = async (categoryId: string) => {
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 [SUBCATEGORIES] Fetching subcategories');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📥 Category ID:', categoryId);
+    
+    try {
+      const { data, error } = await supabase
+        .from("subcategories")
+        .select("id, name, description, icon, color")
+        .eq("category_id", categoryId)
+        .eq("is_active", true)
+        .order("sort_order");
+
+      if (error) {
+        console.error('❌ [SUBCATEGORIES ERROR]', error);
+        setSubcategories([]);
+        return;
+      }
+
+      console.log('✅ [SUBCATEGORIES SUCCESS]');
+      console.log('  ├─ Count:', data?.length || 0);
+      
+      if (data && data.length > 0) {
+        console.log('  └─ Subcategories:');
+        data.forEach((sub, index) => {
+          console.log(`      [${index + 1}] ${sub.icon || '📁'} ${sub.name} (${sub.id})`);
+        });
+      }
+      
+      setSubcategories(data || []);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    } catch (error) {
+      console.error('\n❌ [SUBCATEGORIES EXCEPTION]', error);
+      setSubcategories([]);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     }
   };
 
@@ -143,13 +226,37 @@ export function ComprehensiveProductModal({
   };
 
   const handleServiceTypeSelect = (serviceTypeId: string) => {
+    console.log('\n🎯 [SERVICE TYPE SELECT] Service type selected:', serviceTypeId);
+    
+    const serviceType = serviceTypes.find(st => st.id === serviceTypeId);
+    if (serviceType) {
+      console.log('  ├─ Service type title:', serviceType.title);
+      console.log('  └─ Service type object:', serviceType);
+    }
+    
     setSelectedServiceType(serviceTypeId);
     setSelectedCategory(""); // Reset category when service type changes
+    setSelectedSubcategory(""); // Reset subcategory when service type changes
+    setSubcategories([]); // Clear subcategories
     setCurrentStep("category");
   };
 
   const handleCategorySelect = (categoryId: string) => {
+    console.log('\n🎯 [CATEGORY SELECT] Category selected:', categoryId);
+    
+    const category = categories.find(cat => cat.id === categoryId);
+    if (category) {
+      console.log('  ├─ Category name:', category.name);
+      console.log('  └─ Service type string:', category.service_type);
+    }
+    
     setSelectedCategory(categoryId);
+    setSelectedSubcategory(""); // Reset subcategory when category changes
+    
+    // Fetch subcategories for this category
+    fetchSubcategories(categoryId);
+    
+    // Move to details step
     setCurrentStep("details");
   };
 
@@ -208,6 +315,7 @@ export function ComprehensiveProductModal({
         type: 'product', // offering_type enum
         vendor_id: values.vendor_name,
         category_id: selectedCategory,
+        subcategory_id: selectedSubcategory || null, // Optional subcategory
         base_price: parseFloat(values.price),
         meta_title: values.meta_title,
         meta_description: values.meta_description,
@@ -281,8 +389,19 @@ export function ComprehensiveProductModal({
     ? categories.filter((cat) => cat.service_type === selectedServiceType)
     : [];
 
+  // Debug filtered categories
+  if (selectedServiceType && filteredCategories.length === 0 && categories.length > 0) {
+    console.warn('\n⚠️  [FILTER WARNING] No categories match selected service type');
+    console.warn('  ├─ Selected service type ID:', selectedServiceType);
+    console.warn('  ├─ Total categories:', categories.length);
+    console.warn('  └─ Available service_types in categories:', [...new Set(categories.map(c => c.service_type))]);
+  }
+
   const selectedServiceTypeName = serviceTypes.find(st => st.id === selectedServiceType)?.title || "";
   const selectedCategoryName = categories.find(cat => cat.id === selectedCategory)?.name || "";
+  
+  // Get the actual service_type string from the selected category (not UUID from service_types)
+  const actualServiceType = categories.find(cat => cat.id === selectedCategory)?.service_type || "";
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -410,9 +529,62 @@ export function ComprehensiveProductModal({
               </CardContent>
             </Card>
 
+            {/* Subcategory Selection (Optional) */}
+            {subcategories.length > 0 && (
+              <Card>
+                <CardContent className="pt-6">
+                  <Label className="text-base font-semibold mb-4 block">
+                    Select Subcategory <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                  </Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {/* None Option */}
+                    <button
+                      onClick={() => setSelectedSubcategory("")}
+                      className={`p-3 border-2 rounded-lg text-left transition-all hover:border-primary ${
+                        selectedSubcategory === "" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="text-2xl">📦</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">None</p>
+                          <p className="text-xs text-muted-foreground truncate">General category</p>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    {/* Subcategory Options */}
+                    {subcategories.map((subcategory) => (
+                      <button
+                        key={subcategory.id}
+                        onClick={() => setSelectedSubcategory(subcategory.id)}
+                        className={`p-3 border-2 rounded-lg text-left transition-all hover:border-primary ${
+                          selectedSubcategory === subcategory.id ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className="text-2xl">{subcategory.icon || '📁'}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm">{subcategory.name}</p>
+                            {subcategory.description && (
+                              <p className="text-xs text-muted-foreground truncate">{subcategory.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Select a subcategory for more specific classification, or leave as "None" to map to the general category.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             <DynamicFormGenerator
-              serviceTypeId={selectedServiceType}
+              serviceTypeId={actualServiceType}
               categoryId={selectedCategory}
+              subcategoryId={selectedSubcategory || undefined}
               initialValues={initialValues}
               onSubmit={handleSubmit}
               onCancel={onClose}

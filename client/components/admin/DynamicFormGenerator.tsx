@@ -110,8 +110,13 @@ const DynamicFormGenerator: React.FC<DynamicFormGeneratorProps> = ({
                 attribute_label: field.label || field.attribute_label || field.attribute_name, // Map label to attribute_label
             }));
 
+            // ✅ FILTER: Only show visible fields
+            const visibleFields = mappedFields.filter((field: FormField) => field.is_visible !== false);
+
+            console.log('🔍 Filtered to visible fields:', visibleFields.length, 'of', mappedFields.length);
+
             // Group fields by field_group for better organization
-            const sortedFields = mappedFields.sort((a: FormField, b: FormField) => 
+            const sortedFields = visibleFields.sort((a: FormField, b: FormField) => 
                 a.display_order - b.display_order
             );
 

@@ -202,12 +202,129 @@ const SortableAttributeRow: React.FC<SortableAttributeRowProps> = ({
     );
 };
 
+// Sortable Default Field Item Component
+interface SortableDefaultFieldItemProps {
+    field: MandatoryField;
+    configuredAttr: AttributeConfig | undefined;
+    isRequired: boolean;
+    isVisible: boolean;
+    onToggleRequired: (id: string, fieldName: string, fieldLabel: string, fieldType: string, inputType: string, toggleType: 'required', currentValue: boolean) => void;
+    onToggleVisibility: (id: string, fieldName: string, fieldLabel: string, fieldType: string, inputType: string, toggleType: 'visible', currentValue: boolean) => void;
+    onEdit: (attr: AttributeConfig) => void;
+    saving: boolean;
+}
+
+const SortableDefaultFieldItem: React.FC<SortableDefaultFieldItemProps> = ({
+    field,
+    configuredAttr,
+    isRequired,
+    isVisible,
+    onToggleRequired,
+    onToggleVisibility,
+    onEdit,
+    saving
+}) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: field.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.8 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`flex items-center justify-between p-3 rounded-lg border-2 transition-all ${
+                isDragging ? 'shadow-lg z-50 scale-105' : ''
+            } bg-blue-50 border-blue-200 hover:border-blue-400`}
+        >
+            <div className="flex items-center space-x-3">
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-blue-100 rounded"
+                >
+                    <GripVertical className="h-4 w-4 text-blue-600" />
+                </div>
+                <Database className="h-4 w-4 text-blue-600" />
+                <div>
+                    <div className="font-medium text-sm">{field.field_label}</div>
+                    <div className="text-xs text-muted-foreground">
+                        {field.field_name} • {field.input_type}
+                        {field.is_system_field ? ' • System field' : ' • Default field'}
+                    </div>
+                </div>
+            </div>
+            <div className="flex items-center gap-3">
+                {/* Visible Toggle */}
+                <div className="flex flex-col items-center gap-1">
+                    <Label className="text-xs text-muted-foreground">Visible</Label>
+                    <Switch
+                        checked={isVisible}
+                        onCheckedChange={() => onToggleVisibility(
+                            field.id,
+                            field.field_name,
+                            field.field_label,
+                            field.field_type,
+                            field.input_type,
+                            'visible',
+                            isVisible
+                        )}
+                        disabled={saving}
+                    />
+                </div>
+                {/* Required Toggle */}
+                <div className="flex flex-col items-center gap-1">
+                    <Label className="text-xs text-muted-foreground">Required</Label>
+                    <Switch
+                        checked={isRequired}
+                        onCheckedChange={() => onToggleRequired(
+                            field.id,
+                            field.field_name,
+                            field.field_label,
+                            field.field_type,
+                            field.input_type,
+                            'required',
+                            isRequired
+                        )}
+                        disabled={saving}
+                    />
+                </div>
+                {/* Edit Button */}
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                        if (configuredAttr) {
+                            onEdit(configuredAttr);
+                        }
+                    }}
+                    disabled={!configuredAttr || saving}
+                    title={configuredAttr ? "Edit attribute" : "Add to config first by toggling a switch"}
+                >
+                    <Edit className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 // Sortable Attribute Item Component (for card-style layout)
 interface SortableAttributeItemProps {
     attribute: AttributeConfig;
     isDirect: boolean;
     inheritedFrom?: string;
     onToggleRequired: (id: string, current: boolean) => void;
+    onToggleVisibility: (id: string, current: boolean) => void;
     onEdit: (attr: AttributeConfig) => void;
     saving: boolean;
 }
@@ -217,6 +334,7 @@ const SortableAttributeItem: React.FC<SortableAttributeItemProps> = ({
     isDirect,
     inheritedFrom,
     onToggleRequired,
+    onToggleVisibility,
     onEdit,
     saving
 }) => {
@@ -271,15 +389,28 @@ const SortableAttributeItem: React.FC<SortableAttributeItemProps> = ({
                     </div>
                 </div>
             </div>
-            <div className="flex items-center space-x-2">
-                <Switch
-                    checked={attribute.is_required}
-                    onCheckedChange={() => onToggleRequired(attribute.attribute_id, attribute.is_required)}
-                    disabled={saving || !isDirect}
-                />
-                <Badge variant={attribute.is_required ? "default" : "secondary"}>
-                    {attribute.is_required ? "Required" : "Optional"}
-                </Badge>
+            <div className="flex items-center gap-4">
+                {/* Visible Toggle */}
+                <div className="flex flex-col items-center gap-1">
+                    <Label className="text-xs text-muted-foreground">Visible</Label>
+                    <Switch
+                        checked={attribute.is_visible}
+                        onCheckedChange={() => onToggleVisibility(attribute.attribute_id, attribute.is_visible)}
+                        disabled={saving || !isDirect}
+                    />
+                </div>
+                
+                {/* Required Toggle */}
+                <div className="flex flex-col items-center gap-1">
+                    <Label className="text-xs text-muted-foreground">Required</Label>
+                    <Switch
+                        checked={attribute.is_required}
+                        onCheckedChange={() => onToggleRequired(attribute.attribute_id, attribute.is_required)}
+                        disabled={saving || !isDirect}
+                    />
+                </div>
+                
+                {/* Edit Button */}
                 {isDirect && (
                     <Button
                         size="sm"
@@ -344,6 +475,13 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
         fetchAvailableAttributes();
     }, []);
 
+    // Reset category and subcategory when service type changes
+    useEffect(() => {
+        setSelectedCategory("");
+        setSelectedSubcategory("");
+        setSubcategories([]);
+    }, [selectedServiceType]);
+
     // Load attributes when selections change
     useEffect(() => {
         if (selectedServiceType && activeTab === "service") {
@@ -358,24 +496,56 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
         }
     }, [selectedCategory, activeTab]);
 
+    // Fetch subcategories whenever category changes (for subcategory tab)
+    useEffect(() => {
+        if (selectedCategory) {
+            fetchSubcategories();
+        } else {
+            setSubcategories([]);
+            setSelectedSubcategory(""); // Reset subcategory when category is cleared
+        }
+    }, [selectedCategory]);
+
     useEffect(() => {
         if (selectedSubcategory && activeTab === "subcategory") {
             fetchSubcategoryAttributes();
         }
     }, [selectedSubcategory, activeTab]);
 
-    // Fetch mandatory fields
+    // Fetch default fields from attribute_registry (replacing default_mandatory_fields)
     const fetchMandatoryFields = async () => {
         try {
             const { data, error } = await supabase
-                .from("default_mandatory_fields")
+                .from("attribute_registry")
                 .select("*")
+                .eq("is_default_field", true)
+                .eq("is_active", true)
                 .order("display_order");
 
             if (error) throw error;
-            setMandatoryFields(data || []);
+            
+            // Map to MandatoryField format
+            const mapped = (data || []).map(attr => ({
+                id: attr.id,
+                field_name: attr.name,
+                field_label: attr.label,
+                field_type: attr.data_type,
+                input_type: attr.input_type || attr.data_type,
+                placeholder: attr.placeholder,
+                help_text: attr.help_text,
+                display_order: attr.display_order || 0,
+                is_system_field: attr.is_system_field || false,
+                applicable_to_all_services: attr.applicable_to_all_services || false
+            }));
+            
+            setMandatoryFields(mapped);
         } catch (error) {
-            console.error("Error fetching mandatory fields:", error);
+            console.error("Error fetching default fields:", error);
+            toast({
+                title: "Error",
+                description: "Failed to load default fields",
+                variant: "destructive",
+            });
         }
     };
 
@@ -669,15 +839,20 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
 
             if (error) {
                 // Fallback to direct query if function doesn't exist
-                console.warn("RPC function not found, using direct query");
-                const { data: fallbackData, error: fallbackError } = await supabase
-                    .from("category_attribute_config")
+                console.warn("RPC function error, using fallback query:", error);
+                
+                // Get subcategory's own attributes
+                const { data: subcatData, error: subcatError } = await supabase
+                    .from("subcategory_attribute_config")
                     .select(`
                         id,
                         attribute_id,
+                        inherit_from_category,
                         inherit_from_service,
                         is_required,
                         is_visible,
+                        is_editable,
+                        is_deletable,
                         display_order,
                         field_group,
                         override_label,
@@ -692,13 +867,12 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                             help_text
                         )
                     `)
-                    .eq("category_id", selectedSubcategory)
-                    .eq("is_visible", true)
+                    .eq("subcategory_id", selectedSubcategory)
                     .order("display_order");
 
-                if (fallbackError) throw fallbackError;
+                if (subcatError) throw subcatError;
 
-                const formatted = (fallbackData || []).map((item: any) => ({
+                const formatted = (subcatData || []).map((item: any) => ({
                     id: item.id,
                     attribute_id: item.attribute_id,
                     attribute_name: item.attribute_registry?.name || "",
@@ -709,11 +883,12 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                     help_text: item.override_help_text || item.attribute_registry?.help_text,
                     is_required: item.is_required,
                     is_visible: item.is_visible,
-                    is_editable: item.is_editable !== false, // NEW
-                    is_deletable: item.is_deletable !== false, // NEW
+                    is_editable: item.is_editable !== false,
+                    is_deletable: item.is_deletable !== false,
                     display_order: item.display_order,
                     field_group: item.field_group || "custom",
                     inherit_from_service: item.inherit_from_service,
+                    inherit_from_category: item.inherit_from_category,
                     inherited_from: "subcategory",
                     is_direct: true,
                     override_label: item.override_label,
@@ -1031,7 +1206,10 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
             const attr = currentAttrs.find(a => a.attribute_id === attrId);
             if (!attr) return;
 
-            const tableName = activeTab === "service" ? "service_attribute_config" : "category_attribute_config";
+            let tableName;
+            if (activeTab === "service") tableName = "service_attribute_config";
+            else if (activeTab === "category") tableName = "category_attribute_config";
+            else tableName = "subcategory_attribute_config";
 
             const { error } = await supabase
                 .from(tableName)
@@ -1044,6 +1222,11 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
             if (activeTab === "service") fetchServiceAttributes();
             else if (activeTab === "category") fetchCategoryAttributes();
             else fetchSubcategoryAttributes();
+            
+            toast({
+                title: "Success",
+                description: `Attribute ${!currentStatus ? 'required' : 'optional'}`,
+            });
         } catch (error: any) {
             console.error("Error toggling required:", error);
             toast({
@@ -1054,9 +1237,231 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [activeTab, getCurrentAttributes]);
+    }, [activeTab, getCurrentAttributes, fetchServiceAttributes, fetchCategoryAttributes, fetchSubcategoryAttributes]);
 
-    // Drag end handler for reordering
+    // Toggle visibility
+    const handleToggleVisibility = useCallback(async (attrId: string, currentStatus: boolean) => {
+        setSaving(true);
+        try {
+            const currentAttrs = getCurrentAttributes();
+            const attr = currentAttrs.find(a => a.attribute_id === attrId);
+            if (!attr) return;
+
+            let tableName;
+            if (activeTab === "service") tableName = "service_attribute_config";
+            else if (activeTab === "category") tableName = "category_attribute_config";
+            else tableName = "subcategory_attribute_config";
+
+            const { error } = await supabase
+                .from(tableName)
+                .update({ is_visible: !currentStatus })
+                .eq("id", attr.id);
+
+            if (error) throw error;
+
+            // Refresh
+            if (activeTab === "service") fetchServiceAttributes();
+            else if (activeTab === "category") fetchCategoryAttributes();
+            else fetchSubcategoryAttributes();
+            
+            toast({
+                title: "Success",
+                description: `Attribute ${!currentStatus ? 'visible' : 'hidden'}`,
+            });
+        } catch (error: any) {
+            console.error("Error toggling visibility:", error);
+            toast({
+                title: "Error",
+                description: "Failed to update visibility status",
+                variant: "destructive",
+            });
+        } finally {
+            setSaving(false);
+        }
+    }, [activeTab, getCurrentAttributes, fetchServiceAttributes, fetchCategoryAttributes, fetchSubcategoryAttributes]);
+
+    // Handle default field actions (add to config if not exists, then toggle)
+    const handleDefaultFieldToggle = useCallback(async (
+        defaultFieldId: string,
+        fieldName: string,
+        fieldLabel: string,
+        fieldType: string,
+        inputType: string,
+        toggleType: 'required' | 'visible',
+        currentValue: boolean
+    ) => {
+        if (!selectedServiceType && activeTab !== "defaults") return;
+
+        setSaving(true);
+        try {
+            // First, ensure the field exists in attribute_registry (or find existing)
+            let attributeId: string;
+            
+            const { data: existingAttr } = await supabase
+                .from("attribute_registry")
+                .select("id")
+                .eq("name", fieldName)
+                .single();
+
+            if (existingAttr) {
+                attributeId = existingAttr.id;
+            } else {
+                // Create in attribute_registry
+                const { data: newAttr, error: createError } = await supabase
+                    .from("attribute_registry")
+                    .insert({
+                        name: fieldName,
+                        label: fieldLabel,
+                        data_type: fieldType,
+                        input_type: inputType,
+                        is_active: true
+                    })
+                    .select("id")
+                    .single();
+
+                if (createError) throw createError;
+                attributeId = newAttr.id;
+            }
+
+            // Now work with the config table
+            let tableName, contextField, contextValue;
+            
+            if (activeTab === "service") {
+                tableName = "service_attribute_config";
+                contextField = "service_type_id";
+                contextValue = selectedServiceType;
+            } else if (activeTab === "category") {
+                tableName = "category_attribute_config";
+                contextField = "category_id";
+                contextValue = selectedCategory;
+            } else if (activeTab === "subcategory") {
+                tableName = "subcategory_attribute_config";
+                contextField = "subcategory_id";
+                contextValue = selectedSubcategory;
+            } else {
+                return; // Defaults tab doesn't support this
+            }
+
+            // Check if attribute exists in config
+            // @ts-ignore - Dynamic table name causes deep type instantiation
+            const checkResult = await supabase
+                .from(tableName)
+                .select("id, is_required, is_visible")
+                .eq(contextField, contextValue)
+                .eq("attribute_id", attributeId)
+                .maybeSingle();
+            const existing = checkResult.data;
+
+            if (!existing) {
+                // Add to config first with default values
+                // @ts-ignore - Dynamic table name causes deep type instantiation
+                const insertResult = await supabase
+                    .from(tableName)
+                    .insert({
+                        [contextField]: contextValue,
+                        attribute_id: attributeId,
+                        is_required: toggleType === 'required' ? !currentValue : true,
+                        is_visible: toggleType === 'visible' ? !currentValue : true,
+                        is_editable: true,
+                        is_deletable: true,
+                        display_order: 999,
+                        field_group: 'default'
+                    })
+                    .select()
+                    .single();
+
+                if (insertResult.error) throw insertResult.error;
+            } else {
+                // Update existing
+                // @ts-ignore - Dynamic table name causes deep type instantiation
+                const updateResult = await supabase
+                    .from(tableName)
+                    .update({
+                        [toggleType === 'required' ? 'is_required' : 'is_visible']: !currentValue
+                    })
+                    .eq("id", existing.id);
+
+                if (updateResult.error) throw updateResult.error;
+            }
+
+            // Refresh
+            if (activeTab === "service") fetchServiceAttributes();
+            else if (activeTab === "category") fetchCategoryAttributes();
+            else fetchSubcategoryAttributes();
+            
+            toast({
+                title: "Success",
+                description: `Default field ${toggleType} updated`,
+            });
+        } catch (error: any) {
+            console.error(`Error toggling default field ${toggleType}:`, error);
+            toast({
+                title: "Error",
+                description: `Failed to update ${toggleType} status: ${error.message || 'Unknown error'}`,
+                variant: "destructive",
+            });
+        } finally {
+            setSaving(false);
+        }
+    }, [activeTab, selectedServiceType, selectedCategory, selectedSubcategory, fetchServiceAttributes, fetchCategoryAttributes, fetchSubcategoryAttributes]);
+
+    // Drag end handler for default fields reordering
+    const handleDefaultFieldDragEnd = useCallback(async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (!over || active.id === over.id) {
+            return;
+        }
+
+        const oldIndex = mandatoryFields.findIndex(field => field.id === active.id);
+        const newIndex = mandatoryFields.findIndex(field => field.id === over.id);
+
+        if (oldIndex === -1 || newIndex === -1) {
+            return;
+        }
+
+        const newOrder = arrayMove(mandatoryFields, oldIndex, newIndex);
+        
+        // Update display order (start from 1 for default fields)
+        const updates = newOrder.map((field, index) => ({
+            field_name: field.field_name,
+            new_display_order: index + 1
+        }));
+
+        // Optimistically update UI
+        setMandatoryFields(newOrder);
+
+        // Save to database
+        setSaving(true);
+        try {
+            // Update display_order in attribute_registry for default fields
+            for (const update of updates) {
+                await supabase
+                    .from("attribute_registry")
+                    .update({ display_order: update.new_display_order })
+                    .eq("name", update.field_name)
+                    .eq("is_default_field", true);
+            }
+
+            toast({
+                title: "Success",
+                description: "Default field order updated",
+            });
+        } catch (error: any) {
+            console.error("Error reordering default fields:", error);
+            toast({
+                title: "Error",
+                description: "Failed to reorder default fields",
+                variant: "destructive",
+            });
+            // Revert on error
+            fetchMandatoryFields();
+        } finally {
+            setSaving(false);
+        }
+    }, [mandatoryFields, fetchMandatoryFields]);
+
+    // Drag end handler for custom attributes reordering
     const handleDragEnd = useCallback(async (event: DragEndEvent) => {
         const { active, over } = event;
 
@@ -1074,10 +1479,10 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
 
         const newOrder = arrayMove(currentAttrs, oldIndex, newIndex);
         
-        // Update display order
+        // Update display order (start from 1000 for custom fields to come after defaults)
         const updates = newOrder.map((attr, index) => ({
             ...attr,
-            display_order: index + 1
+            display_order: 1000 + index
         }));
 
         // Optimistically update UI
@@ -1086,7 +1491,9 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
         // Save to database
         setSaving(true);
         try {
-            const tableName = activeTab === "service" ? "service_attribute_config" : "category_attribute_config";
+            const tableName = activeTab === "service" ? "service_attribute_config" : 
+                            activeTab === "category" ? "category_attribute_config" :
+                            "subcategory_attribute_config";
 
             for (const update of updates) {
                 await supabase
@@ -1168,8 +1575,11 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                 attribute_label: field.attribute_label || field.field_label || field.label || field.attribute_name || field.field_name || 'Untitled Field',
             }));
             
-            console.log("📋 Fields with labels:", fieldsWithLabels);
-            setPreviewFields(fieldsWithLabels);
+            // ✅ FILTER: Only show visible fields in preview
+            const visibleFields = fieldsWithLabels.filter((field: any) => field.is_visible !== false);
+            
+            console.log("📋 Filtered visible fields for preview:", visibleFields.length, 'of', fieldsWithLabels.length);
+            setPreviewFields(visibleFields);
         } catch (error: any) {
             console.error("Error updating preview:", error);
             toast({
@@ -1192,15 +1602,22 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
     // Get current stats
     const getCurrentStats = () => {
         const currentAttrs = getCurrentAttributes();
-        const directAttrs = currentAttrs.filter((a: any) => a.is_direct !== false);
-        const inheritedAttrs = currentAttrs.filter((a: any) => a.is_direct === false);
+        
+        // Filter out default fields to prevent double counting
+        const defaultFieldNames = mandatoryFields.map(f => f.field_name);
+        const customAttrsOnly = currentAttrs.filter(
+            attr => !defaultFieldNames.includes(attr.attribute_name)
+        );
+        
+        const directAttrs = customAttrsOnly.filter((a: any) => a.is_direct !== false);
+        const inheritedAttrs = customAttrsOnly.filter((a: any) => a.is_direct === false);
         
         return {
             custom: directAttrs.length,
             inherited: inheritedAttrs.length,
             required: currentAttrs.filter(a => a.is_required).length,
             mandatory: mandatoryFields.length,
-            total: currentAttrs.length + mandatoryFields.length,
+            total: customAttrsOnly.length + mandatoryFields.length,
         };
     };
 
@@ -1271,7 +1688,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                 <Card>
                                     <CardContent className="pt-6">
                                         <div className="text-2xl font-bold">{stats.custom}</div>
-                                        <p className="text-xs text-muted-foreground">Direct Attributes</p>
+                                        <p className="text-xs text-muted-foreground">Custom Attributes</p>
                                     </CardContent>
                                 </Card>
                                 {stats.inherited > 0 && (
@@ -1291,7 +1708,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                 <Card>
                                     <CardContent className="pt-6">
                                         <div className="text-2xl font-bold">{stats.mandatory}</div>
-                                        <p className="text-xs text-muted-foreground">Mandatory Fields</p>
+                                        <p className="text-xs text-muted-foreground">Default Fields</p>
                                     </CardContent>
                                 </Card>
                                 <Card>
@@ -1353,29 +1770,55 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
-                                            {/* Mandatory Fields */}
+                                            {/* Default Fields with Drag and Drop */}
                                             <div className="mb-4">
                                                 <h4 className="text-sm font-semibold mb-2 text-muted-foreground flex items-center gap-2">
-                                                    <Lock className="h-4 w-4" />
-                                                    Mandatory Fields ({mandatoryFields.length})
+                                                    <Database className="h-4 w-4" />
+                                                    Default Fields ({mandatoryFields.length}) - Drag to Reorder
                                                 </h4>
-                                                <div className="space-y-2">
-                                                    {mandatoryFields.map((field) => (
-                                                        <div key={field.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2 border-gray-200">
-                                                            <div className="flex items-center space-x-3">
-                                                                <Lock className="h-4 w-4 text-gray-400" />
-                                                                <div>
-                                                                    <div className="font-medium text-sm">{field.field_label}</div>
-                                                                    <div className="text-xs text-muted-foreground">
-                                                                        {field.field_name} • {field.input_type}
-                                                                        {field.is_system_field ? ' • System field' : ' • Custom field'}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <Badge variant="secondary">Required</Badge>
+                                                <DndContext
+                                                    sensors={sensors}
+                                                    collisionDetection={closestCenter}
+                                                    onDragEnd={handleDefaultFieldDragEnd}
+                                                >
+                                                    <SortableContext
+                                                        items={mandatoryFields.map(f => f.id)}
+                                                        strategy={verticalListSortingStrategy}
+                                                    >
+                                                        <div className="space-y-2">
+                                                            {mandatoryFields.map((field) => {
+                                                                // Find if this default field is configured for current context
+                                                                const configuredAttr = currentAttrs.find(
+                                                                    attr => attr.attribute_name === field.field_name
+                                                                );
+                                                                console.log(`Default field "${field.field_name}":`, { configured: !!configuredAttr, isRequired: configuredAttr?.is_required, isVisible: configuredAttr?.is_visible });
+                                                                // If not configured, show defaults (not required, but visible)
+                                                                const isRequired = configuredAttr?.is_required ?? false;
+                                                                const isVisible = configuredAttr?.is_visible ?? true;
+                                                                
+                                                                return (
+                                                                    <SortableDefaultFieldItem
+                                                                        key={field.id}
+                                                                        field={field}
+                                                                        configuredAttr={configuredAttr}
+                                                                        isRequired={isRequired}
+                                                                        isVisible={isVisible}
+                                                                        onToggleRequired={handleDefaultFieldToggle}
+                                                                        onToggleVisibility={handleDefaultFieldToggle}
+                                                                        onEdit={(attr) => {
+                                                                            setEditingAttribute(attr);
+                                                                            setShowEditModal(true);
+                                                                        }}
+                                                                        saving={saving}
+                                                                    />
+                                                                );
+                                                            })}
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                    </SortableContext>
+                                                </DndContext>
+                                                <p className="text-xs text-muted-foreground mt-2 italic">
+                                                    💡 Drag to reorder, toggle to customize default fields for this {activeTab}. They're optional and can be shown/hidden.
+                                                </p>
                                             </div>
 
                                             <Separator />
@@ -1385,52 +1828,65 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                                 <h4 className="text-sm font-semibold mb-2 text-muted-foreground">
                                                     Custom Attributes (Drag to Reorder)
                                                 </h4>
-                                                {currentAttrs.length === 0 ? (
-                                                    <div className="text-center py-8 text-muted-foreground">
-                                                        <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                                                        <p>No attributes configured</p>
-                                                        <Button 
-                                                            variant="link" 
-                                                            onClick={() => setShowAddModal(true)}
-                                                            className="mt-2"
-                                                        >
-                                                            Add your first attribute
-                                                        </Button>
-                                                    </div>
-                                                ) : (
-                                                    <DndContext
-                                                        sensors={sensors}
-                                                        collisionDetection={closestCenter}
-                                                        onDragEnd={handleDragEnd}
-                                                    >
-                                                        <SortableContext
-                                                            items={currentAttrs.map(attr => attr.id)}
-                                                            strategy={verticalListSortingStrategy}
-                                                        >
-                                                            <div className="space-y-2">
-                                                                {currentAttrs.map((attr, idx) => {
-                                                                    const isDirect = (attr as any).is_direct !== false;
-                                                                    const inheritedFrom = (attr as any).inherited_from;
-                                                                    
-                                                                    return (
-                                                                        <SortableAttributeItem
-                                                                            key={attr.id}
-                                                                            attribute={attr}
-                                                                            isDirect={isDirect}
-                                                                            inheritedFrom={inheritedFrom}
-                                                                            onToggleRequired={handleToggleRequired}
-                                                                            onEdit={(attr) => {
-                                                                                setEditingAttribute(attr);
-                                                                                setShowEditModal(true);
-                                                                            }}
-                                                                            saving={saving}
-                                                                        />
-                                                                    );
-                                                                })}
+                                                {(() => {
+                                                    // Filter out default fields from custom attributes to prevent duplicates
+                                                    const defaultFieldNames = mandatoryFields.map(f => f.field_name);
+                                                    const customAttrsOnly = currentAttrs.filter(
+                                                        attr => !defaultFieldNames.includes(attr.attribute_name)
+                                                    );
+                                                    
+                                                    if (customAttrsOnly.length === 0) {
+                                                        return (
+                                                            <div className="text-center py-8 text-muted-foreground">
+                                                                <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                                                                <p>No custom attributes configured</p>
+                                                                <Button 
+                                                                    variant="link" 
+                                                                    onClick={() => setShowAddModal(true)}
+                                                                    className="mt-2"
+                                                                >
+                                                                    Add your first attribute
+                                                                </Button>
                                                             </div>
-                                                        </SortableContext>
-                                                    </DndContext>
-                                                )}
+                                                        );
+                                                    }
+                                                    
+                                                    return (
+                                                        <DndContext
+                                                            sensors={sensors}
+                                                            collisionDetection={closestCenter}
+                                                            onDragEnd={handleDragEnd}
+                                                        >
+                                                            <SortableContext
+                                                                items={customAttrsOnly.map(attr => attr.id)}
+                                                                strategy={verticalListSortingStrategy}
+                                                            >
+                                                                <div className="space-y-2">
+                                                                    {customAttrsOnly.map((attr, idx) => {
+                                                                        const isDirect = (attr as any).is_direct !== false;
+                                                                        const inheritedFrom = (attr as any).inherited_from;
+                                                                        
+                                                                        return (
+                                                                            <SortableAttributeItem
+                                                                                key={attr.id}
+                                                                                attribute={attr}
+                                                                                isDirect={isDirect}
+                                                                                inheritedFrom={inheritedFrom}
+                                                                                onToggleRequired={handleToggleRequired}
+                                                                                onToggleVisibility={handleToggleVisibility}
+                                                                                onEdit={(attr) => {
+                                                                                    setEditingAttribute(attr);
+                                                                                    setShowEditModal(true);
+                                                                                }}
+                                                                                saving={saving}
+                                                                            />
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </SortableContext>
+                                                        </DndContext>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     )}
@@ -1513,7 +1969,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                 <Card>
                                     <CardContent className="pt-6">
                                         <div className="text-2xl font-bold">{stats.mandatory}</div>
-                                        <p className="text-xs text-muted-foreground">Mandatory Fields</p>
+                                        <p className="text-xs text-muted-foreground">Default Fields</p>
                                     </CardContent>
                                 </Card>
                                 <Card>
@@ -1576,26 +2032,51 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                         <div className="space-y-2">
                                             <div className="mb-4">
                                                 <h4 className="text-sm font-semibold mb-2 text-muted-foreground flex items-center gap-2">
-                                                    <Lock className="h-4 w-4" />
-                                                    Mandatory Fields ({mandatoryFields.length})
+                                                    <Database className="h-4 w-4" />
+                                                    Default Fields ({mandatoryFields.length}) - Drag to Reorder
                                                 </h4>
-                                                <div className="space-y-2">
-                                                    {mandatoryFields.map((field) => (
-                                                        <div key={field.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2 border-gray-200">
-                                                            <div className="flex items-center space-x-3">
-                                                                <Lock className="h-4 w-4 text-gray-400" />
-                                                                <div>
-                                                                    <div className="font-medium text-sm">{field.field_label}</div>
-                                                                    <div className="text-xs text-muted-foreground">
-                                                                        {field.field_name} • {field.input_type}
-                                                                        {field.is_system_field ? ' • System field' : ' • Custom field'}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <Badge variant="secondary">Required</Badge>
+                                                <DndContext
+                                                    sensors={sensors}
+                                                    collisionDetection={closestCenter}
+                                                    onDragEnd={handleDefaultFieldDragEnd}
+                                                >
+                                                    <SortableContext
+                                                        items={mandatoryFields.map(f => f.id)}
+                                                        strategy={verticalListSortingStrategy}
+                                                    >
+                                                        <div className="space-y-2">
+                                                            {mandatoryFields.map((field) => {
+                                                                // Find if this default field is configured for current context
+                                                                const configuredAttr = currentAttrs.find(
+                                                                    attr => attr.attribute_name === field.field_name
+                                                                );
+                                                                console.log(`[${activeTab}] Default field "${field.field_name}":`, { configured: !!configuredAttr, isRequired: configuredAttr?.is_required, isVisible: configuredAttr?.is_visible });
+                                                                const isRequired = configuredAttr?.is_required ?? false;
+                                                                const isVisible = configuredAttr?.is_visible ?? true;
+                                                        
+                                                                return (
+                                                                    <SortableDefaultFieldItem
+                                                                        key={field.id}
+                                                                        field={field}
+                                                                        configuredAttr={configuredAttr}
+                                                                        isRequired={isRequired}
+                                                                        isVisible={isVisible}
+                                                                        onToggleRequired={handleDefaultFieldToggle}
+                                                                        onToggleVisibility={handleDefaultFieldToggle}
+                                                                        onEdit={(attr) => {
+                                                                            setEditingAttribute(attr);
+                                                                            setShowEditModal(true);
+                                                                        }}
+                                                                        saving={saving}
+                                                                    />
+                                                                );
+                                                            })}
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                    </SortableContext>
+                                                </DndContext>
+                                                <p className="text-xs text-muted-foreground mt-2 italic">
+                                                    💡 Drag to reorder, toggle to customize default fields for this {activeTab}. They're optional and can be shown/hidden.
+                                                </p>
                                             </div>
 
                                             <Separator />
@@ -1605,52 +2086,65 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                                 <h4 className="text-sm font-semibold mb-2 text-muted-foreground">
                                                     Custom Attributes (Drag to Reorder)
                                                 </h4>
-                                                {currentAttrs.length === 0 ? (
-                                                    <div className="text-center py-8 text-muted-foreground">
-                                                        <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                                                        <p>No attributes configured</p>
-                                                        <Button 
-                                                            variant="link" 
-                                                            onClick={() => setShowAddModal(true)}
-                                                            className="mt-2"
-                                                        >
-                                                            Add your first attribute
-                                                        </Button>
-                                                    </div>
-                                                ) : (
-                                                    <DndContext
-                                                        sensors={sensors}
-                                                        collisionDetection={closestCenter}
-                                                        onDragEnd={handleDragEnd}
-                                                    >
-                                                        <SortableContext
-                                                            items={currentAttrs.map(attr => attr.id)}
-                                                            strategy={verticalListSortingStrategy}
-                                                        >
-                                                            <div className="space-y-2">
-                                                                {currentAttrs.map((attr, idx) => {
-                                                                    const isDirect = (attr as any).is_direct !== false;
-                                                                    const inheritedFrom = (attr as any).inherited_from;
-                                                                    
-                                                                    return (
-                                                                        <SortableAttributeItem
-                                                                            key={attr.id}
-                                                                            attribute={attr}
-                                                                            isDirect={isDirect}
-                                                                            inheritedFrom={inheritedFrom}
-                                                                            onToggleRequired={handleToggleRequired}
-                                                                            onEdit={(attr) => {
-                                                                                setEditingAttribute(attr);
-                                                                                setShowEditModal(true);
-                                                                            }}
-                                                                            saving={saving}
-                                                                        />
-                                                                    );
-                                                                })}
+                                                {(() => {
+                                                    // Filter out default fields from custom attributes to prevent duplicates
+                                                    const defaultFieldNames = mandatoryFields.map(f => f.field_name);
+                                                    const customAttrsOnly = currentAttrs.filter(
+                                                        attr => !defaultFieldNames.includes(attr.attribute_name)
+                                                    );
+                                                    
+                                                    if (customAttrsOnly.length === 0) {
+                                                        return (
+                                                            <div className="text-center py-8 text-muted-foreground">
+                                                                <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                                                                <p>No custom attributes configured</p>
+                                                                <Button 
+                                                                    variant="link" 
+                                                                    onClick={() => setShowAddModal(true)}
+                                                                    className="mt-2"
+                                                                >
+                                                                    Add your first attribute
+                                                                </Button>
                                                             </div>
-                                                        </SortableContext>
-                                                    </DndContext>
-                                                )}
+                                                        );
+                                                    }
+                                                    
+                                                    return (
+                                                        <DndContext
+                                                            sensors={sensors}
+                                                            collisionDetection={closestCenter}
+                                                            onDragEnd={handleDragEnd}
+                                                        >
+                                                            <SortableContext
+                                                                items={customAttrsOnly.map(attr => attr.id)}
+                                                                strategy={verticalListSortingStrategy}
+                                                            >
+                                                                <div className="space-y-2">
+                                                                    {customAttrsOnly.map((attr, idx) => {
+                                                                        const isDirect = (attr as any).is_direct !== false;
+                                                                        const inheritedFrom = (attr as any).inherited_from;
+                                                                        
+                                                                        return (
+                                                                            <SortableAttributeItem
+                                                                                key={attr.id}
+                                                                                attribute={attr}
+                                                                                isDirect={isDirect}
+                                                                                inheritedFrom={inheritedFrom}
+                                                                                onToggleRequired={handleToggleRequired}
+                                                                                onToggleVisibility={handleToggleVisibility}
+                                                                                onEdit={(attr) => {
+                                                                                    setEditingAttribute(attr);
+                                                                                    setShowEditModal(true);
+                                                                                }}
+                                                                                saving={saving}
+                                                                            />
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </SortableContext>
+                                                        </DndContext>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     )}
@@ -1753,7 +2247,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                 <Card>
                                     <CardContent className="pt-6">
                                         <div className="text-2xl font-bold">{stats.mandatory}</div>
-                                        <p className="text-xs text-muted-foreground">Mandatory Fields</p>
+                                        <p className="text-xs text-muted-foreground">Default Fields</p>
                                     </CardContent>
                                 </Card>
                                 <Card>
@@ -1815,26 +2309,51 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                         <div className="space-y-2">
                                             <div className="mb-4">
                                                 <h4 className="text-sm font-semibold mb-2 text-muted-foreground flex items-center gap-2">
-                                                    <Lock className="h-4 w-4" />
-                                                    Mandatory Fields ({mandatoryFields.length})
+                                                    <Database className="h-4 w-4" />
+                                                    Default Fields ({mandatoryFields.length}) - Drag to Reorder
                                                 </h4>
-                                                <div className="space-y-2">
-                                                    {mandatoryFields.map((field) => (
-                                                        <div key={field.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border-2 border-gray-200">
-                                                            <div className="flex items-center space-x-3">
-                                                                <Lock className="h-4 w-4 text-gray-400" />
-                                                                <div>
-                                                                    <div className="font-medium text-sm">{field.field_label}</div>
-                                                                    <div className="text-xs text-muted-foreground">
-                                                                        {field.field_name} • {field.input_type}
-                                                                        {field.is_system_field ? ' • System field' : ' • Custom field'}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <Badge variant="secondary">Required</Badge>
+                                                <DndContext
+                                                    sensors={sensors}
+                                                    collisionDetection={closestCenter}
+                                                    onDragEnd={handleDefaultFieldDragEnd}
+                                                >
+                                                    <SortableContext
+                                                        items={mandatoryFields.map(f => f.id)}
+                                                        strategy={verticalListSortingStrategy}
+                                                    >
+                                                        <div className="space-y-2">
+                                                            {mandatoryFields.map((field) => {
+                                                                // Find if this default field is configured for current context
+                                                                const configuredAttr = currentAttrs.find(
+                                                                    attr => attr.attribute_name === field.field_name
+                                                                );
+                                                                console.log(`[${activeTab}] Default field "${field.field_name}":`, { configured: !!configuredAttr, isRequired: configuredAttr?.is_required, isVisible: configuredAttr?.is_visible });
+                                                                const isRequired = configuredAttr?.is_required ?? false;
+                                                                const isVisible = configuredAttr?.is_visible ?? true;
+                                                        
+                                                                return (
+                                                                    <SortableDefaultFieldItem
+                                                                        key={field.id}
+                                                                        field={field}
+                                                                        configuredAttr={configuredAttr}
+                                                                        isRequired={isRequired}
+                                                                        isVisible={isVisible}
+                                                                        onToggleRequired={handleDefaultFieldToggle}
+                                                                        onToggleVisibility={handleDefaultFieldToggle}
+                                                                        onEdit={(attr) => {
+                                                                            setEditingAttribute(attr);
+                                                                            setShowEditModal(true);
+                                                                        }}
+                                                                        saving={saving}
+                                                                    />
+                                                                );
+                                                            })}
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                    </SortableContext>
+                                                </DndContext>
+                                                <p className="text-xs text-muted-foreground mt-2 italic">
+                                                    💡 Drag to reorder, toggle to customize default fields for this {activeTab}. They're optional and can be shown/hidden.
+                                                </p>
                                             </div>
 
                                             <Separator />
@@ -1843,23 +2362,34 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                                 <h4 className="text-sm font-semibold mb-2 text-muted-foreground">
                                                     Custom Attributes
                                                 </h4>
-                                                {currentAttrs.length === 0 ? (
-                                                    <div className="text-center py-8 text-muted-foreground">
-                                                        <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                                                        <p>No attributes configured</p>
-                                                        <Button 
-                                                            variant="link" 
-                                                            onClick={() => setShowAddModal(true)}
-                                                            className="mt-2"
-                                                        >
-                                                            Add your first attribute
-                                                        </Button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-2">
-                                                        {currentAttrs.map((attr, idx) => {
-                                                            const isDirect = (attr as any).is_direct !== false;
-                                                            const inheritedFrom = (attr as any).inherited_from;
+                                                {(() => {
+                                                    // Filter out default fields from custom attributes to prevent duplicates
+                                                    const defaultFieldNames = mandatoryFields.map(f => f.field_name);
+                                                    const customAttrsOnly = currentAttrs.filter(
+                                                        attr => !defaultFieldNames.includes(attr.attribute_name)
+                                                    );
+                                                    
+                                                    if (customAttrsOnly.length === 0) {
+                                                        return (
+                                                            <div className="text-center py-8 text-muted-foreground">
+                                                                <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                                                                <p>No custom attributes configured</p>
+                                                                <Button 
+                                                                    variant="link" 
+                                                                    onClick={() => setShowAddModal(true)}
+                                                                    className="mt-2"
+                                                                >
+                                                                    Add your first attribute
+                                                                </Button>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    
+                                                    return (
+                                                        <div className="space-y-2">
+                                                            {customAttrsOnly.map((attr, idx) => {
+                                                                const isDirect = (attr as any).is_direct !== false;
+                                                                const inheritedFrom = (attr as any).inherited_from;
                                                             
                                                             return (
                                                                 <div 
@@ -1912,7 +2442,7 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                                                                         size="sm"
                                                                                         variant="ghost"
                                                                                         onClick={() => handleReorder(attr.attribute_id, 'down')}
-                                                                                        disabled={idx === currentAttrs.length - 1 || saving}
+                                                                                        disabled={idx === customAttrsOnly.length - 1 || saving}
                                                                                     >
                                                                                         <ArrowDown className="h-3 w-3" />
                                                                                     </Button>
@@ -1931,10 +2461,11 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                                                         )}
                                                                     </div>
                                                                 </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     )}
@@ -1950,13 +2481,28 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Database className="h-5 w-5" />
-                                Default Mandatory Fields
+                                Default System Fields
                             </CardTitle>
                             <CardDescription>
-                                System-defined fields available in all offerings (Read-only)
+                                Standard fields available in all offerings. These are optional and can be customized per service/category with required/optional toggle and show/hide controls in Service, Category, and Subcategory tabs.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
+                            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="flex items-start gap-3">
+                                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                                    <div className="flex-1">
+                                        <h4 className="text-sm font-semibold text-blue-900 mb-1">How to Customize Default Fields</h4>
+                                        <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                                            <li>Go to Service, Category, or Subcategory tabs to add these fields</li>
+                                            <li>Use the <strong>Required/Optional toggle</strong> to control if the field is mandatory</li>
+                                            <li>Use the <strong>Show/Hide toggle</strong> to control if the field appears in forms</li>
+                                            <li>System fields are pre-configured but can be customized at any level</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div className="border rounded-lg overflow-hidden">
                                 <Table>
                                     <TableHeader>
@@ -1970,34 +2516,47 @@ export const ComprehensiveAttributeManagement: React.FC = () => {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {mandatoryFields.map((field) => (
-                                            <TableRow key={field.id}>
-                                                <TableCell>{field.display_order}</TableCell>
-                                                <TableCell className="font-medium">
-                                                    {field.field_label}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <code className="text-xs bg-muted px-2 py-1 rounded">
-                                                        {field.field_name}
-                                                    </code>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline">{field.input_type}</Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    {field.is_system_field && (
-                                                        <Lock className="h-4 w-4 text-muted-foreground" />
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {field.applicable_to_all_services ? (
-                                                        <Badge className="bg-green-100 text-green-800">Yes</Badge>
-                                                    ) : (
-                                                        <Badge variant="secondary">No</Badge>
-                                                    )}
+                                        {mandatoryFields.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                                    No default fields defined. These are optional system-wide fields.
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
+                                        ) : (
+                                            mandatoryFields.map((field) => (
+                                                <TableRow key={field.id}>
+                                                    <TableCell>{field.display_order}</TableCell>
+                                                    <TableCell className="font-medium">
+                                                        {field.field_label}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                                                            {field.field_name}
+                                                        </code>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline">{field.input_type}</Badge>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {field.is_system_field ? (
+                                                            <Badge variant="secondary" className="text-xs">
+                                                                <Lock className="h-3 w-3 mr-1" />
+                                                                System
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="text-xs">Custom</Badge>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {field.applicable_to_all_services ? (
+                                                            <Badge className="bg-green-100 text-green-800 text-xs">All Services</Badge>
+                                                        ) : (
+                                                            <Badge variant="secondary" className="text-xs">Specific</Badge>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
                                     </TableBody>
                                 </Table>
                             </div>
