@@ -400,7 +400,7 @@ export const ServiceAttributeManager: React.FC = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">
-              {Object.values(attributeStats).reduce((total: number, count: any) => total + count, 0)}
+              {Object.values(attributeStats).reduce((total: number, count: any) => total + count, 0) as number}
             </div>
             <p className="text-xs text-muted-foreground">Configured Attributes</p>
           </CardContent>

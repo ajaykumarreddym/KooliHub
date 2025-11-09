@@ -553,7 +553,6 @@ export const Coupons: React.FC = () => {
                       <Switch
                         checked={coupon.is_active}
                         onCheckedChange={() => toggleStatus(coupon)}
-                        size="sm"
                       />
                       <Button
                         variant="ghost"

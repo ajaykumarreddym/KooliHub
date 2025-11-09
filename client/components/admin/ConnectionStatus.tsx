@@ -40,8 +40,8 @@ export const ConnectionStatus: React.FC = () => {
     const errors: string[] = [];
 
     try {
-      // Get project URL from Supabase client
-      const projectUrl = supabase.supabaseUrl;
+      // Get project URL from environment variable
+      const projectUrl = import.meta.env.VITE_SUPABASE_URL || '';
 
       // Test basic connection
       let supabaseConnected = false;

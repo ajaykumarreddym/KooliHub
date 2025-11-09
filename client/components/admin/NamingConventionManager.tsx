@@ -27,14 +27,13 @@ export const NamingConventionManager: React.FC<NamingConventionManagerProps> = (
   const [previewFields, setPreviewFields] = useState<EnhancedFormField[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Filter categories and subcategories
+  // Filter categories (all categories for the selected service type)
   const filteredCategories = categories.filter(
-    (cat) => cat.service_type === selectedServiceType && cat.level === 0
+    (cat) => cat.service_type === selectedServiceType
   );
 
-  const subcategories = categories.filter(
-    (cat) => cat.parent_id === selectedCategory && cat.level > 0
-  );
+  // Subcategories would come from a separate table/query if needed
+  const subcategories: any[] = [];
 
   // Load preview when selections change
   useEffect(() => {

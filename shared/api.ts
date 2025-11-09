@@ -173,6 +173,11 @@ export interface Offering {
   gallery_urls?: string[];
   tags?: string[];
   keywords?: string[];
+  brand?: string;
+  sku?: string;
+  image_url?: string;
+  price?: number;
+  stock_quantity?: number;
   availability_type?: AvailabilityType;
   is_active?: boolean;
   metadata?: Record<string, any>;

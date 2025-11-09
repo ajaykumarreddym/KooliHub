@@ -129,6 +129,7 @@ import ProductDetail from "./pages/ProductDetail";
 import Profile from "./pages/Profile";
 import Trips from "./pages/Trips";
 import UserTest from "./pages/UserTest";
+import DynamicServicePage from "./pages/DynamicServicePage";
 
 // Admin pages
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -181,14 +182,33 @@ const App: React.FC = () => {
 
           {/* Consumer App Routes - Index handles its own location modal */}
           <Route path="/" element={<Index />} />
+          
+          {/* Main Service Routes - Using custom pages for better UX */}
           <Route path="/grocery" element={<LocationGuard><Grocery /></LocationGuard>} />
           <Route path="/trips" element={<LocationGuard><Trips /></LocationGuard>} />
           <Route path="/car-rental" element={<LocationGuard><CarRental /></LocationGuard>} />
           <Route path="/handyman" element={<LocationGuard><Handyman /></LocationGuard>} />
+          <Route path="/home-kitchen" element={<LocationGuard><HomeKitchen /></LocationGuard>} />
           <Route path="/home" element={<LocationGuard><HomeKitchen /></LocationGuard>} />
           <Route path="/electronics" element={<LocationGuard><Electronics /></LocationGuard>} />
           <Route path="/fashion" element={<LocationGuard><Fashion /></LocationGuard>} />
           <Route path="/beauty" element={<LocationGuard><Beauty /></LocationGuard>} />
+          <Route path="/beauty-wellness" element={<LocationGuard><Beauty /></LocationGuard>} />
+          
+          {/* All Service Types - Dynamic routing for all database service types */}
+          <Route path="/fruits-and-vegitables" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/commercial-vehicles" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/liquor" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/pharmacy" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/pet-care" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/laundry" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/food-delivery" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/books-stationery" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/fitness" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          <Route path="/jewelry" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
+          
+          {/* Generic service route - Catches any service type from database */}
+          <Route path="/service/:serviceType" element={<LocationGuard><DynamicServicePage /></LocationGuard>} />
           
           {/* Product Detail Page */}
           <Route path="/product/:id" element={<LocationGuard><ProductDetail /></LocationGuard>} />

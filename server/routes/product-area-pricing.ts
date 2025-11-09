@@ -412,7 +412,11 @@ export const getAreaPricingAnalytics: RequestHandler = async (req, res) => {
       },
       category_breakdown: data.reduce(
         (acc, p) => {
-          const category = p.products?.categories?.name || "Uncategorized";
+          const productsData = p.products as any;
+          const categories = productsData?.categories;
+          const category = (Array.isArray(categories) && categories[0]) 
+            ? categories[0].name 
+            : categories?.name || "Uncategorized";
           acc[category] = (acc[category] || 0) + 1;
           return acc;
         },

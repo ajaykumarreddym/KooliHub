@@ -97,44 +97,54 @@ export function CategoryGrid() {
   }
 
   return (
-    <section className="py-6">
+    <section className="py-8 bg-white">
       <div className="container">
         {/* Location indicator */}
         {currentLocation && (
-          <div className="mb-4 flex items-center justify-center gap-2 text-sm text-gray-600">
-            <MapPin className="h-4 w-4" />
-            <span>Showing services in {currentLocation.city}</span>
+          <div className="mb-6 flex items-center justify-center gap-2 text-sm text-gray-600">
+            <MapPin className="h-4 w-4 text-green-600" />
+            <span className="font-medium">Showing services in {currentLocation.city}</span>
           </div>
         )}
 
-        {/* Category icons grid */}
-        <div className="grid grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
+        {/* Section Header */}
+        <div className="mb-6 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Shop by Category</h2>
+          <p className="text-sm text-gray-600">Browse through our wide range of services</p>
+        </div>
+
+        {/* Category icons grid - Blinkit Style */}
+        <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 mb-8">
           {categories.map((category) => (
             <Link key={category.category_id} to={`/${category.service_type_id}`}>
-              <Card className={`${getServiceColor(category.service_type_id, category.color)} border-0 transition-all duration-200 hover:scale-105 cursor-pointer relative`}>
-                <CardContent className="p-4 text-center">
-                  <div className="text-3xl mb-2">
+              <div className="group relative bg-white border-2 border-gray-100 rounded-xl p-4 transition-all duration-200 hover:border-green-600 hover:shadow-lg cursor-pointer">
+                <div className="flex flex-col items-center">
+                  <div className="text-4xl mb-2 transition-transform group-hover:scale-110">
                     {category.image_url ? (
                       <img
                         src={category.image_url}
                         alt={category.category_name}
-                        className="w-8 h-8 mx-auto object-contain"
+                        className="w-12 h-12 mx-auto object-contain"
                       />
                     ) : (
-                      getServiceIcon(category.service_type_id, category.icon)
+                      <span className="text-5xl">{getServiceIcon(category.service_type_id, category.icon)}</span>
                     )}
                   </div>
-                  <p className="text-xs font-medium text-gray-700 leading-tight">
+                  <p className="text-xs font-semibold text-gray-800 leading-tight text-center line-clamp-2">
                     {category.category_name}
                   </p>
                   {/* Product count badge */}
                   {category.product_count > 0 && (
-                    <span className="absolute top-1 right-1 bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                      {category.product_count}
-                    </span>
+                    <div className="mt-1">
+                      <span className="text-[10px] text-green-600 font-medium">
+                        {category.product_count}+ items
+                      </span>
+                    </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+                {/* Hover indicator */}
+                <div className="absolute inset-0 rounded-xl border-2 border-green-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              </div>
             </Link>
           ))}
         </div>

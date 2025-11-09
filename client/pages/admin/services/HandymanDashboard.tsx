@@ -10,6 +10,7 @@ import {
     Calendar,
     CheckCircle,
     Hammer,
+    Star,
     TrendingUp,
     Users,
     Wrench
@@ -137,18 +138,26 @@ export const HandymanDashboard: React.FC = () => {
       setStats(handymanStats);
 
       // Format recent bookings
-      const bookings: RecentBooking[] = recentOrders?.map((order, index) => ({
-        id: order.id,
-        serviceName: order.order_items?.[0]?.offerings?.name || 'Service',
-        customerName: `Customer ${index + 1}`, // This would come from user profiles
-        providerName: `Provider ${index + 1}`, // This would come from merchant data
-        status: order.status === 'delivered' ? 'completed' : 
-                order.status === 'processing' ? 'in_progress' : 
-                order.status === 'confirmed' ? 'scheduled' : 'cancelled',
-        scheduledTime: order.created_at,
-        amount: parseFloat(order.total_amount) || 0,
-        urgency: index < 2 ? 'urgent' : 'normal'
-      })).slice(0, 5) || [];
+      const bookings: RecentBooking[] = recentOrders?.map((order, index) => {
+        const status: 'cancelled' | 'completed' | 'scheduled' | 'in_progress' = 
+          order.status === 'delivered' ? 'completed' : 
+          order.status === 'processing' ? 'in_progress' : 
+          order.status === 'confirmed' ? 'scheduled' : 'cancelled';
+        
+        const urgency: 'normal' | 'urgent' | 'emergency' = 
+          index < 2 ? 'urgent' : 'normal';
+        
+        return {
+          id: order.id,
+          serviceName: order.order_items?.[0]?.offerings?.name || 'Service',
+          customerName: `Customer ${index + 1}`, // This would come from user profiles
+          providerName: `Provider ${index + 1}`, // This would come from merchant data
+          status,
+          scheduledTime: order.created_at,
+          amount: parseFloat(order.total_amount) || 0,
+          urgency
+        };
+      }).slice(0, 5) || [];
 
       setRecentBookings(bookings);
 

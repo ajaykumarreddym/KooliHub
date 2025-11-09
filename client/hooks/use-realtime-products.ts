@@ -11,10 +11,27 @@ interface Product {
   rating: number | null;
   reviews_count: number;
   is_active: boolean;
+  brand?: string;
+  sku?: string;
+  vendor_id?: string | null;
+  category_id?: string | null;
+  tags?: string[];
+  status?: string;
+  created_at?: string;
+  stock_quantity?: number;
   categories: {
     name: string;
     service_type: string;
   } | null;
+  category?: {
+    name: string;
+    service_type: string;
+  } | null;
+  vendor?: {
+    id: string;
+    name: string;
+  } | null;
+  variants?: any[];
 }
 
 export function useRealtimeProducts(serviceType?: string, limit?: number) {

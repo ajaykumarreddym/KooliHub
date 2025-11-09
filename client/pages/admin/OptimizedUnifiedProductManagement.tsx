@@ -1,42 +1,42 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,27 +56,27 @@ import { EnhancedProductModal } from "@/components/admin/EnhancedProductModal";
 
 // Icons
 import {
-    Activity,
-    AlertCircle,
-    BarChart3,
-    Clock,
-    Download,
-    Edit,
-    Layers,
-    Map,
-    MapPin,
-    MoreHorizontal,
-    Navigation,
-    Package,
-    Plus,
-    RefreshCw,
-    Search,
-    Settings,
-    ShoppingCart,
-    Store,
-    Tag,
-    Trash2,
-    TrendingUp
+  Activity,
+  AlertCircle,
+  BarChart3,
+  Clock,
+  Download,
+  Edit,
+  Layers,
+  Map,
+  MapPin,
+  MoreHorizontal,
+  Navigation,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  ShoppingCart,
+  Store,
+  Tag,
+  Trash2,
+  TrendingUp
 } from "lucide-react";
 
 // Types from AdminDataContext
@@ -149,7 +149,6 @@ export const UnifiedProductManagement: React.FC = () => {
     serviceTypes,
     categories,
     vendors,
-    inventory: inventoryProducts,
     loading,
     refreshProducts,
     refreshServiceAreas,
@@ -232,13 +231,13 @@ export const UnifiedProductManagement: React.FC = () => {
     // Product stats
     const totalProducts = products.length;
     const activeProducts = products.filter(p => p.is_active).length;
-    const lowStockProducts = inventoryProducts.filter(
+    const lowStockProducts = products.filter(
       p => p.stock_quantity > 0 && p.stock_quantity < 20
     ).length;
-    const outOfStockProducts = inventoryProducts.filter(
+    const outOfStockProducts = products.filter(
       p => p.stock_quantity === 0
     ).length;
-    const totalValue = inventoryProducts.reduce(
+    const totalValue = products.reduce(
       (sum, p) => sum + Number(p.price) * p.stock_quantity, 0
     );
 
@@ -273,7 +272,7 @@ export const UnifiedProductManagement: React.FC = () => {
       activeCategories,
       totalServiceTypes,
     });
-  }, [products, inventoryProducts, serviceAreas, categories, serviceTypes, isDataLoaded]);
+  }, [products, serviceAreas, categories, serviceTypes, isDataLoaded]);
 
   // Trigger stats calculation when data changes
   useEffect(() => {
@@ -595,10 +594,10 @@ export const UnifiedProductManagement: React.FC = () => {
               variant="outline" 
               size="sm" 
               onClick={() => handleManualRefresh('products')}
-              disabled={loading.products}
+              disabled={loading.offerings}
               className="border-blue-300 text-blue-700 hover:bg-blue-100"
             >
-              {loading.products ? (
+              {loading.offerings ? (
                 <RefreshCw className="h-4 w-4 animate-spin mr-2" />
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />

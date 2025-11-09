@@ -119,24 +119,30 @@ export function CategoryAttributeManager() {
 
       if (error) throw error;
 
-      const formatted = (data || []).map(item => ({
-        id: item.id,
-        attribute_id: item.attribute_id,
-        attribute_name: item.attribute_registry?.name || '',
-        attribute_label: item.override_label || item.attribute_registry?.label || '',
-        data_type: item.attribute_registry?.data_type || 'text',
-        input_type: item.attribute_registry?.input_type || 'text',
-        placeholder: item.override_placeholder || item.attribute_registry?.placeholder,
-        help_text: item.override_help_text || item.attribute_registry?.help_text,
-        is_required: item.is_required,
-        is_visible: item.is_visible,
-        display_order: item.display_order,
-        field_group: item.field_group,
-        inherit_from_service: item.inherit_from_service,
-        override_label: item.override_label,
-        override_placeholder: item.override_placeholder,
-        override_help_text: item.override_help_text,
-      }));
+      const formatted = (data || []).map(item => {
+        const registry = Array.isArray(item.attribute_registry) 
+          ? item.attribute_registry[0] 
+          : item.attribute_registry;
+        
+        return {
+          id: item.id,
+          attribute_id: item.attribute_id,
+          attribute_name: registry?.name || '',
+          attribute_label: item.override_label || registry?.label || '',
+          data_type: registry?.data_type || 'text',
+          input_type: registry?.input_type || 'text',
+          placeholder: item.override_placeholder || registry?.placeholder,
+          help_text: item.override_help_text || registry?.help_text,
+          is_required: item.is_required,
+          is_visible: item.is_visible,
+          display_order: item.display_order,
+          field_group: item.field_group,
+          inherit_from_service: item.inherit_from_service,
+          override_label: item.override_label,
+          override_placeholder: item.override_placeholder,
+          override_help_text: item.override_help_text,
+        };
+      });
 
       setCategoryAttributes(formatted);
     } catch (error) {

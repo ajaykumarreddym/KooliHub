@@ -126,12 +126,15 @@ export const TransportDashboard: React.FC = () => {
           ['ride', 'delivery', 'rental'].includes(item.offerings?.type)
         );
         
+        const status: 'pending' | 'completed' | 'in_progress' = 
+          order.status === 'delivered' ? 'completed' : 
+          order.status === 'processing' ? 'in_progress' : 'pending';
+        
         return {
           id: order.id,
           type: transportItem?.offerings?.type || 'ride',
           description: `${order.status === 'delivered' ? 'Completed' : 'Processing'} ${transportItem?.offerings?.type || 'service'}`,
-          status: order.status === 'delivered' ? 'completed' : 
-                  order.status === 'processing' ? 'in_progress' : 'pending',
+          status,
           timestamp: order.created_at,
           amount: parseFloat(order.total_amount) || 0
         };

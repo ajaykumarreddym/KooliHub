@@ -4,42 +4,50 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Search,
-  Filter,
-  Star,
-  Users,
-  Fuel,
-  Cog,
   MapPin,
   Calendar,
+  Users,
+  Cog,
+  Fuel,
+  CheckCircle,
+  Star,
+  Shield,
+  Truck,
+  Zap
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useLocation } from "@/contexts/LocationContext";
 
 interface Vehicle {
   id: string;
   name: string;
+  description: string;
   brand: string;
   category: string;
   pricePerDay: number;
-  pricePerHour: number;
   image_url: string | null;
-  rating: number | null;
+  rating: number;
   reviews_count: number;
   available: boolean;
   seats: number;
   transmission: string;
   fuelType: string;
   features: string[];
-  location: string;
   mileage: string;
 }
 
-interface Category {
-  id: string;
+interface BookingForm {
   name: string;
-  description: string;
-  icon: string;
+  phone: string;
+  email: string;
+  pickupDate: string;
+  returnDate: string;
+  pickupLocation: string;
+  returnLocation: string;
 }
 
 export default function CarRental() {
@@ -47,88 +55,137 @@ export default function CarRental() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("popular");
   const [pickupDate, setPickupDate] = useState(
-    new Date().toISOString().split("T")[0],
+    new Date().toISOString().split("T")[0]
   );
   const [returnDate, setReturnDate] = useState(
-    new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0]
   );
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [bookingForm, setBookingForm] = useState<BookingForm>({
+    name: "",
+    phone: "",
+    email: "",
+    pickupDate: pickupDate,
+    returnDate: returnDate,
+    pickupLocation: "",
+    returnLocation: ""
+  });
+
+  const { currentLocation, hasLocation, serviceAreaId } = useLocation();
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [serviceAreaId]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      // Fetch car rental products and categories
-      const [vehiclesResult, categoriesResult] = await Promise.all([
-        supabase
-          .from("products")
-          .select(
-            `
-            *,
-            categories!inner (
-              name,
-              service_type
-            )
-          `,
+      // If location is selected, use location-based filtering
+      if (serviceAreaId) {
+        const { data: locationData, error: locationError } = await supabase.rpc(
+          "get_products_by_service_area",
+          {
+            p_service_area_id: serviceAreaId,
+            p_service_type: "car-rental",
+            p_category_id: null,
+            p_search_term: null,
+            p_limit: 100,
+            p_offset: 0,
+          }
+        );
+
+        if (locationError) {
+          console.error("Error fetching location-based vehicles:", locationError);
+        } else if (locationData) {
+          const transformedVehicles: Vehicle[] = (locationData || []).map((item: any) => {
+            const customFields = item.custom_fields || {};
+            return {
+              id: item.offering_id,
+              name: item.offering_name,
+              description: "",
+              brand: customFields.brand || item.offering_name.split(" ")[0],
+              category: item.category_name || "Standard",
+              pricePerDay: parseFloat(item.location_price || "0"),
+              image_url: item.primary_image_url,
+              rating: parseFloat(customFields.rating || "4.5"),
+              reviews_count: parseInt(customFields.reviews_count || "0"),
+              available: item.is_available,
+              seats: parseInt(customFields.seats || "5"),
+              transmission: customFields.transmission || "Manual",
+              fuelType: customFields.fuel_type || "Petrol",
+              features: customFields.features || ["AC", "Music System", "GPS"],
+              mileage: customFields.mileage || "15 km/l"
+            };
+          });
+          setVehicles(transformedVehicles);
+          
+          // Extract unique categories
+          const uniqueCategories = Array.from(
+            new Set(transformedVehicles.map((v) => v.category))
+          );
+          setCategories(uniqueCategories);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Fallback: Fetch car rental offerings from database
+      const { data, error } = await supabase
+        .from("offerings")
+        .select(`
+          *,
+          categories!inner (
+            name,
+            service_type_id
           )
-          .eq("categories.service_type", "car-rental")
-          .eq("is_active", true)
-          .order("price", { ascending: true }),
-        supabase
-          .from("categories")
-          .select("*")
-          .eq("service_type", "car-rental")
-          .eq("is_active", true)
-          .order("sort_order"),
-      ]);
+        `)
+        .eq("categories.service_type_id", "car-rental")
+        .eq("is_active", true)
+        .order("base_price", { ascending: true });
 
-      if (vehiclesResult.error) {
-        console.error("Error fetching vehicles:", vehiclesResult.error);
-      } else {
-        // Transform products to vehicles format
-        const transformedVehicles = (vehiclesResult.data || []).map(
-          (product) => ({
-            id: product.id,
-            name: product.name,
-            brand: product.brand || "Generic",
-            category: product.categories?.name || "Standard",
-            pricePerDay: Math.floor(product.price / 8), // Estimate per day price
-            pricePerHour: Math.floor(product.price / 8 / 24), // Estimate per hour price
-            image_url: product.image_url,
-            rating: product.rating,
-            reviews_count: product.reviews_count,
-            available: product.stock_quantity > 0,
-            seats: 5, // Default seats
-            transmission: "Manual", // Default transmission
-            fuelType: "Petrol", // Default fuel type
-            features: product.tags || ["AC", "Music System", "GPS"],
-            location: "Rayachoty",
-            mileage: "15 km/l", // Default mileage
-          }),
-        );
-        setVehicles(transformedVehicles);
+      if (error) {
+        console.error("Error fetching vehicles:", error);
+        return;
       }
 
-      if (categoriesResult.error) {
-        console.error("Error fetching categories:", categoriesResult.error);
-      } else {
-        // Transform categories
-        const transformedCategories = (categoriesResult.data || []).map(
-          (cat) => ({
-            id: cat.id,
-            name: cat.name,
-            description: cat.description || "",
-            icon: "🚗", // Default icon
-          }),
-        );
-        setCategories(transformedCategories);
-      }
+      // Transform offerings to vehicles format with proper attributes
+      const transformedVehicles: Vehicle[] = (data || []).map((offering) => {
+        // Extract brand from name or custom fields
+        const customFields = offering.custom_fields || {};
+        const nameParts = offering.name.split(" ");
+        const brand = customFields.brand || nameParts[0];
+        
+        return {
+          id: offering.id,
+          name: offering.name,
+          description: offering.description || "",
+          brand: brand,
+          category: offering.categories?.name || "Standard",
+          pricePerDay: parseFloat(offering.base_price || "0"),
+          image_url: offering.primary_image_url,
+          rating: parseFloat(customFields.rating || offering.rating || "4.5"),
+          reviews_count: parseInt(customFields.reviews_count || offering.reviews_count || "0"),
+          available: offering.is_active && (offering.stock_quantity || 0) > 0,
+          seats: parseInt(customFields.seats || "5"),
+          transmission: customFields.transmission || "Manual",
+          fuelType: customFields.fuel_type || "Petrol",
+          features: offering.tags || ["AC", "Music System", "GPS"],
+          mileage: customFields.mileage || "15 km/l"
+        };
+      });
+
+      setVehicles(transformedVehicles);
+
+      // Extract unique categories
+      const uniqueCategories = Array.from(
+        new Set(transformedVehicles.map((v) => v.category))
+      );
+      setCategories(uniqueCategories);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -153,16 +210,50 @@ export default function CarRental() {
       case "price-high":
         return b.pricePerDay - a.pricePerDay;
       case "rating":
-        return (b.rating || 0) - (a.rating || 0);
+        return b.rating - a.rating;
       default:
         return b.reviews_count - a.reviews_count;
     }
   });
 
   const handleBookVehicle = (vehicle: Vehicle) => {
-    // Simulate booking
-    alert(`Booking ${vehicle.name} for ${pickupDate} to ${returnDate}`);
+    setSelectedVehicle(vehicle);
+    setBookingForm({
+      ...bookingForm,
+      pickupDate: pickupDate,
+      returnDate: returnDate
+    });
+    setIsBookingModalOpen(true);
   };
+
+  const handleSubmitBooking = () => {
+    // Simulate booking
+    alert(`Booking confirmed for ${selectedVehicle?.name}!\nPickup: ${bookingForm.pickupDate}\nReturn: ${bookingForm.returnDate}\nTotal: ₹${calculateTotal()}`);
+    setIsBookingModalOpen(false);
+    setBookingForm({
+      name: "",
+      phone: "",
+      email: "",
+      pickupDate: pickupDate,
+      returnDate: returnDate,
+      pickupLocation: "",
+      returnLocation: ""
+    });
+  };
+
+  const calculateTotal = () => {
+    if (!selectedVehicle) return 0;
+    const days = Math.ceil(
+      (new Date(bookingForm.returnDate).getTime() - new Date(bookingForm.pickupDate).getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+    return selectedVehicle.pricePerDay * Math.max(days, 1);
+  };
+
+  const daysDifference = Math.ceil(
+    (new Date(returnDate).getTime() - new Date(pickupDate).getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
 
   return (
     <Layout>
@@ -178,285 +269,528 @@ export default function CarRental() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Car Rental
+                🚗 Car Rental
               </h1>
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
                   <MapPin className="h-4 w-4 text-primary" />
-                  <span>Rayachoty, Annamayya District</span>
+                  <span>
+                    {hasLocation && currentLocation
+                      ? `${currentLocation.city}, ${currentLocation.state}`
+                      : "Select location"}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Calendar className="h-4 w-4 text-primary" />
-                  <span>Flexible pickup times</span>
+                  <span>Flexible rental periods</span>
                 </div>
               </div>
             </div>
 
             <Badge className="bg-purple-500 text-white self-start lg:self-center">
-              Insurance included • 24/7 support
+              ✓ Insurance included • 24/7 support
             </Badge>
           </div>
         </div>
 
-        {/* Booking form */}
-        <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border">
-          <h2 className="text-xl font-semibold mb-4">Quick Booking</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Pickup Location
-              </label>
-              <select className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
-                <option>Rayachoty Bus Stand</option>
-                <option>Madanapalle Junction</option>
-                <option>Punganur</option>
-                <option>Railway Station</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Pickup Date
-              </label>
-              <Input
-                type="date"
-                value={pickupDate}
-                onChange={(e) => setPickupDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Return Date
-              </label>
-              <Input
-                type="date"
-                value={returnDate}
-                onChange={(e) => setReturnDate(e.target.value)}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button className="w-full bg-primary text-black hover:bg-primary/90">
-                Search Cars
-              </Button>
-            </div>
+        {/* Trust indicators */}
+        <div className="mb-8 grid grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-purple-50 rounded-xl border border-purple-200">
+            <Shield className="h-6 w-6 text-purple-600 mx-auto mb-2" />
+            <h3 className="font-semibold text-sm">Full Insurance</h3>
+            <p className="text-xs text-gray-600">Comprehensive coverage</p>
+          </div>
+          <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-200">
+            <Truck className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+            <h3 className="font-semibold text-sm">Free Delivery</h3>
+            <p className="text-xs text-gray-600">To your doorstep</p>
+          </div>
+          <div className="text-center p-4 bg-green-50 rounded-xl border border-green-200">
+            <Zap className="h-6 w-6 text-green-600 mx-auto mb-2" />
+            <h3 className="font-semibold text-sm">Instant Booking</h3>
+            <p className="text-xs text-gray-600">Quick confirmation</p>
           </div>
         </div>
+
+        {/* Quick booking form */}
+        <Card className="mb-8 bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Quick Search
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label className="text-sm font-medium mb-2">Pickup Date</Label>
+                <Input
+                  type="date"
+                  value={pickupDate}
+                  onChange={(e) => setPickupDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="border-2"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium mb-2">Return Date</Label>
+                <Input
+                  type="date"
+                  value={returnDate}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                  min={pickupDate}
+                  className="border-2"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium mb-2">Pickup Location</Label>
+                <select className="w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+                  {hasLocation && currentLocation ? (
+                    <>
+                      <option>{currentLocation.city} - Main Location</option>
+                      <option>{currentLocation.city} - Bus Stand</option>
+                      <option>{currentLocation.city} - Railway Station</option>
+                      <option>{currentLocation.city} - Airport</option>
+                    </>
+                  ) : (
+                    <>
+                      <option>Select your location first</option>
+                    </>
+                  )}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                  🔍 Search Cars
+                </Button>
+              </div>
+            </div>
+            {daysDifference > 0 && (
+              <p className="text-sm text-gray-600 mt-3">
+                 📅 Rental period: {daysDifference} day{daysDifference > 1 ? "s" : ""}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Categories */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Vehicle Categories</h2>
-          <div className="grid grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
             <button
               onClick={() => setSelectedCategory("all")}
-              className={`${selectedCategory === "all" ? "ring-2 ring-primary" : ""} 
-                         bg-gray-50 hover:bg-gray-100 p-4 rounded-lg text-center transition-all`}
+              className={`${
+                selectedCategory === "all"
+                  ? "ring-2 ring-purple-600 bg-purple-50"
+                  : "bg-white"
+              } border-2 border-gray-200 hover:border-purple-300 p-4 rounded-xl text-center transition-all`}
             >
-              <div className="text-2xl mb-2">🚗</div>
-              <p className="text-xs font-medium">All Cars</p>
+              <div className="text-3xl mb-2">🚗</div>
+              <p className="text-xs font-semibold">All Cars</p>
+              <p className="text-xs text-gray-500">{vehicles.length}</p>
             </button>
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`${selectedCategory === category.id ? "ring-2 ring-primary" : ""} 
-                           bg-gray-50 hover:bg-gray-100 p-4 rounded-lg text-center transition-all`}
-              >
-                <div className="text-2xl mb-2">{category.icon}</div>
-                <p className="text-xs font-medium">{category.name}</p>
-                <p className="text-xs text-gray-500">{category.description}</p>
-              </button>
-            ))}
+            {categories.map((category) => {
+              const count = vehicles.filter((v) => v.category === category).length;
+              const icon = category.includes("Hatchback") ? "🚙" : 
+                          category.includes("Sedan") ? "🚘" :
+                          category.includes("SUV") ? "🚙" : "🏎️";
+              return (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`${
+                    selectedCategory === category
+                      ? "ring-2 ring-purple-600 bg-purple-50"
+                      : "bg-white"
+                  } border-2 border-gray-200 hover:border-purple-300 p-4 rounded-xl text-center transition-all`}
+                >
+                  <div className="text-3xl mb-2">{icon}</div>
+                  <p className="text-xs font-semibold leading-tight">{category}</p>
+                  <p className="text-xs text-gray-500">{count} cars</p>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Search and filters */}
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search vehicles, brands..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="popular">Most Popular</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-              <option value="rating">Highest Rated</option>
-            </select>
+        <div className="mb-6 flex flex-col lg:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search vehicles, brands..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 border-2"
+            />
           </div>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-4 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 font-medium"
+          >
+            <option value="popular">Most Popular</option>
+            <option value="price-low">Price: Low to High</option>
+            <option value="price-high">Price: High to Low</option>
+            <option value="rating">Highest Rated</option>
+          </select>
         </div>
 
-        {/* Results */}
+        {/* Results count */}
         <div className="flex items-center justify-between mb-6">
-          <p className="text-gray-600">
-            {sortedVehicles.length} vehicle
-            {sortedVehicles.length !== 1 ? "s" : ""} available
+          <p className="text-gray-700 font-medium">
+            {sortedVehicles.length} vehicle{sortedVehicles.length !== 1 ? "s" : ""} available
           </p>
         </div>
 
         {/* Vehicle grid */}
-        <div className="grid gap-6">
-          {sortedVehicles.map((vehicle) => (
-            <Card
-              key={vehicle.id}
-              className="hover:shadow-lg transition-shadow"
-            >
-              <CardContent className="p-6">
-                <div className="flex flex-col lg:flex-row gap-6">
-                  {/* Vehicle image */}
-                  <div className="lg:w-1/3">
-                    <div className="bg-gray-50 rounded-lg h-48 flex items-center justify-center">
-                      {vehicle.image_url ? (
-                        <img
-                          src={vehicle.image_url}
-                          alt={vehicle.name}
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                      ) : (
-                        <span className="text-6xl">🚗</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Vehicle details */}
-                  <div className="lg:w-2/3">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <Badge className="mb-2 capitalize">
-                          {vehicle.category}
-                        </Badge>
-                        <h3 className="text-xl font-bold text-gray-900">
-                          {vehicle.name}
-                        </h3>
-                        <p className="text-gray-600">{vehicle.brand}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-primary">
-                          ₹{vehicle.pricePerDay}/day
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          ₹{vehicle.pricePerHour}/hour
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Specs */}
-                    <div className="grid grid-cols-4 gap-4 mb-4">
-                      <div className="text-center">
-                        <Users className="h-4 w-4 text-gray-400 mx-auto mb-1" />
-                        <div className="text-sm">{vehicle.seats} seats</div>
-                      </div>
-                      <div className="text-center">
-                        <Cog className="h-4 w-4 text-gray-400 mx-auto mb-1" />
-                        <div className="text-sm capitalize">
-                          {vehicle.transmission}
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <Fuel className="h-4 w-4 text-gray-400 mx-auto mb-1" />
-                        <div className="text-sm capitalize">
-                          {vehicle.fuelType}
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <MapPin className="h-4 w-4 text-gray-400 mx-auto mb-1" />
-                        <div className="text-sm">{vehicle.location}</div>
-                      </div>
-                    </div>
-
-                    {/* Features */}
-                    <div className="mb-4">
-                      <div className="flex flex-wrap gap-2">
-                        {vehicle.features.slice(0, 4).map((feature, index) => (
-                          <Badge
-                            key={index}
-                            variant="secondary"
-                            className="text-xs"
-                          >
-                            {feature}
-                          </Badge>
-                        ))}
-                        {vehicle.features.length > 4 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{vehicle.features.length - 4} more
-                          </Badge>
+        {loading ? (
+          <div className="grid gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="animate-pulse">
+                <CardContent className="p-6">
+                  <div className="h-48 bg-gray-200 rounded mb-4"></div>
+                  <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : sortedVehicles.length > 0 ? (
+          <div className="grid gap-6">
+            {sortedVehicles.map((vehicle) => (
+              <Card
+                key={vehicle.id}
+                className="hover:shadow-xl transition-all duration-300 border-2 border-gray-100 hover:border-purple-200"
+              >
+                <CardContent className="p-6">
+                  <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Vehicle image */}
+                    <div className="lg:w-1/3">
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl h-56 lg:h-full flex items-center justify-center overflow-hidden">
+                        {vehicle.image_url ? (
+                          <img
+                            src={vehicle.image_url}
+                            alt={vehicle.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-7xl">🚗</span>
                         )}
                       </div>
                     </div>
 
-                    {/* Rating and booking */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-medium">
-                            {vehicle.rating ? vehicle.rating.toFixed(1) : "4.5"}
-                          </span>
-                          <span className="text-gray-500 text-sm">
-                            ({vehicle.reviews_count || 0})
-                          </span>
+                    {/* Vehicle details */}
+                    <div className="lg:w-2/3">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <Badge className="mb-2 bg-purple-100 text-purple-700 border-purple-200">
+                            {vehicle.category}
+                          </Badge>
+                          <h3 className="text-2xl font-bold text-gray-900 mb-1">
+                            {vehicle.name}
+                          </h3>
+                          <p className="text-gray-600">{vehicle.description}</p>
                         </div>
-                        <span className="text-gray-500">•</span>
-                        <span className="text-sm text-gray-600">
-                          {vehicle.mileage}
-                        </span>
+                        <div className="text-right">
+                          <div className="text-3xl font-bold text-purple-600">
+                            ₹{vehicle.pricePerDay}
+                          </div>
+                          <div className="text-sm text-gray-500">per day</div>
+                        </div>
                       </div>
 
-                      <Button
-                        onClick={() => handleBookVehicle(vehicle)}
-                        disabled={!vehicle.available}
-                        className="bg-primary text-black hover:bg-primary/90"
-                      >
-                        {vehicle.available ? "Book Now" : "Not Available"}
-                      </Button>
+                      {/* Specs */}
+                      <div className="grid grid-cols-4 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+                        <div className="text-center">
+                          <Users className="h-5 w-5 text-gray-600 mx-auto mb-1" />
+                          <div className="text-sm font-medium">{vehicle.seats} seats</div>
+                        </div>
+                        <div className="text-center">
+                          <Cog className="h-5 w-5 text-gray-600 mx-auto mb-1" />
+                          <div className="text-sm font-medium">{vehicle.transmission}</div>
+                        </div>
+                        <div className="text-center">
+                          <Fuel className="h-5 w-5 text-gray-600 mx-auto mb-1" />
+                          <div className="text-sm font-medium">{vehicle.fuelType}</div>
+                        </div>
+                        <div className="text-center">
+                          <MapPin className="h-5 w-5 text-gray-600 mx-auto mb-1" />
+                          <div className="text-sm font-medium">{vehicle.mileage}</div>
+                        </div>
+                      </div>
+
+                      {/* Features */}
+                      <div className="mb-4">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary" className="text-xs">
+                            ✓ Insurance
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            ✓ AC
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            ✓ Music System
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            ✓ GPS
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Rating and booking */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            <span className="font-semibold">{vehicle.rating.toFixed(1)}</span>
+                            <span className="text-gray-500 text-sm">
+                              ({vehicle.reviews_count})
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button
+                          onClick={() => handleBookVehicle(vehicle)}
+                          disabled={!vehicle.available}
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-8"
+                          size="lg"
+                        >
+                          {vehicle.available ? "Book Now" : "Not Available"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Info section */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="text-center">
-            <div className="bg-primary/10 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <MapPin className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="font-semibold mb-2">Multiple Locations</h3>
-            <p className="text-gray-600 text-sm">
-              Convenient pickup across Annamayya District
-            </p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-          <div className="text-center">
-            <div className="bg-primary/10 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <Calendar className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="font-semibold mb-2">Flexible Booking</h3>
-            <p className="text-gray-600 text-sm">
-              Hourly and daily rental options
+        ) : (
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4">🚗</div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              No vehicles found
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Try adjusting your search or filter criteria
             </p>
+            <Button
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedCategory("all");
+              }}
+            >
+              Clear filters
+            </Button>
           </div>
-          <div className="text-center">
-            <div className="bg-primary/10 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <Cog className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="font-semibold mb-2">Full Insurance</h3>
-            <p className="text-gray-600 text-sm">
-              Comprehensive coverage included
-            </p>
-          </div>
-        </div>
+        )}
       </div>
+
+      {/* Booking Modal */}
+      <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <span className="text-2xl">🚗</span>
+              Book {selectedVehicle?.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Vehicle Summary */}
+            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <h3 className="font-semibold text-lg">{selectedVehicle?.name}</h3>
+                  <p className="text-sm text-gray-600">{selectedVehicle?.category}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-purple-600">
+                    ₹{selectedVehicle?.pricePerDay}/day
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-sm text-gray-700">
+                <span>✓ {selectedVehicle?.seats} Seats</span>
+                <span>✓ {selectedVehicle?.transmission}</span>
+                <span>✓ {selectedVehicle?.fuelType}</span>
+              </div>
+            </div>
+
+            {/* Booking Form */}
+            <div className="grid gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="name">Full Name *</Label>
+                  <Input
+                    id="name"
+                    value={bookingForm.name}
+                    onChange={(e) =>
+                      setBookingForm({ ...bookingForm, name: e.target.value })
+                    }
+                    placeholder="Your full name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Input
+                    id="phone"
+                    value={bookingForm.phone}
+                    onChange={(e) =>
+                      setBookingForm({ ...bookingForm, phone: e.target.value })
+                    }
+                    placeholder="+91 xxxxx xxxxx"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="email">Email Address *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={bookingForm.email}
+                  onChange={(e) =>
+                    setBookingForm({ ...bookingForm, email: e.target.value })
+                  }
+                  placeholder="your@email.com"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="pickupDate">Pickup Date *</Label>
+                  <Input
+                    id="pickupDate"
+                    type="date"
+                    value={bookingForm.pickupDate}
+                    onChange={(e) =>
+                      setBookingForm({ ...bookingForm, pickupDate: e.target.value })
+                    }
+                    min={new Date().toISOString().split("T")[0]}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="returnDate">Return Date *</Label>
+                  <Input
+                    id="returnDate"
+                    type="date"
+                    value={bookingForm.returnDate}
+                    onChange={(e) =>
+                      setBookingForm({ ...bookingForm, returnDate: e.target.value })
+                    }
+                    min={bookingForm.pickupDate}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="pickupLocation">Pickup Location *</Label>
+                  <select
+                    id="pickupLocation"
+                    value={bookingForm.pickupLocation}
+                    onChange={(e) =>
+                      setBookingForm({ ...bookingForm, pickupLocation: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  >
+                    <option value="">Select location</option>
+                    {hasLocation && currentLocation ? (
+                      <>
+                        <option value={`${currentLocation.city} - Main Location`}>{currentLocation.city} - Main Location</option>
+                        <option value={`${currentLocation.city} - Bus Stand`}>{currentLocation.city} - Bus Stand</option>
+                        <option value={`${currentLocation.city} - Railway Station`}>{currentLocation.city} - Railway Station</option>
+                        <option value={`${currentLocation.city} - Airport`}>{currentLocation.city} - Airport</option>
+                      </>
+                    ) : (
+                      <option value="">Please select your location first</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="returnLocation">Return Location *</Label>
+                  <select
+                    id="returnLocation"
+                    value={bookingForm.returnLocation}
+                    onChange={(e) =>
+                      setBookingForm({ ...bookingForm, returnLocation: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  >
+                    <option value="">Select location</option>
+                    {hasLocation && currentLocation ? (
+                      <>
+                        <option value={`${currentLocation.city} - Main Location`}>{currentLocation.city} - Main Location</option>
+                        <option value={`${currentLocation.city} - Bus Stand`}>{currentLocation.city} - Bus Stand</option>
+                        <option value={`${currentLocation.city} - Railway Station`}>{currentLocation.city} - Railway Station</option>
+                        <option value={`${currentLocation.city} - Airport`}>{currentLocation.city} - Airport</option>
+                      </>
+                    ) : (
+                      <option value="">Please select your location first</option>
+                    )}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing Summary */}
+            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                Booking Summary
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Daily Rate:</span>
+                  <span className="font-medium">₹{selectedVehicle?.pricePerDay}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Rental Days:</span>
+                  <span className="font-medium">
+                    {Math.max(
+                      Math.ceil(
+                        (new Date(bookingForm.returnDate).getTime() -
+                          new Date(bookingForm.pickupDate).getTime()) /
+                          (1000 * 60 * 60 * 24)
+                      ),
+                      1
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t pt-2">
+                  <span className="font-semibold">Total Amount:</span>
+                  <span className="font-bold text-purple-600 text-lg">
+                    ₹{calculateTotal()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Terms */}
+            <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded">
+              ✓ Full insurance coverage included<br/>
+              ✓ Free roadside assistance 24/7<br/>
+              ✓ Flexible cancellation policy
+            </div>
+
+            <Button
+              onClick={handleSubmitBooking}
+              disabled={
+                !bookingForm.name ||
+                !bookingForm.phone ||
+                !bookingForm.email ||
+                !bookingForm.pickupLocation ||
+                !bookingForm.returnLocation
+              }
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+              size="lg"
+            >
+              Confirm Booking - ₹{calculateTotal()}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

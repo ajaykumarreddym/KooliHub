@@ -1,24 +1,15 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ProductCard } from "@/components/grocery/ProductCard";
-import {
-  Search,
-  Grid,
-  List,
-  MapPin,
-  Clock,
-  Shield,
-  Truck,
-  Zap,
-  AlertCircle,
-} from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useLocation } from "@/contexts/LocationContext";
+import { supabase } from "@/lib/supabase";
+import { AlertCircle, Clock, Grid, List, MapPin, Search } from "lucide-react";
 import { NoServiceAvailable } from "@/components/location/NoServiceAvailable";
 
 interface Product {
@@ -35,7 +26,6 @@ interface Product {
   sku: string | null;
   brand: string | null;
   tags: string[];
-  custom_fields: any;
   categories: {
     id: string;
     name: string;
@@ -51,14 +41,41 @@ interface Category {
   is_active: boolean;
 }
 
-export default function Electronics() {
+interface ServiceType {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  is_active: boolean;
+}
+
+export default function DynamicServicePage() {
+  const params = useParams<{ serviceType?: string }>();
+  const navigate = useNavigate();
+  const location = window.location;
+  
+  // Get service type from either URL param or path
+  const getServiceType = () => {
+    if (params.serviceType) {
+      return params.serviceType;
+    }
+    // Extract from path like /liquor, /pharmacy, etc.
+    const pathParts = location.pathname.split('/').filter(p => p);
+    return pathParts[0] || null;
+  };
+  
+  const serviceType = getServiceType();
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("popular");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [serviceInfo, setServiceInfo] = useState<ServiceType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [serviceExists, setServiceExists] = useState(true);
 
   // Get location context
   const {
@@ -70,37 +87,77 @@ export default function Electronics() {
     availableServiceTypes,
   } = useLocation();
 
-  // Check if electronics service is available in the current location
-  const hasElectronicsService =
-    isServiceAvailable && availableServiceTypes.includes("electronics");
+  // Check if this service is available in the current location
+  const hasThisService =
+    isServiceAvailable &&
+    serviceType &&
+    availableServiceTypes.includes(serviceType);
 
   useEffect(() => {
-    fetchData();
-  }, [serviceAreaId, hasElectronicsService]);
+    if (serviceType) {
+      fetchServiceInfo();
+    }
+  }, [serviceType]);
+
+  useEffect(() => {
+    // Only fetch data if service exists and is available in location
+    if (serviceType && serviceExists && hasThisService) {
+      fetchData();
+    } else {
+      setLoading(false);
+      setProducts([]);
+      setCategories([]);
+    }
+  }, [serviceAreaId, hasThisService, serviceType, serviceExists]);
+
+  const fetchServiceInfo = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("service_types")
+        .select("*")
+        .eq("id", serviceType)
+        .eq("is_active", true)
+        .single();
+
+      if (error || !data) {
+        console.error("Service type not found:", error);
+        setServiceExists(false);
+        setLoading(false);
+        return;
+      }
+
+      setServiceInfo(data);
+      setServiceExists(true);
+    } catch (error) {
+      console.error("Error fetching service info:", error);
+      setServiceExists(false);
+      setLoading(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      // If location is selected and service is available, use location-based filtering
-      if (serviceAreaId && hasElectronicsService) {
-        const { data: locationData, error: locationError } = await supabase.rpc(
-          "get_products_by_service_area",
-          {
+      // If location is selected, fetch location-based products
+      if (serviceAreaId && serviceType) {
+        // Use the Postgres function to get location-based products
+        const { data: locationProducts, error: productsError } =
+          await supabase.rpc("get_products_by_service_area", {
             p_service_area_id: serviceAreaId,
-            p_service_type: "electronics",
+            p_service_type: serviceType,
             p_category_id: null,
             p_search_term: null,
             p_limit: 100,
             p_offset: 0,
-          }
-        );
+          });
 
-        if (locationError) {
-          console.error("Error fetching location-based products:", locationError);
+        if (productsError) {
+          console.error("Error fetching location-based products:", productsError);
           setProducts([]);
-        } else if (locationData) {
-          const transformedProducts = (locationData || []).map((p: any) => ({
+        } else {
+          // Transform the data to match the Product interface
+          const transformedProducts = (locationProducts || []).map((p: any) => ({
             id: p.offering_id,
             name: p.offering_name,
             description: null,
@@ -114,11 +171,10 @@ export default function Electronics() {
             sku: null,
             brand: null,
             tags: [],
-            custom_fields: {},
             categories: {
               id: "",
               name: p.category_name || "",
-              service_type: "electronics",
+              service_type: p.service_type || serviceType,
             },
           }));
           setProducts(transformedProducts);
@@ -130,16 +186,16 @@ export default function Electronics() {
             .from("service_area_categories")
             .select(
               `
-              *,
-              categories:category_id (
-                id,
-                name,
-                service_type,
-                image_url,
-                is_active,
-                sort_order
-              )
-            `
+            *,
+            categories:category_id (
+              id,
+              name,
+              service_type,
+              image_url,
+              is_active,
+              sort_order
+            )
+          `
             )
             .eq("service_area_id", serviceAreaId)
             .eq("is_available", true)
@@ -151,11 +207,11 @@ export default function Electronics() {
         } else {
           const transformedCategories = (locationCategories || [])
             .map((sc: any) => sc.categories)
-            .filter((c: any) => c && c.service_type === "electronics");
+            .filter((c: any) => c && c.service_type === serviceType);
           setCategories(transformedCategories);
         }
       } else {
-        // Fallback: Fetch all electronics products
+        // Fallback to all products if no location selected
         const [productsResult, categoriesResult] = await Promise.all([
           supabase
             .from("products")
@@ -170,31 +226,29 @@ export default function Electronics() {
             `
             )
             .eq("is_active", true)
-            .eq("categories.service_type", "electronics"),
+            .eq("categories.service_type", serviceType),
           supabase
             .from("categories")
             .select("*")
-            .eq("service_type", "electronics")
+            .eq("service_type", serviceType)
             .eq("is_active", true)
             .order("sort_order"),
         ]);
 
         if (productsResult.error) {
-          console.error("Error fetching electronics products:", productsResult.error);
-          setProducts([]);
+          console.error("Error fetching products:", productsResult.error);
         } else {
           setProducts(productsResult.data || []);
         }
 
         if (categoriesResult.error) {
-          console.error("Error fetching electronics categories:", categoriesResult.error);
-          setCategories([]);
+          console.error("Error fetching categories:", categoriesResult.error);
         } else {
           setCategories(categoriesResult.data || []);
         }
       }
     } catch (error) {
-      console.error("Error fetching electronics data:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -204,7 +258,6 @@ export default function Electronics() {
     const matchesSearch =
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       false;
     const matchesCategory =
       selectedCategory === "all" || product.categories?.id === selectedCategory;
@@ -233,6 +286,24 @@ export default function Electronics() {
     }
   });
 
+  // If service doesn't exist, show 404
+  if (!serviceExists && !loading) {
+    return (
+      <Layout>
+        <div className="container py-16 text-center">
+          <div className="text-6xl mb-4">🔍</div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Service Not Found
+          </h1>
+          <p className="text-gray-600 mb-6">
+            The service "{serviceType}" is not available or doesn't exist.
+          </p>
+          <Button onClick={() => navigate("/")}>Go to Home</Button>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="container py-6">
@@ -241,23 +312,30 @@ export default function Electronics() {
           <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
             <span>Home</span>
             <span>/</span>
-            <span className="text-gray-900 font-medium">Electronics</span>
+            <span className="text-gray-900 font-medium">
+              {serviceInfo?.title || "Service"}
+            </span>
           </div>
 
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                ⚡ Electronics
-              </h1>
+              <div className="flex items-center gap-3 mb-2">
+                {serviceInfo?.icon && (
+                  <span className="text-4xl">{serviceInfo.icon}</span>
+                )}
+                <h1 className="text-3xl font-bold text-gray-900">
+                  {serviceInfo?.title || "Service"}
+                </h1>
+              </div>
               <p className="text-gray-600 mb-2">
-                Discover the latest in technology and innovation
+                {serviceInfo?.description || "Browse our offerings"}
               </p>
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
                   <MapPin className="h-4 w-4 text-primary" />
                   <span>
                     {hasLocation && currentLocation
-                      ? `${currentLocation.city}, ${currentLocation.state}`
+                      ? `${currentLocation.city || ""}, ${currentLocation.state || ""}`
                       : "Select location to see available products"}
                   </span>
                 </div>
@@ -270,8 +348,11 @@ export default function Electronics() {
               </div>
             </div>
 
-            <Badge className="bg-blue-500 text-white self-start lg:self-center">
-              Official warranty • Genuine products
+            <Badge
+              className="self-start lg:self-center"
+              style={{ backgroundColor: serviceInfo?.color || "#3b82f6" }}
+            >
+              Premium Quality • Fast Delivery
             </Badge>
           </div>
         </div>
@@ -288,7 +369,7 @@ export default function Electronics() {
         )}
 
         {/* Service Not Available Alert */}
-        {hasLocation && !isCheckingService && !hasElectronicsService && (
+        {hasLocation && !isCheckingService && !hasThisService && (
           <div className="mb-6">
             <NoServiceAvailable
               locationName={
@@ -301,74 +382,52 @@ export default function Electronics() {
           </div>
         )}
 
-        {/* Trust indicators */}
-        <div className="mb-8 grid grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-200">
-            <Shield className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-            <h3 className="font-semibold text-sm">Authorized Retailer</h3>
-            <p className="text-xs text-gray-600">Official warranty included</p>
-          </div>
-          <div className="text-center p-4 bg-green-50 rounded-xl border border-green-200">
-            <Truck className="h-6 w-6 text-green-600 mx-auto mb-2" />
-            <h3 className="font-semibold text-sm">Express Delivery</h3>
-            <p className="text-xs text-gray-600">Fast shipping</p>
-          </div>
-          <div className="text-center p-4 bg-purple-50 rounded-xl border border-purple-200">
-            <Zap className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-            <h3 className="font-semibold text-sm">Latest Tech</h3>
-            <p className="text-xs text-gray-600">Newest models available</p>
-          </div>
-        </div>
-
-        {/* Categories */}
+        {/* Quick categories */}
         {categories.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Shop by Category</h2>
-            <div className="grid grid-cols-4 lg:grid-cols-8 gap-4">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Shop by Category
+            </h2>
+            <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
               <button
                 onClick={() => setSelectedCategory("all")}
-                className={`${
-                  selectedCategory === "all"
-                    ? "ring-2 ring-blue-600 bg-blue-50"
-                    : "bg-white"
-                } border-2 border-gray-200 hover:border-blue-300 p-4 rounded-xl text-center transition-all`}
+                className={`flex-shrink-0 flex flex-col items-center p-4 rounded-xl border-2 transition-all min-w-[100px]
+                           ${
+                             selectedCategory === "all"
+                               ? "border-green-600 bg-green-50 shadow-md"
+                               : "border-gray-200 bg-white hover:border-green-300 hover:shadow-sm"
+                           }`}
               >
-                <div className="text-3xl mb-2">⚡</div>
-                <p className="text-xs font-semibold">All Items</p>
-                <p className="text-xs text-gray-500">{products.length}</p>
+                <div className="text-3xl mb-2">{serviceInfo?.icon || "📦"}</div>
+                <p className="text-xs font-semibold text-gray-800">All Items</p>
               </button>
-              {categories.map((category) => {
-                const count = products.filter(
-                  (p) => p.categories?.id === category.id
-                ).length;
-                return (
-                  <button
-                    key={category.id}
-                    onClick={() => setSelectedCategory(category.id)}
-                    className={`${
-                      selectedCategory === category.id
-                        ? "ring-2 ring-blue-600 bg-blue-50"
-                        : "bg-white"
-                    } border-2 border-gray-200 hover:border-blue-300 p-4 rounded-xl text-center transition-all`}
-                  >
-                    <div className="text-3xl mb-2">
-                      {category.image_url ? (
-                        <img
-                          src={category.image_url}
-                          alt={category.name}
-                          className="w-8 h-8 mx-auto object-contain"
-                        />
-                      ) : (
-                        "⚡"
-                      )}
-                    </div>
-                    <p className="text-xs font-semibold leading-tight">
-                      {category.name}
-                    </p>
-                    <p className="text-xs text-gray-500">{count}</p>
-                  </button>
-                );
-              })}
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`flex-shrink-0 flex flex-col items-center p-4 rounded-xl border-2 transition-all min-w-[100px]
+                             ${
+                               selectedCategory === category.id
+                                 ? "border-green-600 bg-green-50 shadow-md"
+                                 : "border-gray-200 bg-white hover:border-green-300 hover:shadow-sm"
+                             }`}
+                >
+                  <div className="text-3xl mb-2">
+                    {category.image_url ? (
+                      <img
+                        src={category.image_url}
+                        alt={category.name}
+                        className="w-10 h-10 mx-auto object-contain"
+                      />
+                    ) : (
+                      serviceInfo?.icon || "📦"
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-gray-800 leading-tight text-center line-clamp-2">
+                    {category.name}
+                  </p>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -382,10 +441,10 @@ export default function Electronics() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Search electronics..."
+                  placeholder="Search products..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-11 h-12 text-base border-2 focus:border-blue-600"
+                  className="pl-11 h-12 text-base border-2 focus:border-green-600"
                 />
               </div>
 
@@ -393,7 +452,7 @@ export default function Electronics() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-3 border-2 rounded-lg focus:outline-none focus:border-blue-600 font-medium text-sm min-w-[180px]"
+                className="px-4 py-3 border-2 rounded-lg focus:outline-none focus:border-green-600 font-medium text-sm min-w-[180px]"
                 aria-label="Sort products by"
               >
                 <option value="popular">Most Popular</option>
@@ -409,7 +468,7 @@ export default function Electronics() {
                   onClick={() => setViewMode("grid")}
                   className={`p-3 transition-colors ${
                     viewMode === "grid"
-                      ? "bg-blue-600 text-white"
+                      ? "bg-green-600 text-white"
                       : "bg-white text-gray-600 hover:bg-gray-50"
                   }`}
                   aria-label="Grid view"
@@ -421,7 +480,7 @@ export default function Electronics() {
                   onClick={() => setViewMode("list")}
                   className={`p-3 transition-colors ${
                     viewMode === "list"
-                      ? "bg-blue-600 text-white"
+                      ? "bg-green-600 text-white"
                       : "bg-white text-gray-600 hover:bg-gray-50"
                   }`}
                   aria-label="List view"
@@ -458,7 +517,7 @@ export default function Electronics() {
               variant="outline"
               size="sm"
               onClick={() => setSearchTerm("")}
-              className="border-2 hover:border-blue-600"
+              className="border-2 hover:border-green-600"
             >
               Clear search
             </Button>
@@ -467,13 +526,7 @@ export default function Electronics() {
 
         {/* Loading state */}
         {loading ? (
-          <div
-            className={`grid gap-4 ${
-              viewMode === "grid"
-                ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
-                : "grid-cols-1"
-            }`}
-          >
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {Array.from({ length: 10 }).map((_, i) => (
               <Card key={i} className="animate-pulse border-gray-100">
                 <CardContent className="p-0">
@@ -497,10 +550,6 @@ export default function Electronics() {
             }`}
           >
             {sortedProducts.map((product) => {
-              // Get warranty from custom fields
-              const warranty =
-                product.custom_fields?.warranty || "1 year warranty";
-
               // Transform database product to match ProductCard expected format
               const transformedProduct = {
                 id: product.id,
@@ -509,8 +558,8 @@ export default function Electronics() {
                 originalPrice: product.discount_price
                   ? product.price
                   : undefined,
-                brand: product.brand || "Electronics",
-                image: product.image_url || "⚡",
+                brand: product.brand || "Generic",
+                image: product.image_url || "/placeholder.svg",
                 rating: product.rating || 4.0,
                 reviewCount: product.reviews_count,
                 discount: product.discount_price
@@ -521,10 +570,10 @@ export default function Electronics() {
                     )
                   : undefined,
                 inStock: product.stock_quantity > 0,
-                category: product.categories?.name || "Electronics",
-                unit: "piece",
+                category: product.categories?.name || serviceInfo?.title || "",
+                unit: "each",
                 tags: product.tags || [],
-                deliveryTime: warranty,
+                deliveryTime: "Fast delivery",
                 description: product.description || "",
               };
               return (
@@ -535,11 +584,11 @@ export default function Electronics() {
         )}
 
         {/* Empty state */}
-        {!loading && sortedProducts.length === 0 && hasElectronicsService && (
+        {!loading && sortedProducts.length === 0 && hasThisService && (
           <div className="text-center py-16">
-            <div className="text-6xl mb-4">⚡</div>
+            <div className="text-6xl mb-4">{serviceInfo?.icon || "📦"}</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No electronics found
+              No products found
             </h3>
             <p className="text-gray-600 mb-4">
               Try adjusting your search or filter criteria
@@ -556,21 +605,19 @@ export default function Electronics() {
         )}
 
         {/* Service not available - full empty state */}
-        {!loading &&
-          hasLocation &&
-          !isCheckingService &&
-          !hasElectronicsService && (
-            <NoServiceAvailable
-              locationName={
-                currentLocation
-                  ? `${currentLocation.city}, ${currentLocation.state}`
-                  : undefined
-              }
-              variant="full"
-              showSuggestions={true}
-            />
-          )}
+        {!loading && hasLocation && !isCheckingService && !hasThisService && (
+          <NoServiceAvailable
+            locationName={
+              currentLocation
+                ? `${currentLocation.city}, ${currentLocation.state}`
+                : undefined
+            }
+            variant="full"
+            showSuggestions={true}
+          />
+        )}
       </div>
     </Layout>
   );
 }
+
