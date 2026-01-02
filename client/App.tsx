@@ -117,6 +117,7 @@ import { LocationGuard } from "@/components/guards/LocationGuard";
 import { AuthCallback } from "./pages/AuthCallback";
 import Beauty from "./pages/Beauty";
 import CarRental from "./pages/CarRental";
+import DynamicServicePage from "./pages/DynamicServicePage";
 import Electronics from "./pages/Electronics";
 import Fashion from "./pages/Fashion";
 import Grocery from "./pages/Grocery";
@@ -127,9 +128,28 @@ import LocationSelection from "./pages/LocationSelection";
 import NotFound from "./pages/NotFound";
 import ProductDetail from "./pages/ProductDetail";
 import Profile from "./pages/Profile";
+import AddVehicle from "./pages/trip-booking/AddVehicle";
+import BookingConfirmation from "./pages/trip-booking/BookingConfirmation";
+import BookTrip from "./pages/trip-booking/BookTrip";
+import HelpSupport from "./pages/trip-booking/HelpSupport";
+import LiveTracking from "./pages/trip-booking/LiveTracking";
+import MyPublishedRides from "./pages/trip-booking/MyPublishedRides";
+import NotificationSettings from "./pages/trip-booking/NotificationSettings";
+import PaymentMethods from "./pages/trip-booking/PaymentMethods";
+import PrivacySettings from "./pages/trip-booking/PrivacySettings";
+import PublishRideEnhanced from "./pages/trip-booking/PublishRideEnhanced";
+import RateTrip from "./pages/trip-booking/RateTrip";
+import TripBookingProfile from "./pages/trip-booking/TripBookingProfile";
+import TripChat from "./pages/trip-booking/TripChat";
+import TripDetails from "./pages/trip-booking/TripDetails";
+import TripSearchResults from "./pages/trip-booking/TripSearchResults";
+import VehicleManagement from "./pages/trip-booking/VehicleManagement";
+import VehicleDetails from "./pages/trip-booking/VehicleDetails";
+import DriverProfile from "./pages/trip-booking/DriverProfile";
+import VerificationID from "./pages/trip-booking/VerificationID";
+import MyBookings from "./pages/trip-booking/MyBookings";
 import Trips from "./pages/Trips";
 import UserTest from "./pages/UserTest";
-import DynamicServicePage from "./pages/DynamicServicePage";
 
 // Admin pages
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -185,7 +205,31 @@ const App: React.FC = () => {
           
           {/* Main Service Routes - Using custom pages for better UX */}
           <Route path="/grocery" element={<LocationGuard><Grocery /></LocationGuard>} />
-          <Route path="/trips" element={<LocationGuard><Trips /></LocationGuard>} />
+          <Route path="/trips" element={<Trips />} />
+          <Route path="/trip-booking" element={<Trips />} />
+          <Route path="/trip-booking/search" element={<TripSearchResults />} />
+          <Route path="/trip-booking/trip/:id" element={<TripDetails />} />
+          <Route path="/trip-booking/profile" element={<TripBookingProfile />} />
+          <Route path="/trip-booking/verification" element={<VerificationID />} />
+          <Route path="/trip-booking/notifications" element={<NotificationSettings />} />
+          <Route path="/trip-booking/payment" element={<PaymentMethods />} />
+          <Route path="/trip-booking/privacy" element={<PrivacySettings />} />
+          <Route path="/trip-booking/help" element={<HelpSupport />} />
+          <Route path="/trip-booking/my-rides" element={<MyPublishedRides />} />
+              <Route path="/trip-booking/publish-ride" element={<PublishRideEnhanced />} />
+          <Route path="/trip-booking/rate/:bookingId" element={<RateTrip />} />
+          <Route path="/trip-booking/tracking/:tripId" element={<LiveTracking />} />
+          <Route path="/trip-booking/chat/:tripId" element={<TripChat />} />
+          <Route path="/trip-booking/book/:tripId" element={<BookTrip />} />
+          <Route path="/trip-booking/booking-confirmation/:bookingId" element={<BookingConfirmation />} />
+          <Route path="/trip-booking/my-bookings" element={<MyBookings />} />
+          <Route path="/trip-booking/add-vehicle" element={<AddVehicle />} />
+          <Route path="/trip-booking/vehicles" element={<VehicleManagement />} />
+          <Route path="/trip-booking/vehicle/:id" element={<VehicleDetails />} />
+          <Route path="/trip-booking/vehicle/:id/edit" element={<AddVehicle />} />
+          <Route path="/trip-booking/driver/:id" element={<DriverProfile />} />
+          <Route path="/trip-booking/driver/:id/vehicles" element={<VehicleManagement />} />
+          <Route path="/trip-booking/profile/:id" element={<TripBookingProfile />} />
           <Route path="/car-rental" element={<LocationGuard><CarRental /></LocationGuard>} />
           <Route path="/handyman" element={<LocationGuard><Handyman /></LocationGuard>} />
           <Route path="/home-kitchen" element={<LocationGuard><HomeKitchen /></LocationGuard>} />

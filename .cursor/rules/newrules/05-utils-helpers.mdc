@@ -1,0 +1,1028 @@
+---
+description: Utility Functions & Helper Methods - Reusable Logic
+globs: **/*.ts,**/*.tsx
+---
+
+# Utility Functions & Helpers
+
+## Overview
+Centralized utility functions and helper methods to avoid code duplication and ensure consistency.
+
+---
+
+## 1. Utility File Structure
+
+```
+client/lib/
+├── utils.ts           # Core utilities (cn, etc.)
+├── format-utils.ts    # Formatting utilities
+├── date-utils.ts      # Date/time utilities
+├── validation-utils.ts # Validation helpers
+├── storage-utils.ts   # Local storage utilities
+├── url-utils.ts       # URL manipulation
+├── array-utils.ts     # Array helpers
+├── object-utils.ts    # Object helpers
+└── error-utils.ts     # Error handling
+```
+
+---
+
+## 2. Core Utilities
+
+### 2.1 utils.ts (Existing)
+```typescript
+// client/lib/utils.ts
+
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+/**
+ * Merge Tailwind CSS classes with clsx
+ * Handles conditional classes and overrides
+ */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+---
+
+## 3. Format Utilities
+
+### 3.1 format-utils.ts
+```typescript
+// client/lib/format-utils.ts
+
+import { CURRENCY } from '@/lib/strings';
+
+// ═══════════════════════════════════════════
+// CURRENCY FORMATTING
+// ═══════════════════════════════════════════
+
+/**
+ * Format number as currency (INR)
+ */
+export function formatCurrency(amount: number | undefined | null): string {
+  if (amount === undefined || amount === null) return '₹0';
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+/**
+ * Format currency without symbol
+ */
+export function formatAmount(amount: number): string {
+  return new Intl.NumberFormat('en-IN').format(amount);
+}
+
+/**
+ * Format price with original price strikethrough
+ */
+export function formatPriceDisplay(price: number, originalPrice?: number) {
+  const formattedPrice = formatCurrency(price);
+  const discount = originalPrice 
+    ? Math.round(((originalPrice - price) / originalPrice) * 100)
+    : 0;
+  
+  return {
+    current: formattedPrice,
+    original: originalPrice ? formatCurrency(originalPrice) : null,
+    discount: discount > 0 ? `${discount}% off` : null,
+  };
+}
+
+// ═══════════════════════════════════════════
+// NUMBER FORMATTING
+// ═══════════════════════════════════════════
+
+/**
+ * Format large numbers with abbreviations
+ */
+export function formatCompactNumber(num: number): string {
+  if (num >= 10000000) {
+    return `${(num / 10000000).toFixed(1)}Cr`;
+  }
+  if (num >= 100000) {
+    return `${(num / 100000).toFixed(1)}L`;
+  }
+  if (num >= 1000) {
+    return `${(num / 1000).toFixed(1)}K`;
+  }
+  return num.toString();
+}
+
+/**
+ * Format percentage
+ */
+export function formatPercentage(value: number, decimals: number = 0): string {
+  return `${value.toFixed(decimals)}%`;
+}
+
+/**
+ * Format rating with star emoji
+ */
+export function formatRating(rating: number | null | undefined): string {
+  if (!rating) return 'N/A';
+  return `${rating.toFixed(1)} ★`;
+}
+
+// ═══════════════════════════════════════════
+// STRING FORMATTING
+// ═══════════════════════════════════════════
+
+/**
+ * Capitalize first letter
+ */
+export function capitalize(str: string): string {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+/**
+ * Title case
+ */
+export function titleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => capitalize(word))
+    .join(' ');
+}
+
+/**
+ * Convert to slug
+ */
+export function slugify(str: string): string {
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Truncate string with ellipsis
+ */
+export function truncate(str: string, maxLength: number): string {
+  if (!str || str.length <= maxLength) return str;
+  return str.slice(0, maxLength - 3) + '...';
+}
+
+/**
+ * Format phone number (Indian)
+ */
+export function formatPhone(phone: string): string {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 10) {
+    return `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
+  }
+  return phone;
+}
+
+/**
+ * Mask sensitive data
+ */
+export function maskString(str: string, visibleChars: number = 4): string {
+  if (str.length <= visibleChars) return str;
+  return '•'.repeat(str.length - visibleChars) + str.slice(-visibleChars);
+}
+
+/**
+ * Format file size
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
+// ═══════════════════════════════════════════
+// ADDRESS FORMATTING
+// ═══════════════════════════════════════════
+
+interface Address {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  country?: string;
+}
+
+/**
+ * Format address to single line
+ */
+export function formatAddress(address: Address): string {
+  const parts = [
+    address.line1,
+    address.line2,
+    address.city,
+    address.state,
+    address.pincode,
+    address.country,
+  ].filter(Boolean);
+  
+  return parts.join(', ');
+}
+
+/**
+ * Format address to multiple lines
+ */
+export function formatAddressMultiline(address: Address): string[] {
+  const lines: string[] = [];
+  
+  if (address.line1) lines.push(address.line1);
+  if (address.line2) lines.push(address.line2);
+  
+  const cityState = [address.city, address.state].filter(Boolean).join(', ');
+  if (cityState) lines.push(cityState);
+  
+  if (address.pincode) lines.push(address.pincode);
+  if (address.country) lines.push(address.country);
+  
+  return lines;
+}
+```
+
+---
+
+## 4. Date Utilities
+
+### 4.1 date-utils.ts
+```typescript
+// client/lib/date-utils.ts
+
+import { format, formatDistanceToNow, isValid, parseISO, differenceInDays } from 'date-fns';
+import { DATE_FORMATS } from '@/lib/strings';
+
+// ═══════════════════════════════════════════
+// DATE FORMATTING
+// ═══════════════════════════════════════════
+
+/**
+ * Parse date string to Date object
+ */
+export function parseDate(dateStr: string | Date | null | undefined): Date | null {
+  if (!dateStr) return null;
+  if (dateStr instanceof Date) return dateStr;
+  
+  const parsed = parseISO(dateStr);
+  return isValid(parsed) ? parsed : null;
+}
+
+/**
+ * Format date to readable string
+ */
+export function formatDate(
+  date: string | Date | null | undefined, 
+  formatStr: string = 'MMM d, yyyy'
+): string {
+  const parsed = parseDate(date);
+  if (!parsed) return 'N/A';
+  return format(parsed, formatStr);
+}
+
+/**
+ * Format date short (Jan 1)
+ */
+export function formatDateShort(date: string | Date | null | undefined): string {
+  return formatDate(date, 'MMM d');
+}
+
+/**
+ * Format date long (January 1, 2025)
+ */
+export function formatDateLong(date: string | Date | null | undefined): string {
+  return formatDate(date, 'MMMM d, yyyy');
+}
+
+/**
+ * Format time (9:30 AM)
+ */
+export function formatTime(date: string | Date | null | undefined): string {
+  return formatDate(date, 'h:mm a');
+}
+
+/**
+ * Format datetime (Jan 1, 2025 9:30 AM)
+ */
+export function formatDateTime(date: string | Date | null | undefined): string {
+  return formatDate(date, 'MMM d, yyyy h:mm a');
+}
+
+// ═══════════════════════════════════════════
+// RELATIVE TIME
+// ═══════════════════════════════════════════
+
+/**
+ * Get relative time string (2 hours ago)
+ */
+export function getRelativeTime(date: string | Date | null | undefined): string {
+  const parsed = parseDate(date);
+  if (!parsed) return 'N/A';
+  
+  return formatDistanceToNow(parsed, { addSuffix: true });
+}
+
+/**
+ * Smart date format (Today, Yesterday, or date)
+ */
+export function getSmartDate(date: string | Date | null | undefined): string {
+  const parsed = parseDate(date);
+  if (!parsed) return 'N/A';
+  
+  const now = new Date();
+  const diff = differenceInDays(now, parsed);
+  
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff < 7) return format(parsed, 'EEEE'); // Day name
+  if (diff < 365) return format(parsed, 'MMM d');
+  return format(parsed, 'MMM d, yyyy');
+}
+
+// ═══════════════════════════════════════════
+// DATE CALCULATIONS
+// ═══════════════════════════════════════════
+
+/**
+ * Check if date is today
+ */
+export function isToday(date: string | Date | null | undefined): boolean {
+  const parsed = parseDate(date);
+  if (!parsed) return false;
+  
+  const today = new Date();
+  return (
+    parsed.getDate() === today.getDate() &&
+    parsed.getMonth() === today.getMonth() &&
+    parsed.getFullYear() === today.getFullYear()
+  );
+}
+
+/**
+ * Check if date is in the past
+ */
+export function isPast(date: string | Date | null | undefined): boolean {
+  const parsed = parseDate(date);
+  if (!parsed) return false;
+  return parsed < new Date();
+}
+
+/**
+ * Check if date is in the future
+ */
+export function isFuture(date: string | Date | null | undefined): boolean {
+  const parsed = parseDate(date);
+  if (!parsed) return false;
+  return parsed > new Date();
+}
+
+/**
+ * Get days until date
+ */
+export function getDaysUntil(date: string | Date | null | undefined): number | null {
+  const parsed = parseDate(date);
+  if (!parsed) return null;
+  return differenceInDays(parsed, new Date());
+}
+
+// ═══════════════════════════════════════════
+// DURATION FORMATTING
+// ═══════════════════════════════════════════
+
+/**
+ * Format duration in minutes to human readable
+ */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  
+  if (remainingMinutes === 0) {
+    return `${hours}h`;
+  }
+  
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+/**
+ * Format time range
+ */
+export function formatTimeRange(
+  startDate: string | Date,
+  endDate: string | Date
+): string {
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
+  
+  if (!start || !end) return 'N/A';
+  
+  return `${format(start, 'h:mm a')} - ${format(end, 'h:mm a')}`;
+}
+```
+
+---
+
+## 5. Validation Utilities
+
+### 5.1 validation-utils.ts
+```typescript
+// client/lib/validation-utils.ts
+
+import { PATTERNS, FORM_LIMITS } from '@/lib/constants';
+
+// ═══════════════════════════════════════════
+// BASIC VALIDATIONS
+// ═══════════════════════════════════════════
+
+export function isValidEmail(email: string): boolean {
+  return PATTERNS.email.test(email);
+}
+
+export function isValidPhone(phone: string): boolean {
+  const cleaned = phone.replace(/\D/g, '');
+  return PATTERNS.phone.test(cleaned);
+}
+
+export function isValidPincode(pincode: string): boolean {
+  return PATTERNS.pincode.test(pincode);
+}
+
+export function isValidUrl(url: string): boolean {
+  return PATTERNS.url.test(url);
+}
+
+export function isValidGST(gst: string): boolean {
+  return PATTERNS.gst.test(gst.toUpperCase());
+}
+
+export function isValidPAN(pan: string): boolean {
+  return PATTERNS.pan.test(pan.toUpperCase());
+}
+
+// ═══════════════════════════════════════════
+// STRING VALIDATIONS
+// ═══════════════════════════════════════════
+
+export function isNotEmpty(value: string | null | undefined): boolean {
+  return !!value && value.trim().length > 0;
+}
+
+export function isWithinLength(
+  value: string, 
+  min: number, 
+  max: number
+): boolean {
+  const length = value.trim().length;
+  return length >= min && length <= max;
+}
+
+export function hasMinLength(value: string, min: number): boolean {
+  return value.trim().length >= min;
+}
+
+export function hasMaxLength(value: string, max: number): boolean {
+  return value.trim().length <= max;
+}
+
+// ═══════════════════════════════════════════
+// NUMBER VALIDATIONS
+// ═══════════════════════════════════════════
+
+export function isPositiveNumber(value: number): boolean {
+  return !isNaN(value) && value > 0;
+}
+
+export function isWithinRange(
+  value: number, 
+  min: number, 
+  max: number
+): boolean {
+  return value >= min && value <= max;
+}
+
+export function isValidPrice(price: number): boolean {
+  return isPositiveNumber(price) && price <= FORM_LIMITS.maxPrice;
+}
+
+export function isValidQuantity(qty: number): boolean {
+  return Number.isInteger(qty) && qty > 0 && qty <= FORM_LIMITS.maxQuantity;
+}
+
+export function isValidDiscount(discount: number): boolean {
+  return isWithinRange(discount, 0, FORM_LIMITS.maxDiscount);
+}
+
+// ═══════════════════════════════════════════
+// FILE VALIDATIONS
+// ═══════════════════════════════════════════
+
+import { UPLOAD } from '@/lib/constants';
+
+export function isValidFileSize(size: number): boolean {
+  return size <= UPLOAD.maxFileSize;
+}
+
+export function isValidImageType(type: string): boolean {
+  return (UPLOAD.allowedImageTypes as readonly string[]).includes(type);
+}
+
+export function isValidDocumentType(type: string): boolean {
+  return (UPLOAD.allowedDocumentTypes as readonly string[]).includes(type);
+}
+
+export function validateFile(file: File): { valid: boolean; error?: string } {
+  if (!isValidFileSize(file.size)) {
+    return { 
+      valid: false, 
+      error: `File size must be less than ${UPLOAD.maxFileSizeMB}MB` 
+    };
+  }
+  
+  const isImage = isValidImageType(file.type);
+  const isDocument = isValidDocumentType(file.type);
+  
+  if (!isImage && !isDocument) {
+    return { 
+      valid: false, 
+      error: 'Invalid file type' 
+    };
+  }
+  
+  return { valid: true };
+}
+
+// ═══════════════════════════════════════════
+// FORM VALIDATION HELPERS
+// ═══════════════════════════════════════════
+
+interface ValidationResult {
+  isValid: boolean;
+  errors: Record<string, string>;
+}
+
+export function validateForm<T extends Record<string, any>>(
+  data: T,
+  rules: Record<keyof T, (value: any) => string | null>
+): ValidationResult {
+  const errors: Record<string, string> = {};
+  
+  for (const [field, validator] of Object.entries(rules)) {
+    const error = validator(data[field as keyof T]);
+    if (error) {
+      errors[field] = error;
+    }
+  }
+  
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  };
+}
+```
+
+---
+
+## 6. Array & Object Utilities
+
+### 6.1 array-utils.ts
+```typescript
+// client/lib/array-utils.ts
+
+/**
+ * Group array by key
+ */
+export function groupBy<T>(
+  array: T[], 
+  key: keyof T
+): Record<string, T[]> {
+  return array.reduce((groups, item) => {
+    const groupKey = String(item[key]);
+    return {
+      ...groups,
+      [groupKey]: [...(groups[groupKey] || []), item],
+    };
+  }, {} as Record<string, T[]>);
+}
+
+/**
+ * Unique array by key
+ */
+export function uniqueBy<T>(array: T[], key: keyof T): T[] {
+  const seen = new Set();
+  return array.filter(item => {
+    const value = item[key];
+    if (seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+}
+
+/**
+ * Sort array by key
+ */
+export function sortBy<T>(
+  array: T[], 
+  key: keyof T, 
+  order: 'asc' | 'desc' = 'asc'
+): T[] {
+  return [...array].sort((a, b) => {
+    const aVal = a[key];
+    const bVal = b[key];
+    
+    if (aVal < bVal) return order === 'asc' ? -1 : 1;
+    if (aVal > bVal) return order === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+/**
+ * Chunk array into smaller arrays
+ */
+export function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
+/**
+ * Flatten nested array
+ */
+export function flatten<T>(array: (T | T[])[]): T[] {
+  return array.flat() as T[];
+}
+
+/**
+ * Check if array is empty
+ */
+export function isEmpty<T>(array: T[] | null | undefined): boolean {
+  return !array || array.length === 0;
+}
+
+/**
+ * Get first N items
+ */
+export function take<T>(array: T[], n: number): T[] {
+  return array.slice(0, n);
+}
+
+/**
+ * Remove item by index
+ */
+export function removeAt<T>(array: T[], index: number): T[] {
+  return [...array.slice(0, index), ...array.slice(index + 1)];
+}
+
+/**
+ * Insert item at index
+ */
+export function insertAt<T>(array: T[], index: number, item: T): T[] {
+  return [...array.slice(0, index), item, ...array.slice(index)];
+}
+
+/**
+ * Move item from one index to another
+ */
+export function moveItem<T>(
+  array: T[], 
+  fromIndex: number, 
+  toIndex: number
+): T[] {
+  const result = [...array];
+  const [item] = result.splice(fromIndex, 1);
+  result.splice(toIndex, 0, item);
+  return result;
+}
+```
+
+### 6.2 object-utils.ts
+```typescript
+// client/lib/object-utils.ts
+
+/**
+ * Deep clone object
+ */
+export function deepClone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+/**
+ * Pick specific keys from object
+ */
+export function pick<T extends object, K extends keyof T>(
+  obj: T, 
+  keys: K[]
+): Pick<T, K> {
+  const result = {} as Pick<T, K>;
+  keys.forEach(key => {
+    if (key in obj) {
+      result[key] = obj[key];
+    }
+  });
+  return result;
+}
+
+/**
+ * Omit specific keys from object
+ */
+export function omit<T extends object, K extends keyof T>(
+  obj: T, 
+  keys: K[]
+): Omit<T, K> {
+  const result = { ...obj };
+  keys.forEach(key => delete result[key]);
+  return result;
+}
+
+/**
+ * Check if object is empty
+ */
+export function isEmptyObject(obj: object): boolean {
+  return Object.keys(obj).length === 0;
+}
+
+/**
+ * Remove null/undefined values
+ */
+export function removeEmpty<T extends object>(obj: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, v]) => v != null)
+  ) as Partial<T>;
+}
+
+/**
+ * Deep merge objects
+ */
+export function deepMerge<T extends object>(target: T, source: Partial<T>): T {
+  const result = { ...target };
+  
+  for (const key in source) {
+    const sourceValue = source[key];
+    const targetValue = target[key];
+    
+    if (
+      sourceValue !== null &&
+      typeof sourceValue === 'object' &&
+      !Array.isArray(sourceValue) &&
+      targetValue !== null &&
+      typeof targetValue === 'object' &&
+      !Array.isArray(targetValue)
+    ) {
+      (result as any)[key] = deepMerge(targetValue, sourceValue);
+    } else if (sourceValue !== undefined) {
+      (result as any)[key] = sourceValue;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Get nested property safely
+ */
+export function getNestedValue<T>(
+  obj: any, 
+  path: string, 
+  defaultValue?: T
+): T | undefined {
+  const keys = path.split('.');
+  let result = obj;
+  
+  for (const key of keys) {
+    if (result == null) return defaultValue;
+    result = result[key];
+  }
+  
+  return result ?? defaultValue;
+}
+```
+
+---
+
+## 7. Storage Utilities
+
+### 7.1 storage-utils.ts
+```typescript
+// client/lib/storage-utils.ts
+
+const PREFIX = 'koolihub_';
+
+/**
+ * Get item from localStorage with type safety
+ */
+export function getStorageItem<T>(key: string, defaultValue: T): T {
+  try {
+    const item = localStorage.getItem(PREFIX + key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+/**
+ * Set item in localStorage
+ */
+export function setStorageItem<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+  } catch (error) {
+    console.error('Failed to save to localStorage:', error);
+  }
+}
+
+/**
+ * Remove item from localStorage
+ */
+export function removeStorageItem(key: string): void {
+  try {
+    localStorage.removeItem(PREFIX + key);
+  } catch (error) {
+    console.error('Failed to remove from localStorage:', error);
+  }
+}
+
+/**
+ * Clear all app data from localStorage
+ */
+export function clearStorage(): void {
+  try {
+    Object.keys(localStorage)
+      .filter(key => key.startsWith(PREFIX))
+      .forEach(key => localStorage.removeItem(key));
+  } catch (error) {
+    console.error('Failed to clear localStorage:', error);
+  }
+}
+
+// ═══════════════════════════════════════════
+// TYPED STORAGE KEYS
+// ═══════════════════════════════════════════
+
+export const STORAGE_KEYS = {
+  AUTH_TOKEN: 'auth_token',
+  USER_LOCATION: 'user_location',
+  CART: 'cart',
+  WISHLIST: 'wishlist',
+  RECENT_SEARCHES: 'recent_searches',
+  THEME: 'theme',
+  PREFERENCES: 'preferences',
+} as const;
+
+// Usage helpers
+export const storage = {
+  getLocation: () => getStorageItem(STORAGE_KEYS.USER_LOCATION, null),
+  setLocation: (location: any) => setStorageItem(STORAGE_KEYS.USER_LOCATION, location),
+  
+  getTheme: () => getStorageItem(STORAGE_KEYS.THEME, 'light'),
+  setTheme: (theme: string) => setStorageItem(STORAGE_KEYS.THEME, theme),
+  
+  getRecentSearches: () => getStorageItem<string[]>(STORAGE_KEYS.RECENT_SEARCHES, []),
+  addRecentSearch: (search: string) => {
+    const recent = storage.getRecentSearches();
+    const updated = [search, ...recent.filter(s => s !== search)].slice(0, 10);
+    setStorageItem(STORAGE_KEYS.RECENT_SEARCHES, updated);
+  },
+};
+```
+
+---
+
+## 8. URL Utilities
+
+### 8.1 url-utils.ts
+```typescript
+// client/lib/url-utils.ts
+
+/**
+ * Build URL with query params
+ */
+export function buildUrl(
+  base: string, 
+  params: Record<string, string | number | boolean | undefined>
+): string {
+  const url = new URL(base, window.location.origin);
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  
+  return url.toString();
+}
+
+/**
+ * Parse query string to object
+ */
+export function parseQueryString(search: string): Record<string, string> {
+  const params = new URLSearchParams(search);
+  const result: Record<string, string> = {};
+  
+  params.forEach((value, key) => {
+    result[key] = value;
+  });
+  
+  return result;
+}
+
+/**
+ * Update single query param
+ */
+export function updateQueryParam(
+  url: string, 
+  key: string, 
+  value: string | null
+): string {
+  const urlObj = new URL(url, window.location.origin);
+  
+  if (value === null) {
+    urlObj.searchParams.delete(key);
+  } else {
+    urlObj.searchParams.set(key, value);
+  }
+  
+  return urlObj.pathname + urlObj.search;
+}
+
+/**
+ * Get domain from URL
+ */
+export function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Check if URL is external
+ */
+export function isExternalUrl(url: string): boolean {
+  if (!url.startsWith('http')) return false;
+  
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname !== window.location.hostname;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure URL has protocol
+ */
+export function ensureProtocol(url: string): string {
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  return `https://${url}`;
+}
+```
+
+---
+
+## 9. Usage Examples
+
+```typescript
+// Import utilities
+import { formatCurrency, formatDate, getRelativeTime } from '@/lib/format-utils';
+import { isValidEmail, isValidPhone, validateFile } from '@/lib/validation-utils';
+import { groupBy, sortBy, uniqueBy } from '@/lib/array-utils';
+import { pick, omit, removeEmpty } from '@/lib/object-utils';
+import { storage, getStorageItem, setStorageItem } from '@/lib/storage-utils';
+import { buildUrl, parseQueryString } from '@/lib/url-utils';
+
+// Usage
+const price = formatCurrency(1999); // ₹1,999
+const date = formatDate(order.createdAt); // Jan 1, 2025
+const relative = getRelativeTime(comment.timestamp); // 2 hours ago
+
+const isValid = isValidEmail(email);
+const groups = groupBy(products, 'category');
+const cleaned = removeEmpty(formData);
+
+storage.setLocation({ city: 'Hyderabad', pincode: '500001' });
+const location = storage.getLocation();
+```
+
+---
+
+**Related Files**:
+- `client/lib/utils.ts` - Core utilities
+- `client/lib/format-utils.ts` - Formatting
+- `client/lib/date-utils.ts` - Date handling
+- `client/lib/validation-utils.ts` - Validation

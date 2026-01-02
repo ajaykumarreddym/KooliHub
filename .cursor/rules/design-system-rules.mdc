@@ -1,0 +1,1020 @@
+---
+description: KooliHub Design System - Comprehensive Rules for Feature Development
+globs: **/*.tsx,**/*.ts,**/*.css
+---
+
+# KooliHub Design System & Architecture Rules
+
+## Overview
+KooliHub is a multi-vendor super app built with React 18, TypeScript, Express, and Supabase. This document provides comprehensive guidelines for developing any service/feature while maintaining consistency, scalability, and clean architecture.
+
+---
+
+## 1. Design Token Definitions
+
+### 1.1 Color System
+**Location**: [client/global.css](mdc:client/global.css) + [tailwind.config.ts](mdc:tailwind.config.ts)
+
+#### CSS Custom Properties (HSL Format)
+```css
+:root {
+  /* Core Theme Colors */
+  --background: 0 0% 100%;          /* White */
+  --foreground: 222.2 84% 4.9%;     /* Dark text */
+  --primary: 48 95% 63%;            /* Brand yellow (noon.com style) */
+  --primary-foreground: 0 0% 0%;    /* Black on primary */
+  --secondary: 210 40% 96.1%;       /* Light gray */
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;           /* Muted backgrounds */
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;          /* Accent backgrounds */
+  --destructive: 0 84.2% 60.2%;     /* Error/danger red */
+  --border: 214.3 31.8% 91.4%;      /* Border color */
+  --input: 214.3 31.8% 91.4%;       /* Input border */
+  --ring: 25 85% 55%;               /* Focus ring */
+  --radius: 0.75rem;                /* Border radius */
+  
+  /* Sidebar Theme */
+  --sidebar-background: 0 0% 98%;
+  --sidebar-foreground: 240 5.3% 26.1%;
+  --sidebar-primary: 240 5.9% 10%;
+  --sidebar-accent: 240 4.8% 95.9%;
+  --sidebar-border: 220 13% 91%;
+}
+```
+
+#### Service-Specific Colors (Tailwind Config)
+```typescript
+// Use these for service-specific theming
+grocery: { 50: '#f0fdf4', 500: '#10b981', 700: '#047857' }
+trips:   { 50: '#eff6ff', 500: '#3b82f6', 700: '#1d4ed8' }
+'car-rental': { 50: '#faf5ff', 500: '#8b5cf6', 700: '#6d28d9' }
+handyman: { 50: '#fff7ed', 500: '#f97316', 700: '#c2410c' }
+```
+
+#### Adding New Service Colors
+1. Add to `tailwind.config.ts` under `colors` object
+2. Use format: `serviceName: { 50, 100, 200, 500, 600, 700 }`
+3. Apply via `bg-serviceName-500`, `text-serviceName-700`, etc.
+
+### 1.2 Typography System
+**Font Stack**: Plus Jakarta Sans → Inter → system-ui → sans-serif
+
+```typescript
+// tailwind.config.ts
+fontFamily: {
+  sans: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
+}
+```
+
+#### Text Size Conventions
+- **Headings**: `text-4xl` (h1), `text-3xl` (h2), `text-2xl` (h3), `text-xl` (h4)
+- **Body**: `text-base` (default), `text-sm` (secondary), `text-xs` (captions)
+- **Font Weights**: `font-bold` (700), `font-semibold` (600), `font-medium` (500), `font-normal` (400)
+
+### 1.3 Spacing System
+TailwindCSS default spacing scale (0.25rem = 1 unit):
+- **Micro**: `p-1` (4px), `p-2` (8px)
+- **Small**: `p-3` (12px), `p-4` (16px)
+- **Medium**: `p-6` (24px), `p-8` (32px)
+- **Large**: `p-12` (48px), `p-16` (64px)
+
+**Container**: Max-width 1400px, centered with 2rem padding
+
+### 1.4 Border Radius
+```css
+--radius: 0.75rem; /* 12px base */
+```
+- `rounded-sm`: 8px (--radius - 4px)
+- `rounded-md`: 10px (--radius - 2px)
+- `rounded-lg`: 12px (--radius)
+- `rounded-full`: Full circle
+
+### 1.5 Shadow System
+Use Tailwind shadow utilities:
+- `shadow-sm`: Subtle elevation
+- `shadow`: Default card elevation
+- `shadow-md`: Modals, dropdowns
+- `shadow-lg`: Floating elements
+- `shadow-xl`: Important overlays
+
+---
+
+## 2. Component Library
+
+### 2.1 UI Component Location
+**Path**: [client/components/ui/](mdc:client/components/ui/)
+
+#### Available Components (51 total)
+| Category | Components |
+|----------|------------|
+| **Form Controls** | Button, Input, Textarea, Select, Checkbox, Switch, Radio Group, Slider, Input OTP, Form, Label |
+| **Layout** | Card, Sheet, Dialog, Drawer, Tabs, Accordion, Collapsible, Separator, Resizable, Scroll Area, Aspect Ratio |
+| **Navigation** | Breadcrumb, Menubar, Navigation Menu, Pagination, Sidebar |
+| **Feedback** | Toast, Toaster, Sonner, Alert, Alert Dialog, Progress, Skeleton |
+| **Data Display** | Table, Badge, Avatar, Tooltip, Hover Card, Calendar, Chart, Carousel |
+| **Overlays** | Popover, Dropdown Menu, Context Menu, Command |
+| **Other** | Toggle, Toggle Group, Image Upload, Custom Calendar |
+
+### 2.2 Component Architecture Pattern
+All UI components follow this pattern:
+
+```typescript
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+// 1. Define variants using CVA
+const componentVariants = cva(
+  "base-classes-here",
+  {
+    variants: {
+      variant: {
+        default: "variant-classes",
+        secondary: "variant-classes",
+      },
+      size: {
+        default: "size-classes",
+        sm: "size-classes",
+        lg: "size-classes",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+// 2. Define TypeScript interface
+export interface ComponentProps
+  extends React.HTMLAttributes<HTMLElement>,
+    VariantProps<typeof componentVariants> {
+  asChild?: boolean;
+}
+
+// 3. Use forwardRef for ref forwarding
+const Component = React.forwardRef<HTMLElement, ComponentProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "element";
+    return (
+      <Comp
+        className={cn(componentVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+Component.displayName = "Component";
+
+export { Component, componentVariants };
+```
+
+### 2.3 Component Usage Rules
+1. **ALWAYS extend existing UI components** - never create duplicates
+2. **Use Radix UI primitives** for accessibility
+3. **Support className prop** for style overrides
+4. **Include TypeScript types** for all props
+5. **Use forwardRef** when refs are needed
+
+### 2.4 CN Utility Function
+**Location**: [client/lib/utils.ts](mdc:client/lib/utils.ts)
+
+```typescript
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+**Usage**:
+```tsx
+className={cn(
+  "base-classes",
+  { "conditional-class": condition },
+  props.className
+)}
+```
+
+---
+
+## 3. Frameworks & Libraries
+
+### 3.1 Core Stack
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React 18 + TypeScript + Vite |
+| **Routing** | React Router 6 (SPA mode) |
+| **Styling** | TailwindCSS 3 + Radix UI |
+| **State** | React Query + Context API |
+| **Backend** | Express.js (integrated with Vite) |
+| **Database** | Supabase PostgreSQL |
+| **Auth** | Supabase Auth |
+| **Icons** | Lucide React |
+| **Forms** | React Hook Form + Zod |
+| **Testing** | Vitest |
+
+### 3.2 Package Manager
+**ALWAYS use pnpm**
+```bash
+pnpm add package-name          # Production
+pnpm add -D package-name       # Development
+pnpm install                   # Install all
+```
+
+### 3.3 Import Conventions
+```typescript
+// Order of imports:
+// 1. React and external libraries
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+// 2. Internal components
+import { Button } from "@/components/ui/button";
+import { TripCard } from "@/components/trip-booking/molecules/TripCard";
+
+// 3. Contexts and hooks
+import { useAuth } from "@/contexts/AuthContext";
+import { useTripSearch } from "@/hooks/trip-booking/use-trip-search";
+
+// 4. Utilities and types
+import { cn } from "@/lib/utils";
+import type { Trip, TripSearchCriteria } from "@shared/api";
+```
+
+### 3.4 Path Aliases
+```typescript
+// tsconfig.json
+"@/*"       → client/*
+"@shared/*" → shared/*
+```
+
+---
+
+## 4. Asset Management
+
+### 4.1 Static Assets
+**Location**: [public/](mdc:public/)
+
+```
+public/
+├── images/           # Static images
+├── icons/            # Static icons
+├── uploads/          # User uploads (development)
+└── firebase-messaging-sw.js  # Service worker
+```
+
+### 4.2 Image Handling
+- **Max File Size**: 10MB
+- **Supported Formats**: JPG, PNG, WebP, GIF
+- **Preferred Format**: WebP for optimization
+- **Component**: Use [Image Upload](mdc:client/components/ui/image-upload.tsx)
+
+### 4.3 Storage Strategy
+- **Development**: Local filesystem (`public/uploads/`)
+- **Production**: Supabase Storage (recommended)
+- **Assets Bucket**: `assets` bucket with public access for product images
+
+### 4.4 Image Optimization Rules
+1. Resize images server-side before storage
+2. Generate thumbnails (150x150, 300x300)
+3. Use lazy loading (`loading="lazy"`)
+4. Provide placeholder/skeleton during load
+5. Use responsive images with srcset
+
+---
+
+## 5. Icon System
+
+### 5.1 Icon Library
+**Package**: `lucide-react`
+**Total Icons**: 1000+
+
+### 5.2 Usage Pattern
+```tsx
+import { ShoppingCart, User, Search, Menu, X, Check } from "lucide-react";
+
+// Usage in JSX
+<ShoppingCart className="h-5 w-5 text-primary" />
+<User className="h-6 w-6 text-muted-foreground" />
+```
+
+### 5.3 Icon Sizing Convention
+- **Small (inline)**: `h-4 w-4` (16px)
+- **Default**: `h-5 w-5` (20px)
+- **Medium**: `h-6 w-6` (24px)
+- **Large**: `h-8 w-8` (32px)
+- **Hero**: `h-12 w-12` (48px)
+
+### 5.4 Service Type Icons
+Map service types to icons:
+```typescript
+const serviceIcons = {
+  grocery: ShoppingCart,
+  trips: Car,
+  handyman: Wrench,
+  fashion: Shirt,
+  electronics: Smartphone,
+  beauty: Sparkles,
+  'car-rental': CarFront,
+  'home-kitchen': Home,
+};
+```
+
+---
+
+## 6. Styling Approach
+
+### 6.1 CSS Methodology
+- **Primary**: TailwindCSS utility classes
+- **Custom CSS**: Only in [global.css](mdc:client/global.css)
+- **Component Styles**: Via CVA variants
+
+### 6.2 Global Styles Structure
+```css
+/* Layer order in global.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  /* Custom utilities */
+  .scrollbar-hide { ... }
+  .safe-area-bottom { ... }
+}
+
+@layer base {
+  /* CSS Variables */
+  :root { ... }
+  .dark { ... }
+  
+  /* Global resets */
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+}
+```
+
+### 6.3 Responsive Design
+**Mobile-first approach** using Tailwind breakpoints:
+```
+sm: 640px   (small tablets)
+md: 768px   (tablets)
+lg: 1024px  (laptops)
+xl: 1280px  (desktops)
+2xl: 1400px (large screens)
+```
+
+**Pattern**:
+```tsx
+<div className="
+  p-4 md:p-6 lg:p-8        // Progressive padding
+  grid-cols-1 md:grid-cols-2 lg:grid-cols-4  // Responsive grid
+  text-sm md:text-base     // Responsive text
+">
+```
+
+### 6.4 Dark Mode
+Configured via class strategy:
+```typescript
+// tailwind.config.ts
+darkMode: ["class"]
+```
+
+**Usage**:
+```tsx
+<div className="bg-white dark:bg-gray-900 text-black dark:text-white">
+```
+
+### 6.5 Z-Index Scale
+```
+10   - Dropdown menus
+20   - Sticky headers
+30   - Mobile nav overlay
+40   - Modals
+50   - Popovers
+100  - Tooltips
+1000 - Toast notifications
+10000 - Select dropdowns (Radix)
+```
+
+---
+
+## 7. Project Structure
+
+### 7.1 Client Directory Organization
+```
+client/
+├── App.tsx                    # App entry + routing
+├── global.css                 # Global styles
+├── vite-env.d.ts             # Vite type declarations
+│
+├── pages/                     # Route components
+│   ├── Index.tsx             # Home page
+│   ├── admin/                # Admin pages (38 files)
+│   └── trip-booking/         # Trip feature pages (22 files)
+│
+├── components/
+│   ├── ui/                   # Base UI library (51 components)
+│   ├── admin/                # Admin components
+│   ├── auth/                 # Auth components
+│   ├── cart/                 # Shopping cart
+│   ├── common/               # Shared components
+│   ├── layout/               # Layout components
+│   ├── sections/             # Page sections
+│   └── trip-booking/         # Trip feature components
+│       ├── atoms/            # Smallest units
+│       ├── molecules/        # Composite components
+│       └── organisms/        # Complex sections
+│
+├── contexts/                  # React Contexts
+│   ├── AuthContext.tsx
+│   ├── AdminDataContext.tsx
+│   ├── CartContext.tsx
+│   ├── LocationContext.tsx
+│   └── WishlistContext.tsx
+│
+├── hooks/                     # Custom hooks
+│   ├── trip-booking/         # Feature-specific hooks
+│   ├── use-realtime-*.ts     # Real-time hooks
+│   └── use-*.ts              # General hooks
+│
+├── domain/                    # Clean Architecture - Domain
+│   ├── entities/             # Business entities
+│   ├── repositories/         # Repository interfaces
+│   └── services/             # Domain services
+│
+├── infrastructure/            # Clean Architecture - Infrastructure
+│   └── repositories/         # Repository implementations
+│
+└── lib/                       # Utilities
+    ├── supabase.ts           # Supabase client
+    ├── utils.ts              # CN function
+    ├── constants.ts          # App constants
+    └── *-data.ts             # Static data
+```
+
+### 7.2 Server Directory Organization
+```
+server/
+├── index.ts                  # Express app setup
+├── routes/                   # API route handlers
+│   ├── admin.ts
+│   ├── auth.ts
+│   ├── categories.ts
+│   ├── products.ts
+│   ├── vendors.ts
+│   ├── firebase.ts
+│   └── upload.ts
+└── lib/                      # Server utilities
+```
+
+### 7.3 Shared Types
+**Location**: [shared/api.ts](mdc:shared/api.ts)
+
+All TypeScript interfaces for:
+- Entity types (Vendor, Product, Order, Trip, etc.)
+- API response types
+- Enum types (status, roles, etc.)
+
+---
+
+## 8. Clean Architecture Implementation
+
+### 8.1 Layer Responsibilities
+
+| Layer | Location | Responsibility |
+|-------|----------|----------------|
+| **Domain** | `client/domain/` | Business entities, rules, repository interfaces |
+| **Infrastructure** | `client/infrastructure/` | External implementations (Supabase, APIs) |
+| **Application** | `client/hooks/` | Use cases via custom hooks |
+| **Presentation** | `client/components/` + `client/pages/` | UI components |
+
+### 8.2 Domain Entity Pattern
+```typescript
+// client/domain/entities/Trip.ts
+export interface Trip {
+  id: string;
+  driverId: string;
+  // ... properties
+}
+
+export class TripEntity implements Trip {
+  // ... properties
+  
+  // Business Rules
+  canAcceptBooking(seats: number): boolean {
+    return this.availableSeats >= seats && !this.isPastDeadline();
+  }
+  
+  calculateTotalPrice(seats: number): number {
+    return this.pricePerSeat * seats;
+  }
+}
+```
+
+### 8.3 Repository Interface Pattern
+```typescript
+// client/domain/repositories/ITripRepository.ts
+export interface ITripRepository {
+  getById(id: string): Promise<Trip | null>;
+  search(filters: TripFilters): Promise<Trip[]>;
+  create(trip: Omit<Trip, 'id'>): Promise<Trip>;
+  update(id: string, trip: Partial<Trip>): Promise<Trip>;
+}
+```
+
+### 8.4 Infrastructure Implementation
+```typescript
+// client/infrastructure/repositories/SupabaseTripRepository.ts
+export class SupabaseTripRepository implements ITripRepository {
+  async getById(id: string): Promise<Trip | null> {
+    const { data, error } = await supabase
+      .from('trips')
+      .select('*')
+      .eq('id', id)
+      .single();
+    return data;
+  }
+}
+```
+
+### 8.5 Custom Hook (Application Layer)
+```typescript
+// client/hooks/trip-booking/use-trip-search.ts
+export function useTripSearch(criteria: TripSearchCriteria) {
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  const search = async () => {
+    setLoading(true);
+    const results = await tripRepository.search(criteria);
+    setTrips(results);
+    setLoading(false);
+  };
+  
+  return { trips, loading, search };
+}
+```
+
+---
+
+## 9. Atomic Design for Components
+
+### 9.1 Component Hierarchy
+```
+atoms/       → Button, Badge, Input (indivisible)
+molecules/   → SearchForm, TripCard (atom combinations)
+organisms/   → TripList, BookingWizard (molecule combinations)
+templates/   → PageLayout, DashboardLayout
+pages/       → Route components
+```
+
+### 9.2 Naming Conventions
+```typescript
+// Atoms
+TripStatusBadge.tsx
+VehicleTypeButton.tsx
+
+// Molecules
+TripCard.tsx
+LocationSearchInput.tsx
+TripSearchForm.tsx
+
+// Organisms
+TripList.tsx
+BookingWizard.tsx
+LiveTripTracking.tsx
+```
+
+### 9.3 Component File Structure
+```typescript
+// TripCard.tsx (Molecule)
+import React from 'react';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { TripStatusBadge } from '../atoms/TripStatusBadge';
+import type { Trip } from '@shared/api';
+
+interface TripCardProps {
+  trip: Trip;
+  onSelect?: (trip: Trip) => void;
+}
+
+export function TripCard({ trip, onSelect }: TripCardProps) {
+  return (
+    <Card className="p-4 hover:shadow-md transition-shadow">
+      <TripStatusBadge status={trip.status} />
+      {/* ... */}
+    </Card>
+  );
+}
+```
+
+---
+
+## 10. State Management Architecture
+
+### 10.1 State Hierarchy
+```
+1. Local State (useState)      → Component-specific UI state
+2. Context State (useContext)  → Shared app state
+3. Server State (React Query)  → API/database data
+4. URL State (Router)          → Search filters, pagination
+```
+
+### 10.2 Provider Hierarchy (App.tsx)
+```tsx
+<QueryClientProvider>        {/* React Query */}
+  <AuthProvider>             {/* Authentication */}
+    <AdminDataProvider>      {/* Admin data cache */}
+      <FirebaseProvider>     {/* Push notifications */}
+        <LocationProvider>   {/* User location */}
+          <WishlistProvider> {/* Favorites */}
+            <CartProvider>   {/* Shopping cart */}
+              <TooltipProvider>
+                {/* Routes */}
+              </TooltipProvider>
+            </CartProvider>
+          </WishlistProvider>
+        </LocationProvider>
+      </FirebaseProvider>
+    </AdminDataProvider>
+  </AuthProvider>
+</QueryClientProvider>
+```
+
+### 10.3 React Query Configuration
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
+```
+
+### 10.4 Context Pattern
+```typescript
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  isAuthenticated: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+}
+```
+
+---
+
+## 11. Routing Guidelines
+
+### 11.1 Route Structure
+```typescript
+// Consumer routes
+/                           → Index (home)
+/grocery                    → Grocery service
+/trips                      → Trip booking
+/trip-booking/*             → Trip booking sub-routes
+/product/:id                → Product detail
+/profile                    → User profile
+
+// Admin routes (protected)
+/admin/login                → Admin login
+/admin/dashboard            → Dashboard
+/admin/product-management   → Product management
+/admin/vendors              → Vendor management
+/admin/services/*           → Service management
+```
+
+### 11.2 Adding New Routes
+```typescript
+// 1. Create page component in client/pages/
+// 2. Add route in App.tsx ABOVE the catch-all "*" route
+
+// For consumer routes:
+<Route path="/my-feature" element={<MyFeature />} />
+
+// For protected routes with LocationGuard:
+<Route path="/my-feature" element={
+  <LocationGuard><MyFeature /></LocationGuard>
+} />
+
+// For admin routes (inside admin layout):
+<Route path="my-admin-page" element={<MyAdminPage />} />
+```
+
+### 11.3 Route Protection
+```typescript
+// AdminRoute component wraps protected admin pages
+<AdminRoute>
+  <AdminLayout />
+</AdminRoute>
+
+// LocationGuard ensures location is selected
+<LocationGuard>
+  <Grocery />
+</LocationGuard>
+```
+
+---
+
+## 12. Database Integration
+
+### 12.1 Supabase Client
+**Location**: [client/lib/supabase.ts](mdc:client/lib/supabase.ts)
+
+```typescript
+import { createClient } from '@supabase/supabase-js';
+
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  }
+);
+```
+
+### 12.2 Query Patterns
+```typescript
+// Basic select
+const { data, error } = await supabase
+  .from('products')
+  .select('*')
+  .eq('is_active', true);
+
+// With relations
+const { data } = await supabase
+  .from('offerings')
+  .select(`
+    *,
+    vendor:vendors(name, logo_url),
+    category:categories(name)
+  `)
+  .eq('status', 'active');
+
+// With RLS (Row Level Security)
+// RLS is automatic based on auth.uid()
+```
+
+### 12.3 Real-time Subscriptions
+```typescript
+useEffect(() => {
+  const channel = supabase
+    .channel('products-realtime')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'offerings'
+    }, (payload) => {
+      // Handle update
+    })
+    .subscribe();
+  
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
+```
+
+---
+
+## 13. API Development
+
+### 13.1 When to Create Server Endpoints
+**ONLY** create server endpoints for:
+- Private key handling (Firebase Admin, payment secrets)
+- Complex database operations requiring server logic
+- File uploads
+- Third-party API integrations with secrets
+
+**DO NOT** create endpoints for simple CRUD - use Supabase directly.
+
+### 13.2 API Route Structure
+```
+/api/
+├── admin/*        → Admin operations
+├── auth/*         → Authentication
+├── categories/*   → Category CRUD
+├── products/*     → Product management
+├── vendors/*      → Vendor management
+├── firebase/*     → FCM notifications
+└── upload/*       → File uploads
+```
+
+### 13.3 Adding New API Route
+```typescript
+// 1. Create shared interface (shared/api.ts)
+export interface MyResponse {
+  success: boolean;
+  data?: any;
+}
+
+// 2. Create route handler (server/routes/my-route.ts)
+import { RequestHandler } from 'express';
+import { MyResponse } from '@shared/api';
+
+export const handleMyRoute: RequestHandler = (req, res) => {
+  const response: MyResponse = { success: true };
+  res.json(response);
+};
+
+// 3. Register in server/index.ts
+app.get('/api/my-endpoint', handleMyRoute);
+```
+
+---
+
+## 14. Performance Guidelines
+
+### 14.1 Component Optimization
+```typescript
+// Memoize expensive components
+const TripCard = React.memo(({ trip }: { trip: Trip }) => {
+  return <Card>{/* ... */}</Card>;
+});
+
+// Memoize callbacks passed to children
+const handleClick = useCallback(() => {
+  // handler logic
+}, [dependencies]);
+
+// Memoize expensive calculations
+const sortedTrips = useMemo(() => {
+  return trips.sort((a, b) => a.departureTime - b.departureTime);
+}, [trips]);
+```
+
+### 14.2 Code Splitting
+```typescript
+// Lazy load heavy components
+const LiveTrackingMap = lazy(() => import('./LiveTrackingMap'));
+const DriverDashboard = lazy(() => import('./pages/DriverDashboard'));
+
+// Use with Suspense
+<Suspense fallback={<LoadingSpinner />}>
+  <LiveTrackingMap />
+</Suspense>
+```
+
+### 14.3 Data Fetching Best Practices
+- Use React Query with appropriate `staleTime`
+- Implement pagination (default: 50 items)
+- Cancel pending requests on unmount
+- Use optimistic updates for better UX
+
+### 14.4 Image Optimization
+- Use WebP format
+- Implement lazy loading
+- Provide placeholder/skeleton
+- Use appropriate image sizes
+
+---
+
+## 15. Testing Standards
+
+### 15.1 Testing Framework
+**Framework**: Vitest
+**Location**: Test files alongside source or in `__tests__/`
+**Naming**: `*.spec.ts` or `*.test.ts`
+
+### 15.2 Test Coverage Requirements
+- Critical business logic: 90%+
+- API routes: 80%+
+- UI components: 70%+
+- Utility functions: 85%+
+
+### 15.3 Test Structure
+```typescript
+// Follow AAA pattern
+describe('TripEntity', () => {
+  it('should calculate total price correctly', () => {
+    // Arrange
+    const trip = new TripEntity({ pricePerSeat: 100, totalSeats: 4 });
+    
+    // Act
+    const total = trip.calculateTotalPrice(2);
+    
+    // Assert
+    expect(total).toBe(200);
+  });
+});
+```
+
+---
+
+## 16. Security Guidelines
+
+### 16.1 Authentication
+- Use Supabase Auth exclusively
+- Implement RLS on all tables
+- Validate JWT tokens server-side
+- Never expose secrets in client code
+
+### 16.2 Input Validation
+- Use Zod for runtime validation
+- Sanitize all user inputs
+- Validate file uploads (type, size)
+- Implement rate limiting
+
+### 16.3 Environment Variables
+```bash
+# Client-side (VITE_ prefix required)
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+
+# Server-side only (never expose)
+SUPABASE_SERVICE_ROLE_KEY=
+FIREBASE_ADMIN_CREDENTIALS=
+```
+
+---
+
+## 17. Feature Development Checklist
+
+### 17.1 New Feature Setup
+- [ ] Create domain entities in `client/domain/entities/`
+- [ ] Define repository interfaces in `client/domain/repositories/`
+- [ ] Implement repositories in `client/infrastructure/`
+- [ ] Create custom hooks in `client/hooks/{feature}/`
+- [ ] Build components following atomic design
+- [ ] Add types to `shared/api.ts`
+- [ ] Create database migrations if needed
+- [ ] Add routes to `App.tsx`
+- [ ] Write tests
+
+### 17.2 Component Checklist
+- [ ] TypeScript types for all props
+- [ ] Loading state handling
+- [ ] Error state handling
+- [ ] Accessibility (keyboard nav, ARIA labels)
+- [ ] Responsive design
+- [ ] Dark mode support
+- [ ] Performance optimization (memo, useMemo)
+
+### 17.3 Database Checklist
+- [ ] Create migration file
+- [ ] Add indexes for frequent queries
+- [ ] Set up RLS policies
+- [ ] Create database functions if needed
+- [ ] Update TypeScript types
+
+---
+
+## 18. Quick Reference Commands
+
+```bash
+# Development
+pnpm dev              # Start dev server
+pnpm typecheck        # TypeScript validation
+pnpm test             # Run tests
+
+# Build
+pnpm build            # Production build
+pnpm build:client     # Client only
+pnpm build:server     # Server only
+
+# Database
+supabase migration new feature_name  # Create migration
+supabase db push                     # Apply migrations
+supabase gen types typescript        # Generate types
+```
+
+---
+
+## 19. Related Rule Files
+
+- [comprehensive-project-rules.mdc](mdc:.cursor/rules/comprehensive-project-rules.mdc): Full project rules
+- [scalability-architecture.mdc](mdc:.cursor/rules/scalability-architecture.mdc): Scalability patterns
+- [database-supabase.mdc](mdc:.cursor/rules/database-supabase.mdc): Database guidelines
+- [trip-booking-architecture.mdc](mdc:.cursor/rules/trip-booking-architecture.mdc): Clean Architecture example
+- [admin-system.mdc](mdc:.cursor/rules/admin-system.mdc): Admin panel guidelines
+- [business-domain.mdc](mdc:.cursor/rules/business-domain.mdc): Business logic rules
+- [api-backend.mdc](mdc:.cursor/rules/api-backend.mdc): API development
+- [ui-components.mdc](mdc:.cursor/rules/ui-components.mdc): UI component guidelines
+- [routing-pages.mdc](mdc:.cursor/rules/routing-pages.mdc): Routing guidelines
+- [state-management.mdc](mdc:.cursor/rules/state-management.mdc): State patterns
+
+---
+
+**Last Updated**: December 2025
+**Version**: 2.0.0

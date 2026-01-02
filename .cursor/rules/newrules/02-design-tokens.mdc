@@ -1,0 +1,636 @@
+---
+description: Complete Design Token System - Colors, Typography, Spacing, Effects
+globs: **/*.css,**/*.tsx,tailwind.config.ts
+---
+
+# KooliHub Design Token System
+
+## Overview
+Centralized design token definitions for consistent UI across the application. All tokens are defined in CSS variables and extended via Tailwind config.
+
+---
+
+## 1. Token Architecture
+
+### 1.1 Token Hierarchy
+```
+Design Tokens
+├── Primitive Tokens (raw values)
+│   ├── Colors (hex, hsl)
+│   ├── Spacing (px, rem)
+│   └── Typography (px, rem)
+│
+├── Semantic Tokens (purpose-based)
+│   ├── --primary, --secondary
+│   ├── --background, --foreground
+│   └── --destructive, --muted
+│
+└── Component Tokens (component-specific)
+    ├── --button-height
+    ├── --card-radius
+    └── --input-border
+```
+
+### 1.2 Token File Locations
+```
+client/
+├── global.css           # CSS custom properties
+├── lib/
+│   ├── tokens.ts        # TypeScript token exports
+│   └── constants.ts     # Static constants
+│
+tailwind.config.ts       # Tailwind extensions
+```
+
+---
+
+## 2. Color Tokens
+
+### 2.1 Core Color Palette (global.css)
+```css
+:root {
+  /* ═══════════════════════════════════════════
+     PRIMITIVE COLORS (Raw HSL Values)
+     ═══════════════════════════════════════════ */
+  
+  /* Brand */
+  --brand-yellow-h: 48;
+  --brand-yellow-s: 95%;
+  --brand-yellow-l: 63%;
+  
+  /* Neutrals */
+  --neutral-0: 0 0% 100%;       /* White */
+  --neutral-50: 210 40% 98%;
+  --neutral-100: 210 40% 96%;
+  --neutral-200: 214 32% 91%;
+  --neutral-300: 213 27% 84%;
+  --neutral-400: 215 20% 65%;
+  --neutral-500: 215 16% 47%;
+  --neutral-600: 215 19% 35%;
+  --neutral-700: 215 25% 27%;
+  --neutral-800: 217 33% 17%;
+  --neutral-900: 222 47% 11%;
+  --neutral-950: 222 84% 5%;
+  
+  /* ═══════════════════════════════════════════
+     SEMANTIC COLORS (Purpose-Based)
+     ═══════════════════════════════════════════ */
+  
+  /* Background & Foreground */
+  --background: var(--neutral-0);
+  --foreground: var(--neutral-950);
+  
+  /* Primary (Brand Yellow) */
+  --primary: 48 95% 63%;
+  --primary-foreground: 0 0% 0%;
+  
+  /* Secondary */
+  --secondary: var(--neutral-100);
+  --secondary-foreground: var(--neutral-900);
+  
+  /* Muted */
+  --muted: var(--neutral-100);
+  --muted-foreground: var(--neutral-500);
+  
+  /* Accent */
+  --accent: var(--neutral-100);
+  --accent-foreground: var(--neutral-900);
+  
+  /* Destructive */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  
+  /* Success */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+  
+  /* Warning */
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 0%;
+  
+  /* Info */
+  --info: 199 89% 48%;
+  --info-foreground: 0 0% 100%;
+  
+  /* ═══════════════════════════════════════════
+     UI ELEMENT COLORS
+     ═══════════════════════════════════════════ */
+  
+  --card: var(--neutral-0);
+  --card-foreground: var(--neutral-950);
+  
+  --popover: var(--neutral-0);
+  --popover-foreground: var(--neutral-950);
+  
+  --border: var(--neutral-200);
+  --input: var(--neutral-200);
+  --ring: 25 85% 55%;
+}
+
+/* Dark Mode */
+.dark {
+  --background: var(--neutral-950);
+  --foreground: var(--neutral-50);
+  
+  --primary: 48 95% 70%;
+  --primary-foreground: var(--neutral-950);
+  
+  --secondary: var(--neutral-800);
+  --secondary-foreground: var(--neutral-50);
+  
+  --muted: var(--neutral-800);
+  --muted-foreground: var(--neutral-400);
+  
+  --card: var(--neutral-950);
+  --card-foreground: var(--neutral-50);
+  
+  --border: var(--neutral-800);
+  --input: var(--neutral-800);
+}
+```
+
+### 2.2 Service-Specific Colors (tailwind.config.ts)
+```typescript
+// Service color palettes
+const serviceColors = {
+  grocery: {
+    50: '#f0fdf4',
+    100: '#dcfce7',
+    200: '#bbf7d0',
+    300: '#86efac',
+    400: '#4ade80',
+    500: '#10b981',  // Primary
+    600: '#059669',
+    700: '#047857',
+    800: '#065f46',
+    900: '#064e3b',
+  },
+  trips: {
+    50: '#eff6ff',
+    100: '#dbeafe',
+    200: '#bfdbfe',
+    300: '#93c5fd',
+    400: '#60a5fa',
+    500: '#3b82f6',  // Primary
+    600: '#2563eb',
+    700: '#1d4ed8',
+    800: '#1e40af',
+    900: '#1e3a8a',
+  },
+  handyman: {
+    50: '#fff7ed',
+    100: '#ffedd5',
+    200: '#fed7aa',
+    300: '#fdba74',
+    400: '#fb923c',
+    500: '#f97316',  // Primary
+    600: '#ea580c',
+    700: '#c2410c',
+    800: '#9a3412',
+    900: '#7c2d12',
+  },
+  'car-rental': {
+    50: '#faf5ff',
+    100: '#f3e8ff',
+    200: '#e9d5ff',
+    300: '#d8b4fe',
+    400: '#c084fc',
+    500: '#8b5cf6',  // Primary
+    600: '#7c3aed',
+    700: '#6d28d9',
+    800: '#5b21b6',
+    900: '#4c1d95',
+  },
+  fashion: {
+    50: '#fdf2f8',
+    100: '#fce7f3',
+    200: '#fbcfe8',
+    300: '#f9a8d4',
+    400: '#f472b6',
+    500: '#ec4899',  // Primary
+    600: '#db2777',
+    700: '#be185d',
+    800: '#9d174d',
+    900: '#831843',
+  },
+  electronics: {
+    50: '#f0f9ff',
+    100: '#e0f2fe',
+    200: '#bae6fd',
+    300: '#7dd3fc',
+    400: '#38bdf8',
+    500: '#0ea5e9',  // Primary
+    600: '#0284c7',
+    700: '#0369a1',
+    800: '#075985',
+    900: '#0c4a6e',
+  },
+  beauty: {
+    50: '#fff1f2',
+    100: '#ffe4e6',
+    200: '#fecdd3',
+    300: '#fda4af',
+    400: '#fb7185',
+    500: '#f43f5e',  // Primary
+    600: '#e11d48',
+    700: '#be123c',
+    800: '#9f1239',
+    900: '#881337',
+  },
+};
+```
+
+### 2.3 Status Colors
+```typescript
+// Status indicator colors
+const statusColors = {
+  // Order status
+  pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300' },
+  confirmed: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' },
+  processing: { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
+  shipped: { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-300' },
+  delivered: { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-300' },
+  cancelled: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' },
+  
+  // Generic status
+  active: { bg: 'bg-green-100', text: 'text-green-800' },
+  inactive: { bg: 'bg-gray-100', text: 'text-gray-800' },
+  draft: { bg: 'bg-gray-100', text: 'text-gray-600' },
+  error: { bg: 'bg-red-100', text: 'text-red-800' },
+  warning: { bg: 'bg-yellow-100', text: 'text-yellow-800' },
+  success: { bg: 'bg-green-100', text: 'text-green-800' },
+  info: { bg: 'bg-blue-100', text: 'text-blue-800' },
+};
+```
+
+---
+
+## 3. Typography Tokens
+
+### 3.1 Font Family
+```css
+:root {
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+```
+
+### 3.2 Font Size Scale
+```typescript
+// TypeScript token export
+export const FONT_SIZES = {
+  xs: '0.75rem',    // 12px
+  sm: '0.875rem',   // 14px
+  base: '1rem',     // 16px
+  lg: '1.125rem',   // 18px
+  xl: '1.25rem',    // 20px
+  '2xl': '1.5rem',  // 24px
+  '3xl': '1.875rem', // 30px
+  '4xl': '2.25rem', // 36px
+  '5xl': '3rem',    // 48px
+} as const;
+
+// Line heights
+export const LINE_HEIGHTS = {
+  none: '1',
+  tight: '1.25',
+  snug: '1.375',
+  normal: '1.5',
+  relaxed: '1.625',
+  loose: '2',
+} as const;
+
+// Font weights
+export const FONT_WEIGHTS = {
+  normal: '400',
+  medium: '500',
+  semibold: '600',
+  bold: '700',
+} as const;
+```
+
+### 3.3 Typography Presets
+```typescript
+// Composite typography styles
+export const TYPOGRAPHY = {
+  // Headings
+  h1: 'text-4xl font-bold leading-tight tracking-tight',
+  h2: 'text-3xl font-bold leading-tight',
+  h3: 'text-2xl font-semibold leading-snug',
+  h4: 'text-xl font-semibold leading-snug',
+  h5: 'text-lg font-semibold',
+  h6: 'text-base font-semibold',
+  
+  // Body
+  bodyLarge: 'text-lg leading-relaxed',
+  body: 'text-base leading-normal',
+  bodySmall: 'text-sm leading-normal',
+  
+  // Utility
+  caption: 'text-xs text-muted-foreground',
+  label: 'text-sm font-medium',
+  overline: 'text-xs uppercase tracking-wider font-semibold',
+  
+  // Code
+  code: 'font-mono text-sm',
+} as const;
+```
+
+---
+
+## 4. Spacing Tokens
+
+### 4.1 Spacing Scale
+```typescript
+// Spacing scale (based on 4px unit)
+export const SPACING = {
+  0: '0',
+  px: '1px',
+  0.5: '0.125rem', // 2px
+  1: '0.25rem',    // 4px
+  1.5: '0.375rem', // 6px
+  2: '0.5rem',     // 8px
+  2.5: '0.625rem', // 10px
+  3: '0.75rem',    // 12px
+  3.5: '0.875rem', // 14px
+  4: '1rem',       // 16px
+  5: '1.25rem',    // 20px
+  6: '1.5rem',     // 24px
+  7: '1.75rem',    // 28px
+  8: '2rem',       // 32px
+  9: '2.25rem',    // 36px
+  10: '2.5rem',    // 40px
+  11: '2.75rem',   // 44px
+  12: '3rem',      // 48px
+  14: '3.5rem',    // 56px
+  16: '4rem',      // 64px
+  20: '5rem',      // 80px
+  24: '6rem',      // 96px
+  28: '7rem',      // 112px
+  32: '8rem',      // 128px
+} as const;
+```
+
+### 4.2 Component Spacing Presets
+```typescript
+export const COMPONENT_SPACING = {
+  // Card padding
+  cardPadding: {
+    sm: 'p-3',
+    md: 'p-4',
+    lg: 'p-6',
+  },
+  
+  // Section spacing
+  sectionGap: {
+    sm: 'space-y-4',
+    md: 'space-y-6',
+    lg: 'space-y-8',
+  },
+  
+  // Form spacing
+  formGap: 'space-y-4',
+  inputGap: 'space-y-2',
+  
+  // List spacing
+  listGap: {
+    tight: 'space-y-1',
+    normal: 'space-y-2',
+    loose: 'space-y-4',
+  },
+  
+  // Grid gaps
+  gridGap: {
+    sm: 'gap-2',
+    md: 'gap-4',
+    lg: 'gap-6',
+    xl: 'gap-8',
+  },
+} as const;
+```
+
+---
+
+## 5. Effect Tokens
+
+### 5.1 Border Radius
+```css
+:root {
+  --radius-none: 0;
+  --radius-sm: 0.125rem;   /* 2px */
+  --radius-default: 0.25rem; /* 4px */
+  --radius-md: 0.375rem;   /* 6px */
+  --radius-lg: 0.5rem;     /* 8px */
+  --radius-xl: 0.75rem;    /* 12px - Primary */
+  --radius-2xl: 1rem;      /* 16px */
+  --radius-3xl: 1.5rem;    /* 24px */
+  --radius-full: 9999px;   /* Pill */
+  
+  /* Semantic radius */
+  --radius: var(--radius-xl);  /* Default component radius */
+}
+```
+
+### 5.2 Shadow Tokens
+```css
+:root {
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  
+  /* Component-specific shadows */
+  --shadow-card: var(--shadow-sm);
+  --shadow-dropdown: var(--shadow-lg);
+  --shadow-modal: var(--shadow-xl);
+  --shadow-toast: var(--shadow-lg);
+}
+```
+
+### 5.3 Animation Tokens
+```css
+:root {
+  /* Durations */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
+  
+  /* Easing */
+  --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+```
+
+---
+
+## 6. Z-Index Tokens
+
+```typescript
+export const Z_INDEX = {
+  // Base layers
+  behind: -1,
+  base: 0,
+  
+  // Component layers
+  dropdown: 10,
+  sticky: 20,
+  fixed: 30,
+  modalBackdrop: 40,
+  modal: 50,
+  popover: 60,
+  tooltip: 70,
+  
+  // System layers
+  toast: 100,
+  selectContent: 10000, // Radix requirement
+  
+  // Max
+  max: 9999,
+} as const;
+```
+
+---
+
+## 7. Breakpoint Tokens
+
+```typescript
+export const BREAKPOINTS = {
+  xs: '320px',   // Small phones
+  sm: '640px',   // Large phones / Small tablets
+  md: '768px',   // Tablets
+  lg: '1024px',  // Laptops
+  xl: '1280px',  // Desktops
+  '2xl': '1400px', // Large screens
+} as const;
+
+// Container max-widths
+export const CONTAINERS = {
+  xs: '320px',
+  sm: '640px',
+  md: '768px',
+  lg: '1024px',
+  xl: '1280px',
+  '2xl': '1400px',
+} as const;
+```
+
+---
+
+## 8. Component Tokens
+
+### 8.1 Button Tokens
+```typescript
+export const BUTTON_TOKENS = {
+  height: {
+    sm: 'h-9',     // 36px
+    md: 'h-10',    // 40px
+    lg: 'h-11',    // 44px
+    icon: 'h-10 w-10',
+  },
+  padding: {
+    sm: 'px-3',
+    md: 'px-4',
+    lg: 'px-8',
+  },
+  fontSize: {
+    sm: 'text-sm',
+    md: 'text-sm',
+    lg: 'text-base',
+  },
+  radius: 'rounded-md',
+} as const;
+```
+
+### 8.2 Input Tokens
+```typescript
+export const INPUT_TOKENS = {
+  height: 'h-10',        // 40px
+  padding: 'px-3 py-2',
+  radius: 'rounded-md',
+  border: 'border border-input',
+  focus: 'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+} as const;
+```
+
+### 8.3 Card Tokens
+```typescript
+export const CARD_TOKENS = {
+  padding: {
+    sm: 'p-4',
+    md: 'p-6',
+    lg: 'p-8',
+  },
+  radius: 'rounded-lg',
+  shadow: 'shadow-sm',
+  border: 'border border-border',
+} as const;
+```
+
+---
+
+## 9. Token Usage Examples
+
+### Using in Components
+```typescript
+import { TYPOGRAPHY, COMPONENT_SPACING, BUTTON_TOKENS } from '@/lib/tokens';
+
+export function ExampleComponent() {
+  return (
+    <div className={COMPONENT_SPACING.cardPadding.md}>
+      <h2 className={TYPOGRAPHY.h2}>Title</h2>
+      <p className={TYPOGRAPHY.body}>Description text</p>
+      <Button className={BUTTON_TOKENS.height.md}>
+        Click me
+      </Button>
+    </div>
+  );
+}
+```
+
+### Using CSS Variables
+```tsx
+// In JSX with inline styles (avoid when possible)
+<div style={{ 
+  padding: 'var(--spacing-4)',
+  borderRadius: 'var(--radius)',
+  boxShadow: 'var(--shadow-card)'
+}}>
+
+// Better: Use Tailwind classes that reference variables
+<div className="p-4 rounded-lg shadow-sm">
+```
+
+---
+
+## 10. Token Maintenance
+
+### Adding New Tokens
+1. Add to appropriate section in `global.css`
+2. Add TypeScript export in `lib/tokens.ts`
+3. Extend `tailwind.config.ts` if needed
+4. Document in this file
+5. Update component usage
+
+### Token Naming Convention
+```
+[category]-[variant?]-[scale?]
+
+Examples:
+--color-primary
+--color-primary-foreground
+--spacing-4
+--font-size-lg
+--shadow-card
+--radius-lg
+```
+
+---
+
+**File**: `client/lib/tokens.ts` (Create this file with all TypeScript exports)
+**Related**: [color-system.mdc](./07-color-system.mdc), [typography-strings.mdc](./03-typography-strings.mdc)

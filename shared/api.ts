@@ -847,6 +847,201 @@ export interface DashboardStats {
 }
 
 // ============================================
+// TRIP BOOKING TYPES
+// ============================================
+
+export type TripType = 'scheduled' | 'instant' | 'recurring';
+export type TripStatus = 'scheduled' | 'active' | 'completed' | 'cancelled';
+export type VehicleType = 'car' | 'suv' | 'van' | 'bus' | 'bike' | 'auto';
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+export type DriverStatus = 'active' | 'inactive' | 'suspended';
+export type VerificationStatus = 'pending' | 'verified' | 'rejected';
+
+// Route interface
+export interface Route {
+  id: string;
+  name: string;
+  departure_location: string;
+  departure_lat?: number;
+  departure_lng?: number;
+  arrival_location: string;
+  arrival_lat?: number;
+  arrival_lng?: number;
+  waypoints?: any;
+  distance_km?: number;
+  estimated_duration_minutes?: number;
+  route_polyline?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Driver Profile interface
+export interface DriverProfile {
+  id: string;
+  license_number: string;
+  license_expiry: string;
+  license_image_url?: string;
+  address_proof_type?: string;
+  address_proof_url?: string;
+  background_check_status: VerificationStatus;
+  verification_date?: string;
+  total_trips: number;
+  total_earnings: number;
+  average_rating?: number;
+  is_available: boolean;
+  status: DriverStatus;
+  preferences?: any;
+  created_at: string;
+  updated_at: string;
+  profile?: Profile; // Extended user profile
+}
+
+// Vehicle interface
+export interface Vehicle {
+  id: string;
+  driver_id: string;
+  vehicle_type: VehicleType;
+  make: string;
+  model: string;
+  year?: number;
+  color?: string;
+  license_plate: string;
+  seating_capacity: number;
+  registration_number?: string;
+  insurance_number?: string;
+  insurance_expiry?: string;
+  pollution_certificate_expiry?: string;
+  features?: string[];
+  images?: any;
+  documents?: any;
+  is_verified: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  driver?: Profile;
+}
+
+// Trip interface
+export interface Trip {
+  id: string;
+  driver_id: string;
+  vehicle_id?: string;
+  route_id?: string;
+  trip_type: TripType;
+  departure_time: string;
+  arrival_time?: string;
+  total_seats: number;
+  available_seats: number;
+  price_per_seat: number;
+  status: TripStatus;
+  amenities?: string[];
+  recurring_config?: any;
+  metadata?: any;
+  created_at: string;
+  updated_at: string;
+  driver?: Profile;
+  vehicle?: Vehicle;
+  route?: Route;
+  driver_profile?: DriverProfile;
+}
+
+// Trip Booking interface
+export interface TripBooking {
+  id: string;
+  trip_id: string;
+  passenger_id: string;
+  seats_booked: number;
+  pickup_location?: string;
+  pickup_lat?: number;
+  pickup_lng?: number;
+  dropoff_location?: string;
+  dropoff_lat?: number;
+  dropoff_lng?: number;
+  total_amount: number;
+  booking_status: BookingStatus;
+  payment_id?: string;
+  passenger_notes?: string;
+  cancellation_reason?: string;
+  cancelled_at?: string;
+  created_at: string;
+  updated_at: string;
+  trip?: Trip;
+  passenger?: Profile;
+  payment?: Payment;
+}
+
+// Trip Review interface
+export interface TripReview {
+  id: string;
+  booking_id: string;
+  trip_id?: string;
+  reviewer_id: string;
+  reviewee_id: string;
+  rating: number;
+  review_text?: string;
+  categories?: any;
+  is_anonymous: boolean;
+  helpful_count: number;
+  created_at: string;
+  updated_at: string;
+  reviewer?: Profile;
+  reviewee?: Profile;
+  booking?: TripBooking;
+}
+
+// Trip Message interface
+export interface TripMessage {
+  id: string;
+  trip_id: string;
+  sender_id: string;
+  receiver_id: string;
+  message_text: string;
+  is_read: boolean;
+  read_at?: string;
+  metadata?: any;
+  created_at: string;
+  sender?: Profile;
+  receiver?: Profile;
+}
+
+// Trip Tracking interface
+export interface TripTracking {
+  id: string;
+  trip_id: string;
+  driver_id: string;
+  location_lat: number;
+  location_lng: number;
+  speed_kmh?: number;
+  heading?: number;
+  accuracy_meters?: number;
+  timestamp: string;
+  created_at: string;
+}
+
+// Trip Search Criteria
+export interface TripSearchCriteria {
+  departure_location?: string;
+  arrival_location?: string;
+  departure_date?: string;
+  vehicle_type?: VehicleType;
+  min_seats?: number;
+  max_price?: number;
+}
+
+// Trip with extended data for UI
+export interface TripWithDetails extends Trip {
+  distance_km?: number;
+  duration_minutes?: number;
+  departure_location?: string;
+  arrival_location?: string;
+  driver_name?: string;
+  driver_avatar?: string;
+  driver_rating?: number;
+  vehicle_name?: string;
+}
+
+// ============================================
 // ENHANCED ATTRIBUTE SYSTEM TYPES
 // ============================================
 

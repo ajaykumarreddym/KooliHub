@@ -1,0 +1,918 @@
+---
+description: Trip Booking System Architecture - Clean Architecture + SOLID Principles + Scalability
+---
+
+# Trip Booking System Architecture Guidelines
+
+## Overview
+KooliHub Trip Booking feature is a comprehensive ride-sharing/trip booking system designed with clean architecture, SOLID principles, reusable components, and scalability in mind.
+
+## Feature Modules
+
+### 1. Trip Search & Discovery (Home)
+- **Purpose**: Allow passengers to search and discover available trips/rides
+- **Components**: 
+  - TripSearchForm
+  - TripFilters
+  - LocationAutocomplete
+  - DateTimePicker
+  - PassengerCountSelector
+- **Data Requirements**:
+  - Available routes
+  - Departure/arrival locations
+  - Pricing information
+  - Vehicle types
+  - Availability schedules
+
+### 2. Trips Listing
+- **Purpose**: Display available trips based on search criteria
+- **Components**:
+  - TripList
+  - TripCard (reusable)
+  - TripFilters (reusable from search)
+  - SortOptions
+  - PaginationControls
+- **Data Requirements**:
+  - Filtered trip results
+  - Real-time availability
+  - Price comparison
+  - Driver ratings
+
+### 3. Trip Details
+- **Purpose**: Show comprehensive information about a specific trip
+- **Components**:
+  - TripDetailView
+  - RouteMap
+  - DriverInfo
+  - VehicleInfo
+  - AmenityList
+  - ReviewSection
+  - BookingCTA
+- **Data Requirements**:
+  - Complete trip information
+  - Route waypoints
+  - Driver profile
+  - Vehicle details
+  - Past reviews
+
+### 4. Publish Ride/Route (Driver Feature)
+- **Purpose**: Allow drivers to create and publish new ride/route offerings
+- **Components**:
+  - PublishRideForm
+  - RouteBuilder
+  - PricingCalculator
+  - ScheduleManager
+  - VehicleSelector
+  - RecurringTripConfig
+- **Data Requirements**:
+  - Driver profile
+  - Registered vehicles
+  - Route information
+  - Pricing rules
+  - Schedule configuration
+
+### 5. Rate & Review System
+- **Purpose**: Enable passengers to rate and review completed trips
+- **Components**:
+  - RatingForm
+  - ReviewTextarea
+  - ReviewList
+  - RatingStats
+  - ReviewFilters
+- **Data Requirements**:
+  - Trip history
+  - User profiles
+  - Rating metrics
+  - Review text
+
+### 6. Live Tracking
+- **Purpose**: Real-time tracking of ongoing trips
+- **Components**:
+  - LiveMap
+  - LocationTracker
+  - ETADisplay
+  - DriverLocation
+  - PassengerNotifications
+- **Data Requirements**:
+  - Real-time GPS coordinates
+  - Route progress
+  - ETA calculations
+  - Traffic data
+
+### 7. Driver-Passenger Chat
+- **Purpose**: In-app communication between driver and passengers
+- **Components**:
+  - ChatInterface
+  - MessageList
+  - MessageInput
+  - QuickReplies
+  - NotificationBadge
+- **Data Requirements**:
+  - Message history
+  - User profiles
+  - Read receipts
+  - Notification status
+
+### 8. My Published Rides (Driver Dashboard)
+- **Purpose**: Driver's management interface for published rides
+- **Components**:
+  - PublishedRidesList
+  - RideStatusCard
+  - BookingRequests
+  - EarningsOverview
+  - RideHistory
+  - AnalyticsDashboard
+- **Data Requirements**:
+  - Published rides
+  - Booking requests
+  - Revenue data
+  - Performance metrics
+
+### 9. User Profile
+- **Purpose**: Passenger profile management
+- **Components**:
+  - ProfileView
+  - ProfileEditForm
+  - BookingHistory
+  - SavedLocations
+  - PaymentMethods
+  - PreferencesSettings
+- **Data Requirements**:
+  - User profile data
+  - Trip history
+  - Saved addresses
+  - Payment info
+
+### 10. Driver Profile
+- **Purpose**: Driver profile with additional verification
+- **Components**:
+  - DriverProfileView
+  - DriverVerification
+  - LicenseManagement
+  - InsuranceDocuments
+  - RatingDisplay
+  - EarningsReport
+- **Data Requirements**:
+  - Driver profile
+  - Verification documents
+  - License information
+  - Insurance details
+  - Rating history
+
+### 11. Add/Manage Vehicle
+- **Purpose**: Vehicle registration and management for drivers
+- **Components**:
+  - VehicleForm
+  - VehicleList
+  - VehicleCard
+  - DocumentUpload
+  - MaintenanceSchedule
+  - InsuranceTracker
+- **Data Requirements**:
+  - Vehicle details
+  - Registration documents
+  - Insurance papers
+  - Maintenance records
+
+### 12. Notification Settings
+- **Purpose**: Configure notification preferences
+- **Components**:
+  - NotificationPreferences
+  - ChannelToggles
+  - QuietHoursConfig
+  - NotificationHistory
+- **Data Requirements**:
+  - User preferences
+  - FCM tokens
+  - Notification history
+
+### 13. Booking Flow
+- **Purpose**: End-to-end booking process
+- **Components**:
+  - BookingWizard
+  - PassengerDetails
+  - SeatSelection
+  - PickupDropoffSelector
+  - BookingSummary
+  - TermsAndConditions
+- **Data Requirements**:
+  - Trip availability
+  - Passenger count
+  - Selected seats
+  - Pickup/dropoff points
+
+### 14. Payment & Confirmation
+- **Purpose**: Payment processing and booking confirmation
+- **Components**:
+  - PaymentGateway
+  - PaymentMethodSelector
+  - PriceBreakdown
+  - BookingConfirmation
+  - ReceiptGenerator
+  - RefundPolicy
+- **Data Requirements**:
+  - Payment methods
+  - Pricing details
+  - Booking confirmation
+  - Transaction history
+
+## Database Schema Requirements
+
+### Core Tables Needed
+
+#### trips
+```sql
+CREATE TABLE trips (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  driver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  vehicle_id UUID REFERENCES vehicles(id),
+  route_id UUID REFERENCES routes(id),
+  trip_type TEXT CHECK (trip_type IN ('scheduled', 'instant', 'recurring')),
+  departure_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  arrival_time TIMESTAMP WITH TIME ZONE,
+  total_seats INTEGER NOT NULL,
+  available_seats INTEGER NOT NULL,
+  price_per_seat DECIMAL(10,2) NOT NULL,
+  status TEXT CHECK (status IN ('scheduled', 'active', 'completed', 'cancelled')) DEFAULT 'scheduled',
+  amenities TEXT[],
+  recurring_config JSONB, -- For recurring trips
+  metadata JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+#### routes
+```sql
+CREATE TABLE routes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  departure_location TEXT NOT NULL,
+  departure_lat DECIMAL(10,8),
+  departure_lng DECIMAL(11,8),
+  arrival_location TEXT NOT NULL,
+  arrival_lat DECIMAL(10,8),
+  arrival_lng DECIMAL(11,8),
+  waypoints JSONB, -- Intermediate stops
+  distance_km DECIMAL(10,2),
+  estimated_duration_minutes INTEGER,
+  route_polyline TEXT, -- Encoded polyline for map
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+#### vehicles
+```sql
+CREATE TABLE vehicles (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  driver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  vehicle_type TEXT CHECK (vehicle_type IN ('car', 'suv', 'van', 'bus', 'bike')),
+  make TEXT NOT NULL,
+  model TEXT NOT NULL,
+  year INTEGER,
+  color TEXT,
+  license_plate TEXT UNIQUE NOT NULL,
+  seating_capacity INTEGER NOT NULL,
+  registration_number TEXT,
+  insurance_number TEXT,
+  insurance_expiry DATE,
+  pollution_certificate_expiry DATE,
+  features TEXT[], -- AC, WiFi, Music, etc.
+  images JSONB,
+  documents JSONB, -- Registration, insurance, etc.
+  is_verified BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+#### bookings
+```sql
+CREATE TABLE trip_bookings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  trip_id UUID REFERENCES trips(id) ON DELETE CASCADE,
+  passenger_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  seats_booked INTEGER NOT NULL DEFAULT 1,
+  pickup_location TEXT,
+  pickup_lat DECIMAL(10,8),
+  pickup_lng DECIMAL(11,8),
+  dropoff_location TEXT,
+  dropoff_lat DECIMAL(10,8),
+  dropoff_lng DECIMAL(11,8),
+  total_amount DECIMAL(10,2) NOT NULL,
+  booking_status TEXT CHECK (booking_status IN ('pending', 'confirmed', 'cancelled', 'completed', 'no_show')) DEFAULT 'pending',
+  payment_id UUID REFERENCES payments(id),
+  passenger_notes TEXT,
+  cancellation_reason TEXT,
+  cancelled_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+#### trip_reviews
+```sql
+CREATE TABLE trip_reviews (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id UUID REFERENCES trip_bookings(id) ON DELETE CASCADE,
+  trip_id UUID REFERENCES trips(id),
+  reviewer_id UUID REFERENCES profiles(id),
+  reviewee_id UUID REFERENCES profiles(id), -- Driver being reviewed
+  rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+  review_text TEXT,
+  categories JSONB, -- {punctuality: 5, cleanliness: 4, behavior: 5}
+  is_anonymous BOOLEAN DEFAULT false,
+  helpful_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(booking_id, reviewer_id)
+);
+```
+
+#### trip_messages
+```sql
+CREATE TABLE trip_messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  trip_id UUID REFERENCES trips(id) ON DELETE CASCADE,
+  sender_id UUID REFERENCES profiles(id),
+  receiver_id UUID REFERENCES profiles(id),
+  message_text TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT false,
+  read_at TIMESTAMP WITH TIME ZONE,
+  metadata JSONB, -- For quick replies, attachments, etc.
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+#### trip_tracking
+```sql
+CREATE TABLE trip_tracking (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  trip_id UUID REFERENCES trips(id) ON DELETE CASCADE,
+  driver_id UUID REFERENCES profiles(id),
+  location_lat DECIMAL(10,8) NOT NULL,
+  location_lng DECIMAL(11,8) NOT NULL,
+  speed_kmh DECIMAL(5,2),
+  heading INTEGER, -- Direction in degrees
+  accuracy_meters DECIMAL(6,2),
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+#### driver_profiles
+```sql
+CREATE TABLE driver_profiles (
+  id UUID REFERENCES profiles(id) PRIMARY KEY,
+  license_number TEXT NOT NULL,
+  license_expiry DATE NOT NULL,
+  license_image_url TEXT,
+  address_proof_type TEXT,
+  address_proof_url TEXT,
+  background_check_status TEXT CHECK (background_check_status IN ('pending', 'verified', 'rejected')),
+  verification_date DATE,
+  total_trips INTEGER DEFAULT 0,
+  total_earnings DECIMAL(15,2) DEFAULT 0,
+  average_rating DECIMAL(3,2),
+  is_available BOOLEAN DEFAULT false,
+  status TEXT CHECK (status IN ('active', 'inactive', 'suspended')) DEFAULT 'inactive',
+  preferences JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## Clean Architecture Layers
+
+### 1. Domain Layer (Core Business Logic)
+**Location**: `/client/domain/trip-booking/`
+
+```typescript
+// Entities
+interface Trip {
+  id: string;
+  driverId: string;
+  vehicleId: string;
+  route: Route;
+  departureTime: Date;
+  pricePerSeat: number;
+  availableSeats: number;
+}
+
+// Value Objects
+class Location {
+  constructor(
+    public readonly lat: number,
+    public readonly lng: number,
+    public readonly address: string
+  ) {}
+}
+
+// Use Cases
+class SearchTripsUseCase {
+  execute(criteria: SearchCriteria): Promise<Trip[]>
+}
+
+class BookTripUseCase {
+  execute(booking: BookingRequest): Promise<Booking>
+}
+```
+
+### 2. Application Layer (Use Cases)
+**Location**: `/client/application/trip-booking/`
+
+```typescript
+// Use Cases
+export class SearchTripsUseCase {
+  constructor(private tripRepository: TripRepository) {}
+  
+  async execute(params: SearchParams): Promise<TripDTO[]> {
+    // Business logic
+  }
+}
+```
+
+### 3. Infrastructure Layer (External Services)
+**Location**: `/client/infrastructure/trip-booking/`
+
+```typescript
+// Repositories
+export class SupabaseTripRepository implements TripRepository {
+  async findTrips(criteria: SearchCriteria): Promise<Trip[]> {
+    // Supabase queries
+  }
+}
+
+// Services
+export class MapboxLocationService implements LocationService {
+  async geocode(address: string): Promise<Location> {
+    // Mapbox API calls
+  }
+}
+```
+
+### 4. Presentation Layer (UI Components)
+**Location**: `/client/components/trip-booking/`
+
+```typescript
+// Components follow atomic design
+atoms/      // Button, Input, Badge
+molecules/  // TripCard, SearchBar
+organisms/  // TripList, BookingForm
+templates/  // TripSearchPage, DriverDashboard
+pages/      // Trip booking pages
+```
+
+## SOLID Principles Implementation
+
+### Single Responsibility Principle (SRP)
+```typescript
+// ❌ Bad: Component does too much
+function TripPage() {
+  // Handles fetching, state, UI, validation, booking
+}
+
+// ✅ Good: Separated concerns
+function TripSearchPage() {
+  const { trips, loading } = useTripSearch();
+  return <TripList trips={trips} loading={loading} />;
+}
+```
+
+### Open/Closed Principle (OCP)
+```typescript
+// Base payment processor
+interface PaymentProcessor {
+  process(amount: number): Promise<PaymentResult>;
+}
+
+// Extend without modifying
+class StripePaymentProcessor implements PaymentProcessor {
+  async process(amount: number) { /* Stripe logic */ }
+}
+
+class RazorpayPaymentProcessor implements PaymentProcessor {
+  async process(amount: number) { /* Razorpay logic */ }
+}
+```
+
+### Liskov Substitution Principle (LSP)
+```typescript
+// Base notification sender
+interface NotificationSender {
+  send(message: string, recipient: string): Promise<void>;
+}
+
+// All implementations are interchangeable
+class EmailNotificationSender implements NotificationSender {
+  async send(message: string, recipient: string) { /* Email */ }
+}
+
+class SMSNotificationSender implements NotificationSender {
+  async send(message: string, recipient: string) { /* SMS */ }
+}
+```
+
+### Interface Segregation Principle (ISP)
+```typescript
+// ❌ Bad: Fat interface
+interface TripOperations {
+  searchTrips(): Promise<Trip[]>;
+  bookTrip(): Promise<Booking>;
+  cancelTrip(): Promise<void>;
+  trackTrip(): Promise<Location>;
+  rateTrip(): Promise<Review>;
+}
+
+// ✅ Good: Segregated interfaces
+interface TripSearch {
+  searchTrips(): Promise<Trip[]>;
+}
+
+interface TripBooking {
+  bookTrip(): Promise<Booking>;
+  cancelTrip(): Promise<void>;
+}
+
+interface TripTracking {
+  trackTrip(): Promise<Location>;
+}
+```
+
+### Dependency Inversion Principle (DIP)
+```typescript
+// ❌ Bad: Direct dependency on implementation
+class BookingService {
+  private supabaseClient = createClient(...);
+  
+  async book() {
+    await this.supabaseClient.from('bookings').insert(...);
+  }
+}
+
+// ✅ Good: Depend on abstraction
+interface BookingRepository {
+  save(booking: Booking): Promise<void>;
+}
+
+class BookingService {
+  constructor(private repository: BookingRepository) {}
+  
+  async book(booking: Booking) {
+    await this.repository.save(booking);
+  }
+}
+```
+
+## Reusable Components Strategy
+
+### Component Library Structure
+```
+/client/components/trip-booking/
+├── atoms/
+│   ├── TripBadge.tsx
+│   ├── SeatIndicator.tsx
+│   ├── PriceDisplay.tsx
+│   └── RatingStars.tsx
+├── molecules/
+│   ├── TripCard.tsx
+│   ├── LocationPicker.tsx
+│   ├── DateTimePicker.tsx
+│   └── PassengerSelector.tsx
+├── organisms/
+│   ├── TripSearchForm.tsx
+│   ├── TripList.tsx
+│   ├── BookingWizard.tsx
+│   └── LiveTrackingMap.tsx
+├── templates/
+│   ├── TripSearchTemplate.tsx
+│   ├── TripDetailTemplate.tsx
+│   └── DriverDashboardTemplate.tsx
+└── pages/
+    ├── TripSearchPage.tsx
+    ├── TripDetailPage.tsx
+    └── DriverDashboardPage.tsx
+```
+
+### Custom Hooks (Business Logic)
+```typescript
+// Location: /client/hooks/trip-booking/
+
+// Search trips
+export function useTripSearch(criteria: SearchCriteria) {
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loading, setLoading] = useState(false);
+  // ... logic
+  return { trips, loading, refetch };
+}
+
+// Book trip
+export function useTripBooking() {
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const book = async (tripId: string, details: BookingDetails) => {
+    // ... booking logic
+  };
+  return { booking, book, cancel };
+}
+
+// Live tracking
+export function useLiveTracking(tripId: string) {
+  const [location, setLocation] = useState<Location | null>(null);
+  // ... real-time updates
+  return { location, eta, distance };
+}
+
+// Driver earnings
+export function useDriverEarnings(driverId: string) {
+  const [earnings, setEarnings] = useState<Earnings | null>(null);
+  // ... earnings calculation
+  return { earnings, totalTrips, avgRating };
+}
+```
+
+### Context Providers
+```typescript
+// Location: /client/contexts/trip-booking/
+
+// Trip booking context
+export const TripBookingContext = createContext<TripBookingContextType | null>(null);
+
+export function TripBookingProvider({ children }: { children: ReactNode }) {
+  const [currentBooking, setCurrentBooking] = useState<Booking | null>(null);
+  // ... context logic
+  return (
+    <TripBookingContext.Provider value={{ currentBooking, ... }}>
+      {children}
+    </TripBookingContext.Provider>
+  );
+}
+
+// Live tracking context
+export const LiveTrackingContext = createContext<LiveTrackingContextType | null>(null);
+```
+
+## Scalability Considerations
+
+### 1. Database Optimization
+- **Indexing**: Add indexes on frequently queried columns
+```sql
+CREATE INDEX idx_trips_departure_time ON trips(departure_time);
+CREATE INDEX idx_trips_status ON trips(status);
+CREATE INDEX idx_bookings_passenger_id ON trip_bookings(passenger_id);
+CREATE INDEX idx_bookings_trip_id ON trip_bookings(trip_id);
+CREATE INDEX idx_reviews_reviewee_id ON trip_reviews(reviewee_id);
+```
+
+- **Partitioning**: Partition large tables by date
+```sql
+CREATE TABLE trip_tracking_2024_q1 PARTITION OF trip_tracking
+FOR VALUES FROM ('2024-01-01') TO ('2024-04-01');
+```
+
+- **Materialized Views**: For analytics and reporting
+```sql
+CREATE MATERIALIZED VIEW driver_stats AS
+SELECT 
+  driver_id,
+  COUNT(*) as total_trips,
+  AVG(rating) as avg_rating,
+  SUM(total_amount) as total_earnings
+FROM trips t
+JOIN trip_bookings b ON t.id = b.trip_id
+JOIN trip_reviews r ON b.id = r.booking_id
+GROUP BY driver_id;
+```
+
+### 2. Caching Strategy
+```typescript
+// React Query for server state
+const { data: trips } = useQuery({
+  queryKey: ['trips', searchCriteria],
+  queryFn: () => fetchTrips(searchCriteria),
+  staleTime: 5 * 60 * 1000, // 5 minutes
+  cacheTime: 10 * 60 * 1000, // 10 minutes
+});
+
+// Local storage for user preferences
+const [preferences, setPreferences] = useLocalStorage('trip-preferences', defaultPreferences);
+```
+
+### 3. Real-time Updates
+```typescript
+// Supabase real-time subscriptions
+useEffect(() => {
+  const subscription = supabase
+    .channel('trip-updates')
+    .on('postgres_changes', 
+      { event: 'UPDATE', schema: 'public', table: 'trips' },
+      handleTripUpdate
+    )
+    .subscribe();
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
+```
+
+### 4. Lazy Loading & Code Splitting
+```typescript
+// Lazy load heavy components
+const LiveTrackingMap = lazy(() => import('./components/LiveTrackingMap'));
+const DriverDashboard = lazy(() => import('./pages/DriverDashboard'));
+
+// Route-based code splitting
+<Route path="/trip-booking" element={
+  <Suspense fallback={<LoadingSpinner />}>
+    <TripBookingPage />
+  </Suspense>
+} />
+```
+
+### 5. API Rate Limiting
+```typescript
+// Client-side throttling
+const debouncedSearch = useMemo(
+  () => debounce((query: string) => {
+    searchTrips(query);
+  }, 500),
+  []
+);
+```
+
+### 6. Error Boundaries
+```typescript
+<ErrorBoundary fallback={<TripBookingError />}>
+  <TripBookingRoutes />
+</ErrorBoundary>
+```
+
+## State Management Architecture
+
+### 1. Local State (useState)
+- Component-specific UI state
+- Form inputs
+- Toggle states
+
+### 2. Context State (useContext)
+- Current booking flow
+- User location
+- Live tracking session
+
+### 3. Server State (React Query)
+- Trip listings
+- Booking history
+- Driver profiles
+- Vehicle information
+
+### 4. URL State (React Router)
+- Search filters
+- Selected trip ID
+- Pagination state
+
+## API Endpoint Structure
+
+### RESTful Endpoints
+```
+GET    /api/trips                    # List trips
+GET    /api/trips/:id                # Get trip details
+POST   /api/trips                    # Create trip (driver)
+PUT    /api/trips/:id                # Update trip
+DELETE /api/trips/:id                # Cancel trip
+
+POST   /api/trips/:id/book           # Book a trip
+POST   /api/bookings/:id/cancel      # Cancel booking
+
+GET    /api/bookings                 # User's bookings
+GET    /api/bookings/:id             # Booking details
+
+POST   /api/trips/:id/review         # Add review
+GET    /api/trips/:id/reviews        # Get reviews
+
+GET    /api/drivers/:id              # Driver profile
+POST   /api/drivers/register         # Register as driver
+
+GET    /api/vehicles                 # Driver's vehicles
+POST   /api/vehicles                 # Add vehicle
+PUT    /api/vehicles/:id             # Update vehicle
+
+GET    /api/tracking/:tripId         # Get live tracking
+POST   /api/tracking/:tripId         # Update location (driver)
+
+POST   /api/messages                 # Send message
+GET    /api/messages/:tripId         # Get chat history
+```
+
+## Testing Strategy
+
+### 1. Unit Tests
+- Business logic (use cases)
+- Utility functions
+- Validation functions
+
+### 2. Integration Tests
+- API endpoints
+- Database queries
+- External service integrations
+
+### 3. Component Tests
+- Individual components
+- User interactions
+- State management
+
+### 4. E2E Tests
+- Complete booking flow
+- Driver publishing flow
+- Payment process
+
+## Performance Metrics
+
+### Key Metrics to Track
+1. **Time to First Trip**: Time to display first trip result
+2. **Booking Success Rate**: % of successful bookings
+3. **Search Response Time**: API response time for search
+4. **Map Load Time**: Time to load tracking map
+5. **Message Delivery Time**: Chat message latency
+
+## Security Considerations
+
+### 1. Data Protection
+- Encrypt sensitive user data
+- Secure payment information
+- Protect location data
+
+### 2. Authentication & Authorization
+- JWT-based auth for API calls
+- Role-based access control (passenger/driver/admin)
+- Verify driver credentials
+
+### 3. Input Validation
+- Sanitize all user inputs
+- Validate location coordinates
+- Verify payment amounts
+
+### 4. API Security
+- Rate limiting
+- CORS configuration
+- Request validation
+- SQL injection prevention
+
+## Development Guidelines
+
+### 1. Code Organization
+```
+/client/
+├── features/
+│   └── trip-booking/
+│       ├── domain/          # Business entities
+│       ├── application/     # Use cases
+│       ├── infrastructure/  # External services
+│       ├── presentation/    # UI components
+│       └── index.ts         # Public API
+```
+
+### 2. Naming Conventions
+- Components: PascalCase (`TripCard`)
+- Hooks: camelCase with 'use' prefix (`useTripSearch`)
+- Utils: camelCase (`calculateDistance`)
+- Constants: UPPER_SNAKE_CASE (`MAX_PASSENGERS`)
+
+### 3. TypeScript Usage
+- Use interfaces for data shapes
+- Use types for unions/intersections
+- Avoid `any` type
+- Use generics for reusable code
+
+### 4. Documentation
+- JSDoc comments for public APIs
+- README for each feature module
+- Architecture decision records (ADRs)
+
+## Monitoring & Analytics
+
+### Events to Track
+1. Trip search performed
+2. Trip viewed
+3. Booking initiated
+4. Booking completed
+5. Booking cancelled
+6. Review submitted
+7. Message sent
+8. Live tracking started
+9. Driver went online
+10. Vehicle added
+
+## Future Enhancements
+1. AI-based price optimization
+2. Carpooling matching algorithm
+3. Multi-city trip routing
+4. Integration with public transport
+5. Carbon footprint tracking
+6. Loyalty program
+7. Referral system
+8. In-app calling
+9. SOS/Emergency button
+10. Advanced analytics dashboard
