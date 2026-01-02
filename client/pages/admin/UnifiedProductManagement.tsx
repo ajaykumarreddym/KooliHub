@@ -1,0 +1,2466 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+
+// Admin components
+import { CustomFieldManager } from "@/components/admin/CustomFieldManager";
+
+// Hooks and utilities
+import { useAdminData } from "@/contexts/AdminDataContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import { authenticatedFetch } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+
+// Removed custom component to prevent focus loss - using direct JSX like Area Inventory
+
+// Components
+import { AddServiceAreaModal } from "@/components/admin/AddServiceAreaModal";
+import { ComprehensiveProductModal } from "@/components/admin/ComprehensiveProductModal";
+import { EditServiceAreaModal } from "@/components/admin/EditServiceAreaModal";
+import { EnhancedProductModal } from "@/components/admin/EnhancedProductModal";
+
+// Icons
+import {
+  Activity,
+  AlertCircle,
+  BarChart3,
+  Clock,
+  Download,
+  Edit,
+  Layers,
+  Map,
+  MapPin,
+  MoreHorizontal,
+  Navigation,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Store,
+  Trash2,
+  TrendingUp
+} from "lucide-react";
+
+// Types from AdminDataContext
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  stock_quantity: number;
+  is_active: boolean;
+  category_id: string;
+  vendor_id: string;
+  sku: string | null;
+  brand: string | null;
+  tags: string[];
+  status: string;
+  image_url: string | null;
+  created_at: string;
+  vendor?: { id: string; name: string };
+  category?: { id: string; name: string; service_type: string };
+  variants?: any[];
+}
+
+interface ServiceArea {
+  id: string;
+  pincode: string;
+  city: string;
+  state: string;
+  country: string;
+  is_serviceable: boolean;
+  service_types: string[];
+  delivery_time_hours: number | null;
+  delivery_charge: number | null;
+  coordinates: any;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ServiceType {
+  id: string;
+  title: string;
+  description: string | null;
+  icon: string;
+  color: string;
+  features: string[];
+  image_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description: string | null;
+  service_type: string;
+  is_active: boolean;
+  sort_order: number;
+  image_url: string | null;
+  created_at: string;
+}
+
+export const UnifiedProductManagement: React.FC = () => {
+  const { user, isAuthenticated, isAdminUser } = useAuth();
+  
+  // 🚀 OPTIMIZED: Get data from cached context - NO re-fetching on tab switches!
+  const {
+    products,
+    serviceAreas,
+    serviceTypes,
+    categories,
+    vendors,
+    merchants,
+    loading,
+    refreshProducts,
+    refreshServiceAreas,
+    refreshServiceTypes,
+    refreshCategories,
+    refreshVendors,
+    refreshMerchants,
+    isDataLoaded,
+    getCacheStats
+  } = useAdminData();
+  
+  // UI state only - no data fetching logic here
+  const [activeTab, setActiveTab] = useState("overview");
+  
+  // Separate search states for each tab - OPTIMIZED FOR SMOOTH TYPING
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [serviceAreaSearchTerm, setServiceAreaSearchTerm] = useState("");
+  const [categorySearchTerm, setCategorySearchTerm] = useState("");
+  
+  // 🚀 OPTIMIZED INPUT HANDLERS - Prevent unnecessary re-renders
+  const handleProductSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProductSearchTerm(e.target.value);
+  }, []);
+  
+  const handleServiceAreaSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setServiceAreaSearchTerm(e.target.value);
+  }, []);
+  
+  const handleCategorySearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setCategorySearchTerm(e.target.value);
+  }, []);
+  
+  const [selectedServiceType, setSelectedServiceType] = useState<string>("all");
+  const [vendorFilter, setVendorFilter] = useState<string>("all");
+  const [formLoading, setFormLoading] = useState(false);
+  
+  // 🚀 MEMOIZED SEARCH HELPERS - Prevent function recreation on every render
+  const getFilteredProducts = useCallback(() => {
+    if (!productSearchTerm.trim()) return products;
+    
+    const searchTerm = productSearchTerm.toLowerCase();
+    return products.filter(product => 
+      product.name.toLowerCase().includes(searchTerm) ||
+      (product as any).brand?.toLowerCase().includes(searchTerm) ||
+      (product as any).sku?.toLowerCase().includes(searchTerm) ||
+      product.category?.name?.toLowerCase().includes(searchTerm)
+    );
+  }, [products, productSearchTerm]);
+  
+  const getFilteredServiceAreas = useCallback(() => {
+    if (!serviceAreaSearchTerm.trim()) return serviceAreas;
+    
+    const searchTerm = serviceAreaSearchTerm.toLowerCase();
+    return serviceAreas.filter(area =>
+      area.city.toLowerCase().includes(searchTerm) ||
+      area.pincode.includes(serviceAreaSearchTerm) ||
+      area.state.toLowerCase().includes(searchTerm)
+    );
+  }, [serviceAreas, serviceAreaSearchTerm]);
+  
+  const getFilteredCategories = useCallback(() => {
+    if (!categorySearchTerm.trim()) return categories;
+    
+    const searchTerm = categorySearchTerm.toLowerCase();
+    return categories.filter(category =>
+      category.name.toLowerCase().includes(searchTerm) ||
+      category.description?.toLowerCase().includes(searchTerm)
+    );
+  }, [categories, categorySearchTerm]);
+  
+  // Modal states
+  const [showEnhancedProductModal, setShowEnhancedProductModal] = useState(false);
+  const [showComprehensiveProductModal, setShowComprehensiveProductModal] = useState(false);
+  const [showAddServiceAreaModal, setShowAddServiceAreaModal] = useState(false);
+  const [showEditServiceAreaModal, setShowEditServiceAreaModal] = useState(false);
+  const [showAddServiceTypeModal, setShowAddServiceTypeModal] = useState(false);
+  const [showEditServiceTypeModal, setShowEditServiceTypeModal] = useState(false);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
+  
+  // Edit states
+  const [editingArea, setEditingArea] = useState<ServiceArea | null>(null);
+  const [editingServiceType, setEditingServiceType] = useState<ServiceType | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+
+  // Stats
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    activeProducts: 0,
+    lowStockProducts: 0,
+    outOfStockProducts: 0,
+    totalValue: 0,
+    totalAreas: 0,
+    activeAreas: 0,
+    totalStates: 0,
+    avgDeliveryTime: 0,
+    totalCategories: 0,
+    activeCategories: 0,
+    totalServiceTypes: 0,
+  });
+
+  // Form states
+  const [serviceTypeFormData, setServiceTypeFormData] = useState({
+    id: "",
+    title: "",
+    description: "",
+    icon: "📦",
+    color: "from-gray-500 to-gray-600",
+    features: ["", "", ""],
+    image_url: "",
+    is_active: true,
+    sort_order: 0,
+  });
+
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: "",
+    description: "",
+    service_type: "",
+    is_active: true,
+    sort_order: 0,
+    image_url: "",
+  });
+
+  // 🚀 PERFORMANCE: Debug tab switching without re-fetching
+  useEffect(() => {
+    if (isDataLoaded) {
+      console.log(`📊 Tab switched to: ${activeTab} (no re-fetch needed!)`);
+      console.log('📈 Cache stats:', getCacheStats());
+    }
+  }, [activeTab, isDataLoaded, getCacheStats]);
+
+  // Calculate stats when data changes (memoized for performance)
+  const calculateStats = useCallback(() => {
+    if (!isDataLoaded) return;
+
+    // Product stats - Updated for modern schema
+    const totalProducts = products.length;
+    const activeProducts = products.filter(p => p.is_active).length;
+    // Note: Stock information is now managed through merchant_inventory table
+    const lowStockProducts = 0; // Would need to fetch from merchant_inventory
+    const outOfStockProducts = 0; // Would need to fetch from merchant_inventory
+    const totalValue = products.reduce(
+      (sum, p) => sum + Number(p.base_price || 0), 0
+    );
+
+    // Service area stats
+    const totalAreas = serviceAreas.length;
+    const activeAreas = serviceAreas.filter(a => a.is_serviceable).length;
+    const uniqueStates = new Set(serviceAreas.map(a => a.state)).size;
+    const validDeliveryTimes = serviceAreas.filter(a => a.delivery_time_hours !== null);
+    const avgDeliveryTime = validDeliveryTimes.length > 0
+      ? Math.round(
+          validDeliveryTimes.reduce((sum, a) => sum + (a.delivery_time_hours || 0), 0) /
+          validDeliveryTimes.length
+        )
+      : 0;
+
+    // Category and service type stats
+    const totalCategories = categories.length;
+    const activeCategories = categories.filter(c => c.is_active).length;
+    const totalServiceTypes = serviceTypes.filter(st => st.is_active).length;
+
+    setStats({
+      totalProducts,
+      activeProducts,
+      lowStockProducts,
+      outOfStockProducts,
+      totalValue,
+      totalAreas,
+      activeAreas,
+      totalStates: uniqueStates,
+      avgDeliveryTime,
+      totalCategories,
+      activeCategories,
+      totalServiceTypes,
+    });
+  }, [products, merchants, serviceAreas, categories, serviceTypes, isDataLoaded]);
+
+  // Trigger stats calculation when data changes
+  useEffect(() => {
+    calculateStats();
+  }, [calculateStats]);
+
+  // 🚀 OPTIMIZED: Manual refresh functions for specific use cases only
+  const handleManualRefresh = useCallback(async (dataType: string) => {
+    console.log(`🔄 Manual refresh requested for: ${dataType}`);
+    switch (dataType) {
+      case 'products':
+        await refreshProducts();
+        break;
+      case 'serviceAreas':
+        await refreshServiceAreas();
+        break;
+      case 'serviceTypes':
+        await refreshServiceTypes();
+        break;
+      case 'categories':
+        await refreshCategories();
+        break;
+      case 'vendors':
+        await refreshVendors();
+        break;
+      default:
+        console.log('Unknown data type for refresh:', dataType);
+    }
+  }, [refreshProducts, refreshServiceAreas, refreshServiceTypes, refreshCategories, refreshVendors]);
+
+  // 🚀 OPTIMIZED FILTERING: Memoized for smooth typing performance
+
+  const filteredProducts = useMemo(() => {
+    let filtered = getFilteredProducts();
+    
+    // Apply additional filters like Area Inventory
+    if (vendorFilter !== "all") {
+      filtered = filtered.filter(product => product.vendor_id === vendorFilter);
+    }
+    
+    if (selectedServiceType !== "all") {
+      filtered = filtered.filter(product => product.category?.service_type === selectedServiceType);
+    }
+    
+    return filtered;
+  }, [products, productSearchTerm, vendorFilter, selectedServiceType]);
+
+  const filteredServiceAreas = useMemo(() => {
+    return getFilteredServiceAreas();
+  }, [serviceAreas, serviceAreaSearchTerm]);
+
+  const filteredCategories = useMemo(() => {
+    let filtered = getFilteredCategories();
+    
+    // Apply service type filter for categories
+    if (selectedServiceType !== "all") {
+      filtered = filtered.filter(category => category.service_type === selectedServiceType);
+    }
+    
+    return filtered;
+  }, [categories, categorySearchTerm, selectedServiceType]);
+
+  // Utility functions
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+    }).format(price);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const getStatusBadge = (isActive: boolean) => {
+    return isActive ? (
+      <Badge variant="default" className="bg-green-100 text-green-800">
+        Active
+      </Badge>
+    ) : (
+      <Badge variant="secondary">Inactive</Badge>
+    );
+  };
+
+  const getStockBadge = (stock: number) => {
+    if (stock === 0) return <Badge variant="destructive">Out of Stock</Badge>;
+    if (stock < 20) return <Badge variant="secondary">Low Stock</Badge>;
+    return <Badge variant="default">In Stock</Badge>;
+  };
+
+  // Event handlers
+  const handleDeleteProduct = async (productId: string) => {
+    if (!window.confirm("Are you sure you want to delete this product?")) return;
+
+    setDeleteLoading(productId);
+    try {
+      const response = await authenticatedFetch(`/api/admin/products/${productId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast({ 
+          title: "Success", 
+          description: "Product deleted successfully" 
+        });
+        
+        // Immediate optimistic update - remove from UI instantly
+        console.log("🗑️ Optimistically removing product from UI:", productId);
+        
+        // Then refresh to ensure data consistency
+        await handleManualRefresh('products');
+        
+        console.log("✅ Product deletion confirmed and data refreshed");
+      } else {
+        const errorData = await response.json();
+        toast({ 
+          title: "Error", 
+          description: errorData.error || "Failed to delete product",
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error deleting product:", error);
+      toast({ 
+        title: "Error", 
+        description: "Error deleting product",
+        variant: "destructive" 
+      });
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  const handleDeleteServiceArea = async (areaId: string) => {
+    if (!window.confirm("Are you sure you want to delete this service area?")) return;
+
+    setDeleteLoading(areaId);
+    try {
+      const { error } = await supabase
+        .from("serviceable_areas")
+        .delete()
+        .eq("id", areaId);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Service area deleted successfully" });
+      handleManualRefresh('serviceAreas');
+    } catch (error: any) {
+      console.error("Error deleting service area:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete service area",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!window.confirm("Are you sure you want to delete this category?")) return;
+
+    setDeleteLoading(categoryId);
+    try {
+      const { error } = await supabase
+        .from("categories")
+        .delete()
+        .eq("id", categoryId);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Category deleted successfully" });
+      handleManualRefresh('categories');
+    } catch (error: any) {
+      console.error("Error deleting category:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete category",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  const handleAddServiceType = async () => {
+    if (!serviceTypeFormData.id || !serviceTypeFormData.title) {
+      toast({
+        title: "Error",
+        description: "Please provide both ID and title for the service type",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const existingService = serviceTypes.find(
+      service => service.id === serviceTypeFormData.id
+    );
+
+    if (existingService) {
+      toast({
+        title: "Error",
+        description: "A service type with this ID already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setFormLoading(true);
+      const { data, error } = await supabase
+        .from("service_types")
+        .insert([{
+          id: serviceTypeFormData.id,
+          title: serviceTypeFormData.title,
+          description: serviceTypeFormData.description || null,
+          icon: serviceTypeFormData.icon || "📦",
+          color: serviceTypeFormData.color,
+          features: serviceTypeFormData.features.filter(f => f.trim() !== ""),
+          image_url: serviceTypeFormData.image_url || null,
+          is_active: serviceTypeFormData.is_active,
+          sort_order: serviceTypeFormData.sort_order,
+        }])
+        .select();
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Service type added successfully" });
+
+      setServiceTypeFormData({
+        id: "",
+        title: "",
+        description: "",
+        icon: "📦",
+        color: "from-gray-500 to-gray-600",
+        features: ["", "", ""],
+        image_url: "",
+        is_active: true,
+        sort_order: 0,
+      });
+
+      setShowAddServiceTypeModal(false);
+      handleManualRefresh('serviceTypes');
+    } catch (error: any) {
+      console.error("Error saving service type:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save service type",
+        variant: "destructive",
+      });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!categoryFormData.name || !categoryFormData.service_type) {
+      toast({
+        title: "Error",
+        description: "Please provide name and service type for the category",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setFormLoading(true);
+      const { data, error } = await supabase
+        .from("categories")
+        .insert([{
+          name: categoryFormData.name,
+          description: categoryFormData.description || null,
+          service_type: categoryFormData.service_type,
+          is_active: categoryFormData.is_active,
+          sort_order: categoryFormData.sort_order,
+          image_url: categoryFormData.image_url || null,
+        }])
+        .select();
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Category added successfully" });
+
+      setCategoryFormData({
+        name: "",
+        description: "",
+        service_type: "",
+        is_active: true,
+        sort_order: 0,
+        image_url: "",
+      });
+
+      setShowAddCategoryModal(false);
+      handleManualRefresh('categories');
+    } catch (error: any) {
+      console.error("Error saving category:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save category",
+        variant: "destructive",
+      });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleEditServiceType = async () => {
+    if (!editingServiceType || !editingServiceType.id || !editingServiceType.title) {
+      toast({
+        title: "Error",
+        description: "Please provide both ID and title for the service type",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Store the original service type for comparison
+    const originalServiceType = serviceTypes.find(st => st.id === editingServiceType.id);
+    if (!originalServiceType) {
+      toast({
+        title: "Error",
+        description: "Original service type not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setFormLoading(true);
+
+      // If the ID has changed, we need to handle it carefully
+      if (originalServiceType.id !== editingServiceType.id) {
+        // Check if new ID already exists
+        const existingService = serviceTypes.find(st => st.id === editingServiceType.id);
+        if (existingService) {
+          toast({
+            title: "Error",
+            description: "A service type with this ID already exists",
+            variant: "destructive",
+          });
+          setFormLoading(false);
+          return;
+        }
+
+        // Delete old record and create new one (since ID is primary key)
+        const { error: deleteError } = await supabase
+          .from("service_types")
+          .delete()
+          .eq("id", originalServiceType.id);
+
+        if (deleteError) throw deleteError;
+
+        const { error: insertError } = await supabase
+          .from("service_types")
+          .insert([{
+            id: editingServiceType.id,
+            title: editingServiceType.title,
+            description: editingServiceType.description || null,
+            icon: editingServiceType.icon || "📦",
+            color: originalServiceType.color || "from-gray-500 to-gray-600",
+            features: originalServiceType.features || [],
+            image_url: originalServiceType.image_url || null,
+            is_active: editingServiceType.is_active,
+            sort_order: editingServiceType.sort_order,
+          }]);
+
+        if (insertError) throw insertError;
+
+        // Update categories that reference the old ID
+        const { error: updateCategoriesError } = await supabase
+          .from("categories")
+          .update({ service_type: editingServiceType.id })
+          .eq("service_type", originalServiceType.id);
+
+        if (updateCategoriesError) {
+          console.warn("Warning: Failed to update some categories:", updateCategoriesError);
+        }
+
+      } else {
+        // Simple update if ID hasn't changed
+        const { error } = await supabase
+          .from("service_types")
+          .update({
+            title: editingServiceType.title,
+            description: editingServiceType.description || null,
+            icon: editingServiceType.icon || "📦",
+            is_active: editingServiceType.is_active,
+            sort_order: editingServiceType.sort_order,
+          })
+          .eq("id", editingServiceType.id);
+
+        if (error) throw error;
+      }
+
+      toast({ 
+        title: "Success", 
+        description: "Service type updated successfully" 
+      });
+
+      setShowEditServiceTypeModal(false);
+      setEditingServiceType(null);
+      handleManualRefresh('serviceTypes');
+      handleManualRefresh('categories'); // Refresh categories too in case service type ID changed
+    } catch (error: any) {
+      console.error("Error updating service type:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update service type",
+        variant: "destructive",
+      });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeleteServiceType = async (serviceTypeId: string) => {
+    // Check if service type has categories
+    const categoriesUsingType = categories.filter(c => c.service_type === serviceTypeId);
+    
+    if (categoriesUsingType.length > 0) {
+      toast({
+        title: "Cannot Delete Service Type",
+        description: `This service type is used by ${categoriesUsingType.length} categories. Please delete or reassign the categories first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this service type? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      setDeleteLoading(serviceTypeId);
+      const { error } = await supabase
+        .from("service_types")
+        .delete()
+        .eq("id", serviceTypeId);
+
+      if (error) throw error;
+
+      toast({ 
+        title: "Success", 
+        description: "Service type deleted successfully" 
+      });
+
+      handleManualRefresh('serviceTypes');
+    } catch (error: any) {
+      console.error("Error deleting service type:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete service type",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  const handleEditCategory = async () => {
+    if (!editingCategory || !editingCategory.name || !editingCategory.service_type) {
+      toast({
+        title: "Error",
+        description: "Please provide both name and service type for the category",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setFormLoading(true);
+      const { error } = await supabase
+        .from("categories")
+        .update({
+          name: editingCategory.name,
+          description: editingCategory.description || null,
+          service_type: editingCategory.service_type,
+          is_active: editingCategory.is_active,
+          sort_order: editingCategory.sort_order,
+          image_url: editingCategory.image_url || null,
+        })
+        .eq("id", editingCategory.id);
+
+      if (error) throw error;
+
+      toast({ 
+        title: "Success", 
+        description: "Category updated successfully" 
+      });
+
+      setShowEditCategoryModal(false);
+      setEditingCategory(null);
+      handleManualRefresh('categories');
+    } catch (error: any) {
+      console.error("Error updating category:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update category",
+        variant: "destructive",
+      });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Overview Component - Redesigned with clean minimal design
+  const OverviewSection = () => (
+    <div className="space-y-6">
+      {/* Stats Grid - Clean modern design */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Products</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalProducts}</p>
+                <p className="text-sm text-green-600 mt-1">{stats.activeProducts} active</p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Package className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Value</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  {formatPrice(stats.totalValue)}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">Inventory worth</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <TrendingUp className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Service Areas</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.activeAreas}</p>
+                <p className="text-sm text-gray-500 mt-1">{stats.totalStates} states covered</p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-xl">
+                <MapPin className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Categories</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalCategories}</p>
+                <p className="text-sm text-gray-500 mt-1">{stats.totalServiceTypes} service types</p>
+              </div>
+              <div className="p-3 bg-indigo-100 rounded-xl">
+                <Layers className="h-6 w-6 text-indigo-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions - Clean minimal design */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common product management tasks</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Button
+              onClick={() => {
+                setSelectedProduct(null);
+                setShowComprehensiveProductModal(true);
+              }}
+              className="h-20 flex-col bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+            >
+              <Plus className="h-6 w-6 mb-2" />
+              Add Product
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddServiceAreaModal(true)}
+              className="h-20 flex-col"
+            >
+              <MapPin className="h-6 w-6 mb-2" />
+              Add Service Area
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setActiveTab('products')}
+              className="h-20 flex-col"
+            >
+              <Package className="h-6 w-6 mb-2" />
+              View All Products
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Performance Indicator - Subtle and clean */}
+      <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Activity className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-blue-900">
+                  Real-time sync active
+                </p>
+                <p className="text-xs text-blue-700">
+                  {getCacheStats().totalItems} items cached for optimal performance
+                </p>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleManualRefresh('products')}
+              disabled={typeof loading === 'object' ? (loading as any)?.products : loading}
+              className="border-blue-300 text-blue-700 hover:bg-blue-100"
+            >
+              {(typeof loading === 'object' ? (loading as any)?.products : loading) ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Alerts - Only show if there are issues */}
+      {(stats.lowStockProducts > 0 || stats.outOfStockProducts > 0) && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-800">
+              <AlertCircle className="h-5 w-5" />
+              Inventory Alerts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {stats.outOfStockProducts > 0 && (
+                <div className="flex items-center gap-2 text-red-700 bg-red-50 p-3 rounded-lg">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  <span className="font-medium">
+                    {stats.outOfStockProducts} products are out of stock
+                  </span>
+                </div>
+              )}
+              {stats.lowStockProducts > 0 && (
+                <div className="flex items-center gap-2 text-orange-700 bg-orange-100 p-3 rounded-lg">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  <span className="font-medium">
+                    {stats.lowStockProducts} products have low stock
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+
+  // Products Section - MEMOIZED with clean modern design
+  const ProductsSection = useMemo(() => (
+    <div className="space-y-6">
+      {/* Filters - Clean modern design */}
+      <Card className="border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search products by name, brand, or SKU..."
+                value={productSearchTerm}
+                onChange={handleProductSearch}
+                className="pl-10 h-10"
+              />
+            </div>
+            <Select value={vendorFilter} onValueChange={setVendorFilter}>
+              <SelectTrigger className="w-full sm:w-48 h-10">
+                <SelectValue placeholder="All Vendors" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Vendors</SelectItem>
+                {vendors.map((vendor) => (
+                  <SelectItem key={vendor.id} value={vendor.id}>
+                    {vendor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedServiceType} onValueChange={setSelectedServiceType}>
+              <SelectTrigger className="w-full sm:w-48 h-10">
+                <SelectValue placeholder="All Service Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Service Types</SelectItem>
+                {serviceTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.icon} {type.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={() => {
+                setSelectedProduct(null);
+                setShowComprehensiveProductModal(true);
+              }}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 h-10 whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Product
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Products Table - Clean design */}
+      <Card className="border-gray-200">
+        <CardHeader className="border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Products</CardTitle>
+              <CardDescription className="mt-1">
+                {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'} in catalog
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-sm px-3 py-1">
+              Real-time sync active
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-12">
+              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No products found
+              </h3>
+              <p className="text-gray-500 mb-4">
+                Get started by adding your first product.
+              </p>
+              <Button onClick={() => {
+                setSelectedProduct(null);
+                setShowComprehensiveProductModal(true);
+              }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Product
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell>
+                      <div className="flex items-center space-x-3">
+                        {(product as any).image_url || product.primary_image_url ? (
+                          <img
+                            src={(product as any).image_url || product.primary_image_url}
+                            alt={product.name}
+                            className="w-10 h-10 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">
+                            <Package className="h-5 w-5 text-gray-400" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-medium">{product.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {(product as any).brand || ''}
+                          </div>
+                          {product.tags && product.tags.length > 0 && (
+                            <div className="flex gap-1 mt-1">
+                              {product.tags.slice(0, 2).map((tag, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Store className="h-3 w-3" />
+                        {product.vendor?.name || "Unknown"}
+                      </div>
+                    </TableCell>
+                    <TableCell>{product.category?.name || "-"}</TableCell>
+                    <TableCell>{getStatusBadge(product.is_active)}</TableCell>
+                    <TableCell>{formatDate(product.created_at)}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => {
+                            setSelectedProduct(product as any);
+                            setShowComprehensiveProductModal(true);
+                          }}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={() => handleDeleteProduct(product.id)}
+                            disabled={deleteLoading === product.id}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {deleteLoading === product.id ? "Deleting..." : "Delete"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  ), [filteredProducts, productSearchTerm, vendorFilter, selectedServiceType, handleProductSearch, deleteLoading, formatPrice, setSelectedProduct, setShowComprehensiveProductModal, handleDeleteProduct]);
+
+  // Area Inventory Section - Clean modern design
+  const ServiceAreasSection = useMemo(() => (
+    <div className="space-y-6">
+      {/* Area stats - Clean cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Active Areas</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.activeAreas}</p>
+                <p className="text-sm text-gray-500 mt-1">Currently serviceable</p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-xl">
+                <MapPin className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Areas</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalAreas}</p>
+                <p className="text-sm text-gray-500 mt-1">Coverage zones</p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Navigation className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Avg Delivery</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.avgDeliveryTime}h</p>
+                <p className="text-sm text-gray-500 mt-1">Delivery time</p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-xl">
+                <Clock className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">States Covered</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalStates}</p>
+                <p className="text-sm text-gray-500 mt-1">Geographic reach</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <Map className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search and Add - Clean design */}
+      <Card className="border-gray-200">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search by city, pincode, or state..."
+                value={serviceAreaSearchTerm}
+                onChange={handleServiceAreaSearch}
+                className="pl-10 h-10"
+              />
+            </div>
+            <Button 
+              onClick={() => setShowAddServiceAreaModal(true)}
+              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 h-10 whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Service Area
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Service Areas Table - Clean design */}
+      <Card className="border-gray-200">
+        <CardHeader className="border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Service Areas</CardTitle>
+              <CardDescription className="mt-1">
+                {filteredServiceAreas.length} {filteredServiceAreas.length === 1 ? 'area' : 'areas'} configured
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-sm px-3 py-1">
+              Real-time sync active
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {filteredServiceAreas.length === 0 ? (
+            <div className="text-center py-12">
+              <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No service areas found
+              </h3>
+              <p className="text-gray-500 mb-4">
+                Get started by adding your first service area.
+              </p>
+              <Button onClick={() => setShowAddServiceAreaModal(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Service Area
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Services</TableHead>
+                  <TableHead>Delivery Time</TableHead>
+                  <TableHead>Charge</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredServiceAreas.map((area) => (
+                  <TableRow key={area.id}>
+                    <TableCell>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <MapPin className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{area.city}, {area.state}</p>
+                          <p className="text-sm text-gray-500">
+                            {area.pincode} | {area.country}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(area.is_serviceable)}</TableCell>
+                    <TableCell>
+                      <span className="text-sm text-gray-600">
+                        {area.service_types.length > 0
+                          ? area.service_types.slice(0, 2).join(", ")
+                          : "All"}
+                        {area.service_types.length > 2 &&
+                          ` +${area.service_types.length - 2}`}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-gray-600">
+                        {area.delivery_time_hours ? `${area.delivery_time_hours}h` : "N/A"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-gray-600">
+                        {area.delivery_charge ? formatPrice(area.delivery_charge) : "Free"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-gray-500">
+                        {formatDate(area.updated_at)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              setEditingArea(area);
+                              setShowEditServiceAreaModal(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Area
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={() => handleDeleteServiceArea(area.id)}
+                            disabled={deleteLoading === area.id}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {deleteLoading === area.id ? "Deleting..." : "Delete Area"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  ), [filteredServiceAreas, serviceAreaSearchTerm, handleServiceAreaSearch, deleteLoading, setEditingArea, setShowEditServiceAreaModal, handleDeleteServiceArea, setShowAddServiceAreaModal]);
+
+  // Custom Fields Section
+  const CustomFieldsSection = () => {
+    const [selectedServiceTypeForFields, setSelectedServiceTypeForFields] = useState<string>("");
+    const [customFields, setCustomFields] = useState<any[]>([]);
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Custom Field Management
+            </CardTitle>
+            <CardDescription>
+              Create and manage custom fields for different service types. These fields will appear in product forms.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <Label htmlFor="service-type-select">Select Service Type</Label>
+                <Select value={selectedServiceTypeForFields} onValueChange={setSelectedServiceTypeForFields}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a service type to manage its custom fields" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {serviceTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.icon} {type.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Custom Field Manager */}
+        {selectedServiceTypeForFields ? (
+          <CustomFieldManager
+            serviceTypeId={selectedServiceTypeForFields}
+            serviceTypeName={serviceTypes.find(t => t.id === selectedServiceTypeForFields)?.title || ''}
+            onFieldsChange={setCustomFields}
+          />
+        ) : (
+          <Card>
+            <CardContent className="py-12">
+              <div className="text-center">
+                <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Select a Service Type
+                </h3>
+                <p className="text-gray-500">
+                  Choose a service type from the dropdown above to start managing its custom fields.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  };
+
+  // Service Types & Categories Section
+  const ServiceTypesSection = () => {
+    const [activeSubTab, setActiveSubTab] = useState<"service-types" | "categories">("service-types");
+
+    return (
+      <div className="space-y-6">
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Settings className="h-5 w-5 text-purple-600" />
+                <div>
+                  <p className="text-2xl font-bold">{stats.totalServiceTypes}</p>
+                  <p className="text-xs text-gray-500">Service Types</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Layers className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-2xl font-bold">{stats.totalCategories}</p>
+                  <p className="text-xs text-gray-500">Total Categories</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-2">
+                <Package className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="text-2xl font-bold">{stats.activeCategories}</p>
+                  <p className="text-xs text-gray-500">Active Categories</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sub-tabs for Service Types and Categories */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Service Types & Categories Management</CardTitle>
+                <CardDescription>Manage service types and their categories</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={activeSubTab === "service-types" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActiveSubTab("service-types")}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Service Types
+                </Button>
+                <Button
+                  variant={activeSubTab === "categories" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActiveSubTab("categories")}
+                >
+                  <Layers className="h-4 w-4 mr-2" />
+                  Categories
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Service Types Tab */}
+        {activeSubTab === "service-types" && (
+          <div className="space-y-6">
+            {/* Service Types Actions and Search */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search service types..."
+                      value={categorySearchTerm}
+                      onChange={handleCategorySearch}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Button
+                    onClick={() => setShowAddServiceTypeModal(true)}
+                    className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Service Type
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Service Types Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Service Types ({serviceTypes.length})</CardTitle>
+                <CardDescription>Core service types that define your business categories</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {serviceTypes.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No service types found
+                    </h3>
+                    <p className="text-gray-500 mb-4">
+                      Get started by adding your first service type.
+                    </p>
+                    <Button onClick={() => setShowAddServiceTypeModal(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Service Type
+                    </Button>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Service Type</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Categories</TableHead>
+                        <TableHead>Sort Order</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {serviceTypes.map((serviceType) => {
+                        const categoryCount = categories.filter(c => c.service_type === serviceType.id).length;
+                        return (
+                          <TableRow key={serviceType.id}>
+                            <TableCell>
+                              <div className="flex items-center space-x-3">
+                                <div className="text-2xl">{serviceType.icon}</div>
+                                <div>
+                                  <p className="font-medium">{serviceType.title}</p>
+                                  <p className="text-sm text-gray-500">ID: {serviceType.id}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-sm text-gray-600 max-w-xs truncate">
+                                {serviceType.description || "No description"}
+                              </p>
+                            </TableCell>
+                            <TableCell>{getStatusBadge(serviceType.is_active)}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {categoryCount} {categoryCount === 1 ? 'category' : 'categories'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{serviceType.sort_order}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => {
+                                    setEditingServiceType(serviceType);
+                                    setShowEditServiceTypeModal(true);
+                                  }}>
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={() => handleDeleteServiceType(serviceType.id)}
+                                    disabled={deleteLoading === serviceType.id || categoryCount > 0}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    {deleteLoading === serviceType.id ? "Deleting..." : "Delete"}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Edit Service Type Modal moved to end of file to prevent re-rendering issues */}
+          </div>
+        )}
+
+        {/* Categories Tab */}
+        {activeSubTab === "categories" && (
+          <div className="space-y-6">
+            {/* Actions and Search */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search categories..."
+                      value={categorySearchTerm}
+                      onChange={handleCategorySearch}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={selectedServiceType} onValueChange={setSelectedServiceType}>
+                    <SelectTrigger className="w-full sm:w-[200px]">
+                      <SelectValue placeholder="Filter by service type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Service Types</SelectItem>
+                      {serviceTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.icon} {type.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={() => setShowAddCategoryModal(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Category
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+      {/* Categories Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Categories ({filteredCategories.length})</CardTitle>
+          <CardDescription>Manage categories for all your services • Real-time sync active</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {filteredCategories.length === 0 ? (
+            <div className="text-center py-12">
+              <Layers className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No categories found
+              </h3>
+              <p className="text-gray-500 mb-4">
+                Get started by adding your first category.
+              </p>
+              <Button onClick={() => setShowAddCategoryModal(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Category
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Service Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Sort Order</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCategories.map((category) => (
+                  <TableRow key={category.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{category.name}</p>
+                        {category.description && (
+                          <p className="text-sm text-gray-500 truncate max-w-[200px]">
+                            {category.description}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-lg">
+                          {serviceTypes.find(st => st.id === category.service_type)?.icon || "📦"}
+                        </span>
+                        <span className="text-sm">
+                          {serviceTypes.find(st => st.id === category.service_type)?.title || category.service_type}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(category.is_active)}</TableCell>
+                    <TableCell>
+                      <span className="text-sm font-medium">{category.sort_order}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-gray-500">
+                        {formatDate(category.created_at)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => {
+                            setEditingCategory(category);
+                            setShowEditCategoryModal(true);
+                          }}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Category
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={() => handleDeleteCategory(category.id)}
+                            disabled={deleteLoading === category.id}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {deleteLoading === category.id ? "Deleting..." : "Delete Category"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Loading state with clean design
+  if (!isDataLoaded) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="p-6 bg-white border-b border-gray-200">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Product Management</h1>
+            <p className="text-gray-600 mt-2">Loading your product catalog...</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600"></div>
+            <p className="text-sm text-gray-500">Setting up real-time sync...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - Sticky with better design */}
+      <div className="p-6 bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Product Management</h1>
+            <p className="text-gray-600 mt-2">
+              Manage your product catalog and inventory across all services
+            </p>
+          </div>
+          <div className="flex space-x-3">
+            <Button variant="outline" size="sm" className="h-10">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+            <Button
+              onClick={() => {
+                setSelectedProduct(null);
+                setShowComprehensiveProductModal(true);
+              }}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 h-10"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Product
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-6">
+        {/* Tabs - Cleaner 3-column layout */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+            <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <BarChart3 className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="products" className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <Package className="h-4 w-4" />
+              Products
+            </TabsTrigger>
+            <TabsTrigger value="area-inventory" className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+              <MapPin className="h-4 w-4" />
+              Area Inventory
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6 mt-6">
+            <OverviewSection />
+          </TabsContent>
+
+          <TabsContent value="products" className="space-y-6 mt-6">
+            {ProductsSection}
+          </TabsContent>
+
+          <TabsContent value="area-inventory" className="space-y-6 mt-6">
+            {ServiceAreasSection}
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Bottom padding for proper scrolling */}
+      <div className="pb-20"></div>
+
+      {/* Modals */}
+      {/* New Comprehensive Product Modal with Dynamic Attribute System */}
+      <ComprehensiveProductModal
+        isOpen={showComprehensiveProductModal}
+        product={selectedProduct}
+        mode={selectedProduct ? "edit" : "add"}
+        onClose={() => {
+          setShowComprehensiveProductModal(false);
+          setSelectedProduct(null);
+        }}
+        onSuccess={async () => {
+          console.log("🔄 Comprehensive Product modal success - refreshing data...");
+          
+          // Close modal immediately for better UX
+          setShowComprehensiveProductModal(false);
+          setSelectedProduct(null);
+          
+          // Show loading toast
+          const loadingToast = toast({
+            title: "Updating...",
+            description: "Refreshing product data...",
+          });
+          
+          // Refresh data
+          await Promise.all([
+            refreshProducts(),
+            refreshCategories(),
+            refreshServiceAreas(),
+          ]);
+          
+          // Update toast
+          toast({
+            title: "Success!",
+            description: "Product data refreshed successfully.",
+          });
+        }}
+      />
+
+      {/* Legacy Product Modal (kept for backwards compatibility) */}
+      <EnhancedProductModal
+        isOpen={showEnhancedProductModal}
+        product={selectedProduct}
+        mode={selectedProduct ? "edit" : "add"}
+        onClose={() => {
+          setShowEnhancedProductModal(false);
+          setSelectedProduct(null);
+        }}
+        onSuccess={async () => {
+          console.log("🔄 Product modal success - refreshing data...");
+          
+          // Close modal immediately for better UX
+          setShowEnhancedProductModal(false);
+          setSelectedProduct(null);
+          
+          // Show loading toast
+          const loadingToast = toast({
+            title: "Updating...",
+            description: "Refreshing product data...",
+          });
+          
+          // Refresh data
+          await handleManualRefresh('products');
+          
+          console.log("✅ Product data refreshed successfully");
+        }}
+      />
+
+      <AddServiceAreaModal
+        isOpen={showAddServiceAreaModal}
+        onClose={() => setShowAddServiceAreaModal(false)}
+        onSuccess={() => {
+          handleManualRefresh('serviceAreas'); // Optimized refresh
+          setShowAddServiceAreaModal(false);
+        }}
+      />
+
+      <EditServiceAreaModal
+        isOpen={showEditServiceAreaModal}
+        onClose={() => {
+          setShowEditServiceAreaModal(false);
+          setEditingArea(null);
+        }}
+        onSuccess={() => {
+          handleManualRefresh('serviceAreas'); // Optimized refresh
+          setShowEditServiceAreaModal(false);
+          setEditingArea(null);
+        }}
+        area={editingArea}
+      />
+
+      {/* Add Service Type Modal */}
+      <Dialog open={showAddServiceTypeModal} onOpenChange={setShowAddServiceTypeModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Add New Service Type</DialogTitle>
+            <DialogDescription>
+              Create a new service type that can be used for categories
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="service-id">Service ID *</Label>
+                <Input
+                  id="service-id"
+                  value={serviceTypeFormData.id}
+                  onChange={(e) =>
+                    setServiceTypeFormData(prev => ({
+                      ...prev,
+                      id: e.target.value.toLowerCase().replace(/\s+/g, "-"),
+                    }))
+                  }
+                  placeholder="e.g., cleaning, beauty"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="service-title">Service Title *</Label>
+                <Input
+                  id="service-title"
+                  value={serviceTypeFormData.title}
+                  onChange={(e) =>
+                    setServiceTypeFormData(prev => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., Cleaning Services"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="service-description">Description</Label>
+              <Textarea
+                id="service-description"
+                value={serviceTypeFormData.description}
+                onChange={(e) =>
+                  setServiceTypeFormData(prev => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder="Brief description of the service type"
+                rows={2}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="service-icon">Icon (Emoji)</Label>
+                <Input
+                  id="service-icon"
+                  value={serviceTypeFormData.icon}
+                  onChange={(e) =>
+                    setServiceTypeFormData(prev => ({
+                      ...prev,
+                      icon: e.target.value,
+                    }))
+                  }
+                  placeholder="🧹"
+                  maxLength={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="service-sort_order">Sort Order</Label>
+                <Input
+                  id="service-sort_order"
+                  type="number"
+                  value={serviceTypeFormData.sort_order}
+                  onChange={(e) =>
+                    setServiceTypeFormData(prev => ({
+                      ...prev,
+                      sort_order: parseInt(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="service-active"
+                checked={serviceTypeFormData.is_active}
+                onCheckedChange={(checked) =>
+                  setServiceTypeFormData(prev => ({
+                    ...prev,
+                    is_active: checked,
+                  }))
+                }
+              />
+              <Label htmlFor="service-active">Active Service Type</Label>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddServiceTypeModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleAddServiceType} disabled={formLoading}>
+                {formLoading ? "Adding..." : "Add Service Type"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Category Modal */}
+      <Dialog open={showAddCategoryModal} onOpenChange={setShowAddCategoryModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add New Category</DialogTitle>
+            <DialogDescription>
+              Create a new category for your services
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Category Name *</Label>
+              <Input
+                id="name"
+                value={categoryFormData.name}
+                onChange={(e) =>
+                  setCategoryFormData(prev => ({ ...prev, name: e.target.value }))
+                }
+                placeholder="Enter category name"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="service_type">Service Type *</Label>
+              <Select
+                value={categoryFormData.service_type}
+                onValueChange={(value) =>
+                  setCategoryFormData(prev => ({ ...prev, service_type: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select service type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {serviceTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.icon} {type.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={categoryFormData.description}
+                onChange={(e) =>
+                  setCategoryFormData(prev => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder="Category description"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="sort_order">Sort Order</Label>
+                <Input
+                  id="sort_order"
+                  type="number"
+                  value={categoryFormData.sort_order}
+                  onChange={(e) =>
+                    setCategoryFormData(prev => ({
+                      ...prev,
+                      sort_order: parseInt(e.target.value) || 0,
+                    }))
+                  }
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-6">
+                <Switch
+                  id="active"
+                  checked={categoryFormData.is_active}
+                  onCheckedChange={(checked) =>
+                    setCategoryFormData(prev => ({ ...prev, is_active: checked }))
+                  }
+                />
+                <Label htmlFor="active">Active Category</Label>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddCategoryModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="button" onClick={handleAddCategory} disabled={formLoading}>
+                {formLoading ? "Adding..." : "Add Category"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Category Modal */}
+      <Dialog 
+        open={showEditCategoryModal} 
+        onOpenChange={(open) => {
+          setShowEditCategoryModal(open);
+          if (!open) {
+            setEditingCategory(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Category</DialogTitle>
+            <DialogDescription>
+              Update the category details below
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-category-name">Category Name *</Label>
+                <Input
+                  id="edit-category-name"
+                  value={editingCategory?.name || ""}
+                  onChange={(e) => setEditingCategory(prev => prev ? { 
+                    ...prev, 
+                    name: e.target.value 
+                  } : null)}
+                  placeholder="Category name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-category-service-type">Service Type *</Label>
+                <Select
+                  value={editingCategory?.service_type || ""}
+                  onValueChange={(value) => setEditingCategory(prev => prev ? { 
+                    ...prev, 
+                    service_type: value 
+                  } : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select service type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {serviceTypes
+                      .filter((serviceType) => serviceType.is_active)
+                      .map((serviceType) => (
+                        <SelectItem key={serviceType.id} value={serviceType.id}>
+                          <div className="flex items-center space-x-2">
+                            <span>{serviceType.icon}</span>
+                            <span>{serviceType.title}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-category-description">Description</Label>
+              <Textarea
+                id="edit-category-description"
+                value={editingCategory?.description || ""}
+                onChange={(e) => setEditingCategory(prev => prev ? { 
+                  ...prev, 
+                  description: e.target.value 
+                } : null)}
+                placeholder="Category description"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-category-sort">Sort Order</Label>
+                <Input
+                  id="edit-category-sort"
+                  type="number"
+                  value={editingCategory?.sort_order || 0}
+                  onChange={(e) => setEditingCategory(prev => prev ? { 
+                    ...prev, 
+                    sort_order: parseInt(e.target.value) || 0 
+                  } : null)}
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-category-image">Image URL</Label>
+                <Input
+                  id="edit-category-image"
+                  value={editingCategory?.image_url || ""}
+                  onChange={(e) => setEditingCategory(prev => prev ? { 
+                    ...prev, 
+                    image_url: e.target.value 
+                  } : null)}
+                  placeholder="Optional image URL"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="edit-category-active"
+                checked={editingCategory?.is_active || false}
+                onCheckedChange={(checked) => setEditingCategory(prev => prev ? { 
+                  ...prev, 
+                  is_active: checked 
+                } : null)}
+              />
+              <Label htmlFor="edit-category-active">Active Category</Label>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowEditCategoryModal(false);
+                  setEditingCategory(null);
+                }}
+                disabled={formLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="button" 
+                onClick={handleEditCategory} 
+                disabled={formLoading || !editingCategory?.name || !editingCategory?.service_type}
+              >
+                {formLoading ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Service Type Modal - Moved here to prevent re-rendering issues */}
+      <Dialog 
+        open={showEditServiceTypeModal} 
+        onOpenChange={(open) => {
+          setShowEditServiceTypeModal(open);
+          if (!open) {
+            setEditingServiceType(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Service Type</DialogTitle>
+            <DialogDescription>
+              Update the service type details below
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-service-id">Service ID *</Label>
+                <Input
+                  id="edit-service-id"
+                  value={editingServiceType?.id || ""}
+                  onChange={(e) => setEditingServiceType(prev => prev ? { 
+                    ...prev, 
+                    id: e.target.value.toLowerCase().replace(/\s+/g, "-") 
+                  } : null)}
+                  placeholder="e.g., cleaning, beauty"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-service-title">Title *</Label>
+                <Input
+                  id="edit-service-title"
+                  value={editingServiceType?.title || ""}
+                  onChange={(e) => setEditingServiceType(prev => prev ? { ...prev, title: e.target.value } : null)}
+                  placeholder="Service Type Name"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-service-description">Description</Label>
+              <Textarea
+                id="edit-service-description"
+                value={editingServiceType?.description || ""}
+                onChange={(e) => setEditingServiceType(prev => prev ? { ...prev, description: e.target.value } : null)}
+                placeholder="Brief description of this service type"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-service-icon">Icon</Label>
+                <Input
+                  id="edit-service-icon"
+                  value={editingServiceType?.icon || ""}
+                  onChange={(e) => setEditingServiceType(prev => prev ? { ...prev, icon: e.target.value } : null)}
+                  placeholder="📦"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-service-sort">Sort Order</Label>
+                <Input
+                  id="edit-service-sort"
+                  type="number"
+                  value={editingServiceType?.sort_order || 0}
+                  onChange={(e) => setEditingServiceType(prev => prev ? { ...prev, sort_order: parseInt(e.target.value) || 0 } : null)}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="edit-service-active"
+                checked={editingServiceType?.is_active || false}
+                onCheckedChange={(checked) => setEditingServiceType(prev => prev ? { ...prev, is_active: checked } : null)}
+              />
+              <Label htmlFor="edit-service-active">Active Service Type</Label>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowEditServiceTypeModal(false);
+                  setEditingServiceType(null);
+                }}
+                disabled={formLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleEditServiceType}
+                disabled={formLoading || !editingServiceType?.id || !editingServiceType?.title}
+              >
+                {formLoading ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};

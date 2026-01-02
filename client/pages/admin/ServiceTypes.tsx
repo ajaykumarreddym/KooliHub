@@ -90,6 +90,7 @@ interface Category {
   service_type: string;
   is_active: boolean;
   sort_order: number;
+  image_url?: string | null;
   created_at: string;
 }
 

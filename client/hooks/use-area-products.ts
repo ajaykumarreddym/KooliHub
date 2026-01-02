@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 export interface AreaProduct {
@@ -27,6 +27,7 @@ export interface AreaProduct {
   effective_price: number;
   is_promotional: boolean;
   savings: number;
+  primary_image_url?: string;
 }
 
 export interface AreaProductFilters {
@@ -58,20 +59,20 @@ export const useAreaProducts = (
       setLoading(true);
       setError(null);
 
-      // Build query with filters
+      // Build query with filters - using service_area_products table
       let query = supabase
-        .from("product_area_pricing")
+        .from("service_area_products")
         .select(
           `
           *,
-          products!inner(
-            id, name, brand, price,
-            categories(id, name)
+          offerings!inner(
+            id, name, base_price, type, status,
+            primary_image_url, description, vendor_id,
+            categories(id, name, service_type)
           )
         `,
         )
-        .eq("service_area_id", serviceAreaId)
-        .eq("is_active", true);
+        .eq("service_area_id", serviceAreaId);
 
       if (filters.available_only !== false) {
         query = query.eq("is_available", true);
@@ -81,62 +82,58 @@ export const useAreaProducts = (
         query = query.gt("stock_quantity", 0);
       }
 
-      if (filters.category_id) {
-        query = query.eq("products.category_id", filters.category_id);
-      }
-
       const { data, error } = await query;
 
       if (error) throw error;
 
       // Process and enhance the data
       let processedProducts: AreaProduct[] = (data || []).map((item) => {
-        const product = item.products;
-        const isPromoActive =
-          item.promotional_price &&
-          item.promo_start_date &&
-          item.promo_end_date &&
-          new Date() >= new Date(item.promo_start_date) &&
-          new Date() <= new Date(item.promo_end_date);
-
-        const effectivePrice = isPromoActive
-          ? item.promotional_price
-          : item.area_price;
-        const originalPrice = item.area_original_price || item.area_price;
-        const savings = originalPrice - effectivePrice;
+        const product = item.offerings;
+        
+        // Calculate pricing
+        const basePrice = product.base_price || 0;
+        const areaPrice = item.price_override || basePrice;
+        const effectivePrice = areaPrice;
+        const savings = basePrice - effectivePrice;
 
         return {
           id: product.id,
           name: product.name,
-          brand: product.brand || "",
+          brand: "", // Brand field not available in offerings table
           category_name: product.categories?.name || "Uncategorized",
-          base_price: product.price,
-          area_price: item.area_price,
-          area_original_price: originalPrice,
-          area_discount_percentage: item.area_discount_percentage || 0,
-          stock_quantity: item.stock_quantity,
-          max_order_quantity: item.max_order_quantity,
-          is_available: item.is_available,
-          is_active: item.is_active,
-          estimated_delivery_hours: item.estimated_delivery_hours,
-          delivery_charge: item.delivery_charge,
-          handling_charge: item.handling_charge,
-          priority: item.priority || 1,
-          promotional_price: item.promotional_price,
-          promo_start_date: item.promo_start_date,
-          promo_end_date: item.promo_end_date,
-          tier_pricing:
-            typeof item.tier_pricing === "string"
-              ? JSON.parse(item.tier_pricing || "{}")
-              : item.tier_pricing,
-          notes: item.notes || "",
+          base_price: basePrice,
+          area_price: areaPrice,
+          area_original_price: basePrice,
+          area_discount_percentage: savings > 0 ? ((savings / basePrice) * 100) : 0,
+          stock_quantity: item.stock_quantity || 0,
+          max_order_quantity: item.max_order_quantity || 10,
+          is_available: item.is_available !== false,
+          is_active: true,
+          estimated_delivery_hours: item.delivery_time_override || 24,
+          delivery_charge: 0,
+          handling_charge: 0,
+          priority: item.priority_order || 1,
+          promotional_price: 0,
+          promo_start_date: "",
+          promo_end_date: "",
+          tier_pricing: {},
+          notes: item.location_notes || "",
           effective_price: effectivePrice,
-          is_promotional: isPromoActive,
-          savings,
+          is_promotional: savings > 0,
+          savings: Math.max(0, savings),
+          primary_image_url: product.primary_image_url || undefined,
         };
       });
 
       // Apply client-side filters
+      if (filters.category_id) {
+        processedProducts = processedProducts.filter((product) => {
+          // Get the category_id from the original data
+          const originalItem = data?.find((item) => item.offerings.id === product.id);
+          return originalItem?.offerings?.categories?.id === filters.category_id;
+        });
+      }
+      
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         processedProducts = processedProducts.filter(

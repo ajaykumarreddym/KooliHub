@@ -42,7 +42,7 @@ export const setupAdminAccount: RequestHandler = async (req, res) => {
         // Try to find existing user
         const { data: listUsers } = await supabase.auth.admin.listUsers();
         const existingUser = listUsers.users?.find(
-          (u) => u.email === adminEmail,
+          (u: any) => u.email === adminEmail,
         );
         if (existingUser) {
           userId = existingUser.id;
@@ -247,7 +247,7 @@ export const checkDatabase: RequestHandler = async (req, res) => {
     const { data: authUsers, error: authError } =
       await supabase.auth.admin.listUsers();
     const adminUser = authUsers.users?.find(
-      (u) => u.email === "hello.krsolutions@gmail.com",
+      (u: any) => u.email === "hello.krsolutions@gmail.com",
     );
 
     console.log("Auth users check:", {

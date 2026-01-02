@@ -1,0 +1,718 @@
+---
+description: Error Handling & Error Boundaries - Robust Error Management
+globs: **/*.tsx,**/*.ts
+---
+
+# Error Handling & Error Boundaries
+
+## Overview
+Comprehensive error handling patterns for API calls, async operations, form validation, and React component errors.
+
+---
+
+## 1. Error Types & Structure
+
+### 1.1 Custom Error Classes
+```typescript
+// client/lib/errors.ts
+
+/**
+ * Base application error
+ */
+export class AppError extends Error {
+  public readonly code: string;
+  public readonly statusCode: number;
+  public readonly isOperational: boolean;
+
+  constructor(
+    message: string,
+    code: string = 'APP_ERROR',
+    statusCode: number = 500,
+    isOperational: boolean = true
+  ) {
+    super(message);
+    this.code = code;
+    this.statusCode = statusCode;
+    this.isOperational = isOperational;
+    Object.setPrototypeOf(this, AppError.prototype);
+  }
+}
+
+/**
+ * API/Network errors
+ */
+export class ApiError extends AppError {
+  public readonly response?: any;
+
+  constructor(
+    message: string,
+    statusCode: number = 500,
+    response?: any
+  ) {
+    super(message, 'API_ERROR', statusCode);
+    this.response = response;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+
+  static fromResponse(response: Response, body?: any): ApiError {
+    const message = body?.message || body?.error || `Request failed with status ${response.status}`;
+    return new ApiError(message, response.status, body);
+  }
+
+  static networkError(): ApiError {
+    return new ApiError('Network error. Please check your connection.', 0);
+  }
+
+  static timeout(): ApiError {
+    return new ApiError('Request timeout. Please try again.', 408);
+  }
+}
+
+/**
+ * Validation errors
+ */
+export class ValidationError extends AppError {
+  public readonly fields: Record<string, string>;
+
+  constructor(message: string, fields: Record<string, string> = {}) {
+    super(message, 'VALIDATION_ERROR', 400);
+    this.fields = fields;
+    Object.setPrototypeOf(this, ValidationError.prototype);
+  }
+}
+
+/**
+ * Authentication errors
+ */
+export class AuthError extends AppError {
+  constructor(message: string = 'Authentication required') {
+    super(message, 'AUTH_ERROR', 401);
+    Object.setPrototypeOf(this, AuthError.prototype);
+  }
+}
+
+/**
+ * Authorization errors
+ */
+export class ForbiddenError extends AppError {
+  constructor(message: string = 'Access denied') {
+    super(message, 'FORBIDDEN_ERROR', 403);
+    Object.setPrototypeOf(this, ForbiddenError.prototype);
+  }
+}
+
+/**
+ * Not found errors
+ */
+export class NotFoundError extends AppError {
+  constructor(resource: string = 'Resource') {
+    super(`${resource} not found`, 'NOT_FOUND_ERROR', 404);
+    Object.setPrototypeOf(this, NotFoundError.prototype);
+  }
+}
+```
+
+### 1.2 Error Messages
+```typescript
+// In lib/strings.ts (extend MESSAGES.error)
+
+export const ERROR_MESSAGES = {
+  // Network
+  network: 'Unable to connect. Please check your internet connection.',
+  timeout: 'Request timed out. Please try again.',
+  serverError: 'Server error. Please try again later.',
+  
+  // Auth
+  unauthorized: 'Please login to continue.',
+  sessionExpired: 'Your session has expired. Please login again.',
+  forbidden: 'You don\'t have permission to perform this action.',
+  
+  // Validation
+  validation: 'Please check your input and try again.',
+  required: 'This field is required.',
+  invalidEmail: 'Please enter a valid email address.',
+  invalidPhone: 'Please enter a valid phone number.',
+  
+  // CRUD
+  createFailed: 'Failed to create. Please try again.',
+  updateFailed: 'Failed to update. Please try again.',
+  deleteFailed: 'Failed to delete. Please try again.',
+  loadFailed: 'Failed to load data. Please try again.',
+  
+  // Generic
+  generic: 'Something went wrong. Please try again.',
+  unknown: 'An unexpected error occurred.',
+} as const;
+```
+
+---
+
+## 2. React Error Boundary
+
+### 2.1 Error Boundary Component
+```typescript
+// client/components/common/ErrorBoundary.tsx
+
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, RefreshCw, Home } from 'lucide-react';
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+    this.props.onError?.(error, errorInfo);
+    
+    // Optional: Send to error tracking service
+    // errorTrackingService.captureException(error, { extra: errorInfo });
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  handleGoHome = () => {
+    window.location.href = '/';
+  };
+
+  render() {
+    if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
+      return (
+        <div className="min-h-[400px] flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            </div>
+            
+            <h2 className="text-2xl font-bold mb-2">
+              Oops! Something went wrong
+            </h2>
+            
+            <p className="text-muted-foreground mb-6">
+              We apologize for the inconvenience. Please try refreshing the page.
+            </p>
+            
+            {process.env.NODE_ENV === 'development' && this.state.error && (
+              <pre className="text-left bg-muted p-4 rounded-lg text-sm mb-6 overflow-auto">
+                {this.state.error.message}
+              </pre>
+            )}
+            
+            <div className="flex gap-4 justify-center">
+              <Button onClick={this.handleRetry} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
+              <Button onClick={this.handleGoHome}>
+                <Home className="h-4 w-4 mr-2" />
+                Go Home
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+### 2.2 Route-Level Error Boundary
+```typescript
+// client/components/common/RouteErrorBoundary.tsx
+
+import { ErrorBoundary } from './ErrorBoundary';
+import { useNavigate } from 'react-router-dom';
+
+export function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+  
+  return (
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        // Log to analytics
+        console.error('Route error:', error);
+      }}
+      fallback={
+        <div className="container mx-auto py-16 text-center">
+          <h1 className="text-2xl font-bold mb-4">Page Error</h1>
+          <p className="text-muted-foreground mb-6">
+            This page encountered an error.
+          </p>
+          <Button onClick={() => navigate(-1)}>Go Back</Button>
+        </div>
+      }
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+```
+
+---
+
+## 3. Async Error Handling
+
+### 3.1 Try-Catch Wrapper
+```typescript
+// client/lib/error-utils.ts
+
+import { ERROR_MESSAGES } from '@/lib/strings';
+import { ApiError, AppError } from '@/lib/errors';
+
+interface Result<T> {
+  data: T | null;
+  error: string | null;
+  isError: boolean;
+}
+
+/**
+ * Safe async wrapper that catches errors
+ */
+export async function trySafe<T>(
+  fn: () => Promise<T>,
+  fallbackError: string = ERROR_MESSAGES.generic
+): Promise<Result<T>> {
+  try {
+    const data = await fn();
+    return { data, error: null, isError: false };
+  } catch (error) {
+    const errorMessage = getErrorMessage(error, fallbackError);
+    console.error('Error in trySafe:', error);
+    return { data: null, error: errorMessage, isError: true };
+  }
+}
+
+/**
+ * Extract error message from various error types
+ */
+export function getErrorMessage(
+  error: unknown, 
+  fallback: string = ERROR_MESSAGES.generic
+): string {
+  if (error instanceof AppError) {
+    return error.message;
+  }
+  
+  if (error instanceof Error) {
+    return error.message;
+  }
+  
+  if (typeof error === 'string') {
+    return error;
+  }
+  
+  if (typeof error === 'object' && error !== null) {
+    const errorObj = error as any;
+    return errorObj.message || errorObj.error || fallback;
+  }
+  
+  return fallback;
+}
+
+/**
+ * Handle API response errors
+ */
+export function handleApiError(error: unknown): never {
+  if (error instanceof ApiError) {
+    throw error;
+  }
+  
+  if (error instanceof Error) {
+    throw new ApiError(error.message);
+  }
+  
+  throw new ApiError(ERROR_MESSAGES.generic);
+}
+```
+
+### 3.2 API Error Handler Hook
+```typescript
+// client/hooks/use-api-error.ts
+
+import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/lib/error-utils';
+import { ERROR_MESSAGES } from '@/lib/strings';
+import { useNavigate } from 'react-router-dom';
+import { ApiError, AuthError, ForbiddenError } from '@/lib/errors';
+
+export function useApiError() {
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const handleError = (error: unknown) => {
+    const message = getErrorMessage(error);
+    
+    // Handle specific error types
+    if (error instanceof AuthError) {
+      toast({
+        title: 'Session Expired',
+        description: ERROR_MESSAGES.sessionExpired,
+        variant: 'destructive',
+      });
+      navigate('/login');
+      return;
+    }
+    
+    if (error instanceof ForbiddenError) {
+      toast({
+        title: 'Access Denied',
+        description: ERROR_MESSAGES.forbidden,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (error instanceof ApiError && error.statusCode === 404) {
+      toast({
+        title: 'Not Found',
+        description: message,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Generic error toast
+    toast({
+      title: 'Error',
+      description: message,
+      variant: 'destructive',
+    });
+  };
+
+  return { handleError };
+}
+```
+
+---
+
+## 4. React Query Error Handling
+
+### 4.1 Query Error Handler
+```typescript
+// client/lib/query-client.ts
+
+import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
+import { getErrorMessage } from '@/lib/error-utils';
+import { toast } from '@/hooks/use-toast';
+import { AuthError } from '@/lib/errors';
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: (failureCount, error) => {
+        // Don't retry on auth errors
+        if (error instanceof AuthError) return false;
+        // Retry up to 3 times for other errors
+        return failureCount < 3;
+      },
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // Only show toast for background errors (data was previously loaded)
+      if (query.state.data !== undefined) {
+        toast({
+          title: 'Background refresh failed',
+          description: getErrorMessage(error),
+          variant: 'destructive',
+        });
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      toast({
+        title: 'Operation failed',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    },
+  }),
+});
+```
+
+### 4.2 Query with Error Handling
+```typescript
+// Example usage in hooks
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useApiError } from '@/hooks/use-api-error';
+
+export function useProducts() {
+  return useQuery({
+    queryKey: ['products'],
+    queryFn: productsService.getProducts,
+    // Let QueryCache handle errors by default
+  });
+}
+
+export function useCreateProduct() {
+  const queryClient = useQueryClient();
+  const { handleError } = useApiError();
+
+  return useMutation({
+    mutationFn: productsService.createProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast({ title: 'Product created successfully' });
+    },
+    onError: handleError, // Custom error handling
+  });
+}
+```
+
+---
+
+## 5. Form Error Handling
+
+### 5.1 Form Error Display Component
+```typescript
+// client/components/common/FormError.tsx
+
+import { cn } from '@/lib/utils';
+import { AlertCircle } from 'lucide-react';
+
+interface FormErrorProps {
+  message?: string;
+  className?: string;
+}
+
+export function FormError({ message, className }: FormErrorProps) {
+  if (!message) return null;
+
+  return (
+    <div className={cn('flex items-center gap-2 text-sm text-destructive', className)}>
+      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+// Field-level error
+export function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  
+  return (
+    <p className="text-sm text-destructive mt-1">{message}</p>
+  );
+}
+```
+
+### 5.2 Form-Level Error Handler
+```typescript
+// client/components/common/FormErrorAlert.tsx
+
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+interface FormErrorAlertProps {
+  error: string | null;
+  onDismiss?: () => void;
+}
+
+export function FormErrorAlert({ error, onDismiss }: FormErrorAlertProps) {
+  if (!error) return null;
+
+  return (
+    <Alert variant="destructive" className="mb-6">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>Error</AlertTitle>
+      <AlertDescription className="flex items-center justify-between">
+        <span>{error}</span>
+        {onDismiss && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={onDismiss}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
+  );
+}
+```
+
+### 5.3 Zod Error Handling
+```typescript
+// client/lib/form-utils.ts
+
+import { z } from 'zod';
+import { VALIDATION } from '@/lib/strings';
+
+/**
+ * Format Zod errors for form display
+ */
+export function formatZodErrors(
+  error: z.ZodError
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  
+  error.errors.forEach((err) => {
+    const path = err.path.join('.');
+    if (!errors[path]) {
+      errors[path] = err.message;
+    }
+  });
+  
+  return errors;
+}
+
+/**
+ * Validate form data with Zod schema
+ */
+export function validateForm<T>(
+  schema: z.ZodSchema<T>,
+  data: unknown
+): { success: true; data: T } | { success: false; errors: Record<string, string> } {
+  const result = schema.safeParse(data);
+  
+  if (result.success) {
+    return { success: true, data: result.data };
+  }
+  
+  return { success: false, errors: formatZodErrors(result.error) };
+}
+
+// Example schema with custom messages
+export const productSchema = z.object({
+  name: z.string()
+    .min(2, VALIDATION.minLength('Name', 2))
+    .max(100, VALIDATION.maxLength('Name', 100)),
+  price: z.number()
+    .positive(VALIDATION.positive)
+    .max(1000000, 'Price must be less than ₹10,00,000'),
+  email: z.string()
+    .email(VALIDATION.email)
+    .optional(),
+});
+```
+
+---
+
+## 6. Error State Patterns
+
+### 6.1 Component with Error State
+```typescript
+// Standard pattern for components with loading/error states
+
+function ProductList() {
+  const { data, isLoading, isError, error, refetch } = useProducts();
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="Failed to load products"
+        message={getErrorMessage(error)}
+        onRetry={refetch}
+      />
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return <EmptyState title="No products found" />;
+  }
+
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      {data.map(product => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+    </div>
+  );
+}
+```
+
+### 6.2 Inline Error Recovery
+```typescript
+// Pattern for inline operations with error recovery
+
+function DeleteButton({ productId }: { productId: string }) {
+  const [error, setError] = useState<string | null>(null);
+  const { mutate, isPending } = useDeleteProduct();
+
+  const handleDelete = () => {
+    setError(null);
+    mutate(productId, {
+      onError: (err) => {
+        setError(getErrorMessage(err));
+      },
+    });
+  };
+
+  return (
+    <div>
+      <Button 
+        variant="destructive" 
+        onClick={handleDelete}
+        disabled={isPending}
+      >
+        {isPending ? 'Deleting...' : 'Delete'}
+      </Button>
+      {error && <FieldError message={error} />}
+    </div>
+  );
+}
+```
+
+---
+
+## 7. Rules Summary
+
+### DO:
+- ✅ Use custom error classes for different error types
+- ✅ Always provide user-friendly error messages
+- ✅ Wrap pages/sections in ErrorBoundary
+- ✅ Handle loading, error, and empty states
+- ✅ Use toast for async operation errors
+- ✅ Log errors for debugging
+
+### DON'T:
+- ❌ Show technical error messages to users
+- ❌ Silently swallow errors
+- ❌ Let unhandled rejections crash the app
+- ❌ Retry indefinitely on auth errors
+- ❌ Ignore form validation errors
+
+---
+
+**Related Files**:
+- `client/lib/errors.ts` - Error classes
+- `client/lib/error-utils.ts` - Error utilities
+- `client/components/common/ErrorBoundary.tsx`
+- `client/components/common/ErrorState.tsx`

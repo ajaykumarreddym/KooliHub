@@ -1,6 +1,6 @@
 // Firebase Messaging Service Worker
-import { initializeApp } from "firebase/app";
-import { getMessaging, onBackgroundMessage } from "firebase/messaging";
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
 const firebaseConfig = {
   apiKey: "AIzaSyA-peDNnwnXIU7g5nPBXhi-GUebTKhUUWQ",
@@ -13,11 +13,11 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
 
 // Handle background messages
-onBackgroundMessage(messaging, (payload) => {
+messaging.onBackgroundMessage((payload) => {
   console.log("Received background message:", payload);
 
   const notificationTitle = payload.notification?.title || "KooliHub";

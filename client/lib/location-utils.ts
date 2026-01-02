@@ -1,4 +1,3 @@
-import { toast } from "sonner";
 
 export interface LocationData {
   latitude: number;
@@ -9,6 +8,7 @@ export interface LocationData {
   state?: string;
   country?: string;
   pincode?: string;
+  serviceAreaId?: string; // Service area ID for location-based filtering
 }
 
 export interface GeolocationError {

@@ -50,10 +50,22 @@ export const subscribeToTopic: RequestHandler = async (req, res) => {
 
     if (result.success) {
       // Update database with topic subscription
+      // First get the current topics
+      const { data: currentToken } = await supabase
+        .from("fcm_tokens")
+        .select("topics")
+        .eq("token", token)
+        .single();
+      
+      const topics = currentToken?.topics || [];
+      if (!topics.includes(topic)) {
+        topics.push(topic);
+      }
+      
       await supabase
         .from("fcm_tokens")
         .update({
-          topics: supabase.sql`array_append(COALESCE(topics, ARRAY[]::text[]), ${topic})`,
+          topics,
           updated_at: new Date().toISOString(),
         })
         .eq("token", token);
@@ -79,10 +91,19 @@ export const unsubscribeFromTopic: RequestHandler = async (req, res) => {
 
     if (result.success) {
       // Update database to remove topic subscription
+      // First get the current topics
+      const { data: currentToken } = await supabase
+        .from("fcm_tokens")
+        .select("topics")
+        .eq("token", token)
+        .single();
+      
+      const topics = (currentToken?.topics || []).filter((t: string) => t !== topic);
+      
       await supabase
         .from("fcm_tokens")
         .update({
-          topics: supabase.sql`array_remove(COALESCE(topics, ARRAY[]::text[]), ${topic})`,
+          topics,
           updated_at: new Date().toISOString(),
         })
         .eq("token", token);

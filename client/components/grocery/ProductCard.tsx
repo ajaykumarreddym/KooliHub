@@ -1,11 +1,12 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, Heart, Plus, Minus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useCart } from "@/contexts/CartContext";
 import { useWishlistContext } from "@/contexts/WishlistContext";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Clock, Heart, Minus, Plus } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface Product {
   id: string;
@@ -24,13 +25,16 @@ interface Product {
   isOrganic?: boolean;
   isFresh?: boolean;
   description?: string;
+  deliveryTime?: string; // e.g., "15 mins", "30 mins"
 }
 
 interface ProductCardProps {
   product: Product;
+  onCartOpen?: () => void;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, onCartOpen }: ProductCardProps) {
+  const navigate = useNavigate();
   const { state, dispatch } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlistContext();
   const [quantity, setQuantity] = useState(1);
@@ -39,12 +43,23 @@ export function ProductCard({ product }: ProductCardProps) {
   const isInCart = !!cartItem;
   const cartQuantity = cartItem?.quantity || 0;
   const isWishlisted = isInWishlist(product.id);
+  const deliveryTime = product.deliveryTime || "15 mins";
 
   const handleAddToCart = () => {
     dispatch({
       type: "ADD_ITEM",
-      payload: { product, quantity },
+      payload: { 
+        product: {
+          ...product,
+          description: product.description || '',
+        }, 
+        quantity 
+      },
     });
+    // Trigger cart sidebar open if callback provided
+    if (onCartOpen) {
+      onCartOpen();
+    }
   };
 
   const handleUpdateQuantity = (newQuantity: number) => {
@@ -74,143 +89,121 @@ export function ProductCard({ product }: ProductCardProps) {
     });
   };
 
+  const handleCardClick = () => {
+    navigate(`/product/${product.id}`);
+  };
+
   return (
-    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
+    <Card className="group hover:shadow-xl transition-all duration-200 cursor-pointer border border-gray-100 rounded-lg overflow-hidden" onClick={handleCardClick}>
       <CardContent className="p-0">
         {/* Image section */}
-        <div className="relative bg-gray-50 h-48 flex items-center justify-center">
+        <div className="relative bg-white p-3 flex items-center justify-center h-40">
+          {/* Delivery Time Badge - Blinkit Style */}
+          <div className="absolute top-2 left-2 flex items-center gap-1 bg-white px-2 py-1 rounded-md shadow-sm border border-gray-200">
+            <Clock className="h-3 w-3 text-gray-600" />
+            <span className="text-[10px] font-semibold text-gray-700 uppercase">
+              {deliveryTime}
+            </span>
+          </div>
+
           {product.image && (product.image.startsWith('http') || product.image.startsWith('/')) ? (
             <img
               src={product.image}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
                 const parent = target.parentElement;
                 if (parent) {
-                  parent.innerHTML = '<span class="text-6xl opacity-80">🛍️</span>';
+                  parent.innerHTML = '<span class="text-5xl opacity-60">🛍️</span>';
                 }
               }}
             />
           ) : (
-            <span className="text-6xl opacity-80">{product.image || '🛍️'}</span>
+            <span className="text-5xl opacity-60">{product.image || '🛍️'}</span>
           )}
 
-          {/* Badges */}
-          <div className="absolute top-3 left-3 flex flex-col gap-1">
-            {product.discount && (
-              <Badge className="bg-red-500 text-white text-xs font-bold">
+          {/* Discount Badge */}
+          {product.discount && product.discount > 0 && (
+            <div className="absolute top-2 right-2">
+              <Badge className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5">
                 {product.discount}% OFF
               </Badge>
-            )}
-            {product.isOrganic && (
-              <Badge className="bg-green-500 text-white text-xs">Organic</Badge>
-            )}
-            {product.isFresh && (
-              <Badge className="bg-blue-500 text-white text-xs">Fresh</Badge>
-            )}
-          </div>
-
-          {/* Wishlist button */}
-          <button
-            onClick={handleWishlistToggle}
-            className="absolute top-3 right-3 p-2 rounded-full bg-white shadow-sm hover:bg-gray-50 transition-colors"
-          >
-            <Heart
-              className={cn(
-                "h-4 w-4 transition-colors",
-                isWishlisted
-                  ? "text-red-500 fill-red-500"
-                  : "text-gray-400 hover:text-red-500",
-              )}
-            />
-          </button>
-        </div>
-
-        {/* Content section */}
-        <div className="p-4">
-          <div className="mb-2">
-            <Badge variant="secondary" className="text-xs mb-1">
-              {product.brand}
-            </Badge>
-            <h3 className="font-semibold text-gray-900 line-clamp-2 leading-tight">
-              {product.name}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">{product.unit}</p>
-          </div>
-
-          {/* Rating */}
-          <div className="flex items-center gap-1 mb-3">
-            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-            <span className="text-xs font-medium">{product.rating}</span>
-            <span className="text-xs text-gray-500">
-              ({product.reviewCount})
-            </span>
-          </div>
-
-          {/* Price */}
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-lg font-bold text-gray-900">
-              ₹{product.price.toFixed(0)}
-            </span>
-            {product.originalPrice && (
-              <span className="text-sm text-gray-500 line-through">
-                ₹{product.originalPrice.toFixed(0)}
-              </span>
-            )}
-          </div>
-
-          {/* Add to cart controls */}
-          {!isInCart ? (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center border rounded-lg">
-                <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="p-2 hover:bg-gray-50 transition-colors"
-                >
-                  <Minus className="h-3 w-3" />
-                </button>
-                <span className="px-3 py-2 text-sm font-medium">
-                  {quantity}
-                </span>
-                <button
-                  onClick={() => setQuantity(quantity + 1)}
-                  className="p-2 hover:bg-gray-50 transition-colors"
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
-              </div>
-              <Button
-                onClick={handleAddToCart}
-                className="flex-1 bg-primary text-black hover:bg-primary/90"
-                size="sm"
-              >
-                Add to Cart
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center border rounded-lg">
-                <button
-                  onClick={() => handleUpdateQuantity(cartQuantity - 1)}
-                  className="p-2 hover:bg-gray-50 transition-colors"
-                >
-                  <Minus className="h-3 w-3" />
-                </button>
-                <span className="px-3 py-2 text-sm font-medium">
-                  {cartQuantity}
-                </span>
-                <button
-                  onClick={() => handleUpdateQuantity(cartQuantity + 1)}
-                  className="p-2 hover:bg-gray-50 transition-colors"
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
-              </div>
-              <Badge className="bg-green-500 text-white">In Cart</Badge>
             </div>
           )}
+        </div>
+
+        {/* Content section - Blinkit compact style */}
+        <div className="p-3 border-t border-gray-100">
+          {/* Product Name */}
+          <h3 className="font-medium text-sm text-gray-900 line-clamp-2 leading-snug mb-1 min-h-[36px]">
+            {product.name}
+          </h3>
+
+          {/* Unit/Weight */}
+          <p className="text-xs text-gray-500 mb-2">{product.unit}</p>
+
+          {/* Price and Add Button Row */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-base font-bold text-gray-900">
+                  ₹{product.price.toFixed(0)}
+                </span>
+                {product.originalPrice && (
+                  <span className="text-xs text-gray-400 line-through">
+                    ₹{product.originalPrice.toFixed(0)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Add to cart button - Blinkit style */}
+            <div onClick={(e) => e.stopPropagation()}>
+              {!isInCart ? (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddToCart();
+                  }}
+                  className="bg-white hover:bg-green-50 text-green-600 border-2 border-green-600 font-semibold h-8 px-4 text-xs rounded-lg transition-all"
+                  size="sm"
+                  disabled={!product.inStock}
+                >
+                  ADD
+                </Button>
+              ) : (
+                <div className="flex items-center border-2 border-green-600 rounded-lg bg-green-600">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpdateQuantity(cartQuantity - 1);
+                    }}
+                    className="p-1.5 hover:bg-green-700 transition-colors text-white"
+                    aria-label="Decrease cart quantity"
+                    title="Decrease cart quantity"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="px-3 py-1 text-sm font-bold text-white min-w-[32px] text-center">
+                    {cartQuantity}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpdateQuantity(cartQuantity + 1);
+                    }}
+                    className="p-1.5 hover:bg-green-700 transition-colors text-white"
+                    aria-label="Increase cart quantity"
+                    title="Increase cart quantity"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

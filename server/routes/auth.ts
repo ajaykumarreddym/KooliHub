@@ -59,7 +59,7 @@ export const confirmEmail: RequestHandler = async (req, res) => {
       return res.status(500).json({ error: "Failed to find user" });
     }
 
-    const user = users.users?.find((u) => u.email === email);
+    const user = users.users?.find((u: any) => u.email === email);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });

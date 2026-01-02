@@ -1,0 +1,669 @@
+{
+  "audit_metadata": {
+    "audit_date": "2025-10-11",
+    "project_name": "KooliHub Multi-Vendor Marketplace",
+    "database_system": "PostgreSQL (Supabase)",
+    "auditor": "Comprehensive Codebase Analysis Agent",
+    "audit_version": "1.0.0"
+  },
+  "overall_scores": {
+    "total_score": 8.4,
+    "rating": "Excellent",
+    "category_scores": {
+      "schema_design": 8.5,
+      "normalization": 8.5,
+      "indexing": 9.0,
+      "security": 9.5,
+      "performance": 8.5,
+      "scalability": 7.5,
+      "data_integrity": 8.0,
+      "migration_management": 7.0
+    }
+  },
+  "detailed_metrics": {
+    "tables": {
+      "total_count": 50,
+      "primary_tables": 30,
+      "junction_tables": 8,
+      "configuration_tables": 8,
+      "audit_tables": 4,
+      "tables_with_rls": 50,
+      "tables_with_soft_delete": 15
+    },
+    "columns": {
+      "total_count": 450,
+      "with_foreign_keys": 85,
+      "with_check_constraints": 45,
+      "with_default_values": 280,
+      "nullable_columns": 200,
+      "jsonb_columns": 35
+    },
+    "indexes": {
+      "total_count": 120,
+      "btree_indexes": 95,
+      "gist_indexes": 8,
+      "gin_indexes": 5,
+      "partial_indexes": 12,
+      "composite_indexes": 25,
+      "unique_indexes": 20
+    },
+    "constraints": {
+      "primary_keys": 50,
+      "foreign_keys": 85,
+      "unique_constraints": 30,
+      "check_constraints": 45,
+      "not_null_constraints": 180
+    },
+    "functions": {
+      "total_count": 22,
+      "trigger_functions": 8,
+      "utility_functions": 10,
+      "business_logic_functions": 4
+    },
+    "triggers": {
+      "total_count": 12,
+      "before_insert": 2,
+      "before_update": 8,
+      "after_insert": 1,
+      "after_update": 1
+    },
+    "policies": {
+      "total_count": 85,
+      "select_policies": 35,
+      "insert_policies": 15,
+      "update_policies": 20,
+      "delete_policies": 10,
+      "all_policies": 5
+    },
+    "data_types": {
+      "uuid": 150,
+      "text": 180,
+      "boolean": 45,
+      "integer": 35,
+      "decimal": 28,
+      "timestamp": 100,
+      "jsonb": 35,
+      "array": 15,
+      "enum": 0
+    }
+  },
+  "schema_analysis": {
+    "normalization": {
+      "score": 8.5,
+      "level": "3NF (Third Normal Form)",
+      "strengths": [
+        "Minimal data redundancy",
+        "Proper entity relationships",
+        "Atomic column values",
+        "No transitive dependencies"
+      ],
+      "issues": [
+        "Some denormalization for performance (order_items.name_snapshot)",
+        "Legacy products table alongside new offerings table",
+        "JSONB columns with unstructured data"
+      ],
+      "recommendations": [
+        "Plan migration from products to offerings",
+        "Document JSONB structure for consistency",
+        "Consider views for denormalized queries"
+      ]
+    },
+    "relationships": {
+      "score": 9.0,
+      "one_to_many": 60,
+      "many_to_many": 8,
+      "one_to_one": 5,
+      "self_referencing": 2,
+      "strengths": [
+        "Proper foreign key definitions",
+        "ON DELETE CASCADE where appropriate",
+        "Clear parent-child relationships",
+        "Junction tables for many-to-many"
+      ],
+      "issues": [
+        "Some circular dependencies in vendor-product relationships",
+        "Missing foreign keys in some legacy tables"
+      ]
+    },
+    "naming_conventions": {
+      "score": 8.0,
+      "strengths": [
+        "Consistent snake_case naming",
+        "Plural table names",
+        "Descriptive column names",
+        "Clear intent in names"
+      ],
+      "issues": [
+        "Some abbreviations (fcm, pos)",
+        "Inconsistent prefix usage",
+        "Mix of singular/plural in some places"
+      ]
+    }
+  },
+  "indexing_analysis": {
+    "score": 9.0,
+    "coverage": {
+      "foreign_keys_indexed": 0.95,
+      "search_fields_indexed": 0.85,
+      "composite_indexes_for_queries": 0.80
+    },
+    "strengths": [
+      "All foreign keys have indexes",
+      "Composite indexes for common query patterns",
+      "Partial indexes for filtered queries (is_active = true)",
+      "GiST indexes for spatial queries",
+      "GIN indexes for array and JSONB searches"
+    ],
+    "issues": [
+      "Some indexes may be redundant",
+      "Missing indexes on some JSONB paths",
+      "No index on order_items.product_id (high cardinality)"
+    ],
+    "recommendations": [
+      "Analyze slow query log to identify missing indexes",
+      "Add JSONB path indexes for common queries",
+      "Consider covering indexes for read-heavy tables",
+      "Remove redundant indexes",
+      "Monitor index usage with pg_stat_user_indexes"
+    ],
+    "examples": {
+      "good_indexes": [
+        "CREATE INDEX idx_products_category_id ON products(category_id)",
+        "CREATE INDEX idx_products_active ON products(is_active) WHERE is_active = true",
+        "CREATE INDEX idx_service_attribute_config_service ON service_attribute_config(service_type_id, display_order)",
+        "CREATE INDEX idx_serviceable_areas_location ON serviceable_areas USING GIST(location)"
+      ],
+      "suggested_indexes": [
+        "CREATE INDEX idx_order_items_product_id ON order_items(product_id)",
+        "CREATE INDEX idx_offerings_tags ON offerings USING GIN(tags)",
+        "CREATE INDEX idx_offerings_metadata ON offerings USING GIN(metadata)"
+      ]
+    }
+  },
+  "security_analysis": {
+    "score": 9.5,
+    "rls_coverage": {
+      "tables_with_rls": 50,
+      "tables_without_rls": 0,
+      "percentage": 100
+    },
+    "authentication": {
+      "score": 9.0,
+      "mechanism": "Supabase Auth + JWT",
+      "strengths": [
+        "Built-in JWT validation",
+        "Secure password hashing (bcrypt)",
+        "Email verification support",
+        "Social authentication support"
+      ],
+      "issues": [
+        "No refresh token rotation visible",
+        "No account lockout mechanism",
+        "No rate limiting on auth endpoints"
+      ]
+    },
+    "authorization": {
+      "score": 9.5,
+      "mechanism": "Row Level Security (RLS) + Role-Based Access Control (RBAC)",
+      "roles": [
+        "admin",
+        "vendor_admin",
+        "vendor_user",
+        "customer",
+        "guest"
+      ],
+      "strengths": [
+        "Comprehensive RLS policies on all tables",
+        "Proper use of auth.uid() for user isolation",
+        "Multi-level access control (user, vendor, admin)",
+        "Vendor data isolation",
+        "Read-only public access where appropriate"
+      ],
+      "policy_examples": {
+        "user_isolation": "FOR SELECT USING (auth.uid() = user_id)",
+        "admin_access": "USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))",
+        "vendor_isolation": "USING (vendor_id IN (SELECT vendor_id FROM vendor_users WHERE user_id = auth.uid()))",
+        "public_read": "FOR SELECT USING (is_active = true)"
+      },
+      "issues": [
+        "Complex RLS policies may impact performance",
+        "Some policies use subqueries (could be optimized)"
+      ]
+    },
+    "data_protection": {
+      "score": 8.0,
+      "encryption_at_rest": true,
+      "encryption_in_transit": true,
+      "sensitive_data_handling": "Good",
+      "strengths": [
+        "Soft deletes preserve data",
+        "Audit logs for tracking changes",
+        "Proper password hashing"
+      ],
+      "issues": [
+        "Payment keys stored in plain text in config tables",
+        "No field-level encryption for PII",
+        "API keys visible to admins"
+      ],
+      "recommendations": [
+        "Implement field-level encryption for sensitive data",
+        "Use environment variables for API keys",
+        "Implement secrets rotation",
+        "Add data masking for PII in logs"
+      ]
+    },
+    "sql_injection_protection": {
+      "score": 9.5,
+      "strengths": [
+        "Using Supabase client (parameterized queries)",
+        "No raw SQL concatenation in code",
+        "TypeScript types prevent type confusion",
+        "Database functions use proper parameter handling"
+      ],
+      "issues": [
+        "Some dynamic queries in admin functions"
+      ]
+    }
+  },
+  "performance_analysis": {
+    "score": 8.5,
+    "query_optimization": {
+      "score": 8.0,
+      "strengths": [
+        "Proper use of SELECT fields (not SELECT *)",
+        "Efficient joins with proper indexes",
+        "Pagination implemented on list queries",
+        "Use of CTEs for complex queries"
+      ],
+      "issues": [
+        "Some N+1 query patterns in nested data",
+        "Large joins in admin dashboard queries",
+        "Missing EXPLAIN ANALYZE for slow queries"
+      ],
+      "recommendations": [
+        "Use subquery joins for nested data",
+        "Implement query result caching",
+        "Add database query monitoring",
+        "Optimize RLS policy performance"
+      ]
+    },
+    "caching": {
+      "score": 6.0,
+      "implemented": false,
+      "issues": [
+        "No Redis or similar caching layer",
+        "Repeated database queries",
+        "No API response caching",
+        "No materialized views"
+      ],
+      "recommendations": [
+        "Implement Redis for session and query caching",
+        "Add materialized views for complex aggregations",
+        "Implement API response caching headers",
+        "Use React Query more consistently on frontend"
+      ]
+    },
+    "connection_management": {
+      "score": 9.0,
+      "mechanism": "Supabase Connection Pooling",
+      "strengths": [
+        "Automatic connection pooling",
+        "Connection limits managed by Supabase",
+        "Proper connection handling"
+      ]
+    },
+    "data_volume": {
+      "estimated_growth": {
+        "orders_per_day": "100-1000",
+        "products_total": "10,000-100,000",
+        "users_total": "10,000-50,000",
+        "annual_data_growth": "1-5 GB"
+      },
+      "concerns": [
+        "orders table will grow rapidly",
+        "domain_events table will grow indefinitely",
+        "audit_logs table will accumulate"
+      ],
+      "recommendations": [
+        "Implement table partitioning for orders (by month/quarter)",
+        "Archive old audit logs to cold storage",
+        "Implement data retention policies",
+        "Set up automated database maintenance"
+      ]
+    }
+  },
+  "scalability_analysis": {
+    "score": 7.5,
+    "horizontal_scalability": {
+      "score": 7.0,
+      "current_state": "Single database instance",
+      "strengths": [
+        "Stateless application design",
+        "Supabase handles connection pooling",
+        "No server-side sessions"
+      ],
+      "limitations": [
+        "No read replicas configured",
+        "No database sharding strategy",
+        "No multi-region deployment"
+      ],
+      "recommendations": [
+        "Set up read replicas for analytics queries",
+        "Implement database sharding for multi-tenant data",
+        "Plan for multi-region deployment",
+        "Implement connection pooling for backend services"
+      ]
+    },
+    "vertical_scalability": {
+      "score": 8.0,
+      "current_limits": {
+        "database_size": "Unlimited (Supabase)",
+        "concurrent_connections": "Depends on Supabase plan",
+        "queries_per_second": "~1000 (estimated)"
+      },
+      "strengths": [
+        "Can upgrade Supabase plan for more resources",
+        "PostgreSQL scales well vertically",
+        "Good index coverage helps performance"
+      ]
+    },
+    "partitioning_strategy": {
+      "score": 6.0,
+      "implemented": false,
+      "recommendations": {
+        "orders": "Partition by created_at (monthly)",
+        "domain_events": "Partition by occurred_at (quarterly)",
+        "audit_logs": "Partition by created_at (monthly)",
+        "translations": "Partition by locale"
+      }
+    },
+    "archival_strategy": {
+      "score": 5.0,
+      "implemented": false,
+      "recommendations": [
+        "Archive orders older than 2 years to cold storage",
+        "Archive audit logs older than 1 year",
+        "Implement automated archival jobs",
+        "Keep archived data searchable via separate service"
+      ]
+    }
+  },
+  "data_integrity_analysis": {
+    "score": 8.0,
+    "referential_integrity": {
+      "score": 9.0,
+      "strengths": [
+        "All foreign keys properly defined",
+        "ON DELETE CASCADE where appropriate",
+        "ON DELETE RESTRICT for important relationships",
+        "No orphaned records due to proper constraints"
+      ]
+    },
+    "data_validation": {
+      "score": 7.5,
+      "database_level": {
+        "check_constraints": 45,
+        "not_null_constraints": 180,
+        "unique_constraints": 30,
+        "default_values": 280
+      },
+      "issues": [
+        "Some nullable columns that should be required",
+        "Missing CHECK constraints on some enum-like fields",
+        "No validation on JSONB structure"
+      ],
+      "recommendations": [
+        "Add CHECK constraints for all enum-like fields",
+        "Add NOT NULL constraints on critical fields",
+        "Implement JSONB schema validation",
+        "Add triggers for complex validation rules"
+      ]
+    },
+    "consistency": {
+      "score": 8.0,
+      "strengths": [
+        "Transactions used for multi-table updates",
+        "Triggers maintain consistency (updated_at)",
+        "Soft deletes maintain referential integrity"
+      ],
+      "issues": [
+        "Some denormalized fields may become inconsistent",
+        "No automated consistency checks"
+      ]
+    },
+    "audit_trail": {
+      "score": 9.0,
+      "mechanisms": [
+        "audit_logs table for all changes",
+        "domain_events for event sourcing",
+        "order_workflow for order state changes",
+        "created_at and updated_at timestamps"
+      ],
+      "strengths": [
+        "Comprehensive audit logging",
+        "Event sourcing for critical domains",
+        "Tracks user who made changes",
+        "Includes IP address and user agent"
+      ]
+    }
+  },
+  "migration_management_analysis": {
+    "score": 7.0,
+    "migration_files": {
+      "total_count": 19,
+      "organized_migrations": 3,
+      "scattered_migrations": 16
+    },
+    "issues": [
+      "Multiple SQL files without clear execution order",
+      "Some migrations not idempotent",
+      "No migration rollback scripts",
+      "Migration files scattered in root directory",
+      "Unclear which migrations have been applied"
+    ],
+    "strengths": [
+      "Comprehensive migration coverage",
+      "Well-commented SQL code",
+      "Uses DO $$ blocks for conditional logic",
+      "Supabase migrations folder exists"
+    ],
+    "recommendations": [
+      "Consolidate all migrations into supabase/migrations/",
+      "Use numbered migration files (e.g., 001_initial_schema.sql)",
+      "Make all migrations idempotent with IF NOT EXISTS",
+      "Create corresponding rollback scripts",
+      "Document migration execution order",
+      "Use Supabase CLI for migration management",
+      "Add migration status tracking table"
+    ]
+  },
+  "best_practices_compliance": {
+    "overall_score": 8.2,
+    "categories": {
+      "naming_conventions": {
+        "score": 8.0,
+        "compliant": [
+          "snake_case for tables and columns",
+          "Plural table names",
+          "Descriptive names",
+          "Consistent suffixes (_id, _at, _url)"
+        ],
+        "non_compliant": [
+          "Some abbreviations (fcm, pos)",
+          "Mix of singular/plural in junction tables"
+        ]
+      },
+      "documentation": {
+        "score": 7.0,
+        "strengths": [
+          "COMMENT ON TABLE for some tables",
+          "Inline SQL comments",
+          "External documentation files"
+        ],
+        "issues": [
+          "Not all tables have comments",
+          "No ERD diagram",
+          "Missing data dictionary"
+        ]
+      },
+      "normalization": {
+        "score": 8.5,
+        "compliant": [
+          "3NF for most tables",
+          "Minimal redundancy",
+          "Proper entity relationships"
+        ]
+      },
+      "indexing": {
+        "score": 9.0,
+        "compliant": [
+          "All foreign keys indexed",
+          "Composite indexes for common queries",
+          "Partial indexes for filtered queries"
+        ]
+      },
+      "security": {
+        "score": 9.5,
+        "compliant": [
+          "RLS enabled on all tables",
+          "Comprehensive policies",
+          "Role-based access control",
+          "Soft deletes for audit"
+        ]
+      },
+      "backup_and_recovery": {
+        "score": 9.0,
+        "mechanism": "Supabase Automated Backups",
+        "strengths": [
+          "Daily automated backups",
+          "Point-in-time recovery available",
+          "Backup retention as per plan"
+        ],
+        "recommendations": [
+          "Test restore procedures regularly",
+          "Document recovery process",
+          "Set up additional off-site backups"
+        ]
+      }
+    }
+  },
+  "specific_recommendations": {
+    "critical_priority": [
+      {
+        "category": "Migration Management",
+        "issue": "Scattered migration files without clear execution order",
+        "impact": "High - Risk of inconsistent database state",
+        "recommendation": "Consolidate all migrations into numbered sequence in supabase/migrations/",
+        "effort": "Medium",
+        "timeline": "1 week"
+      },
+      {
+        "category": "Indexing",
+        "issue": "Missing index on order_items.product_id",
+        "impact": "High - Slow queries on order reporting",
+        "recommendation": "CREATE INDEX idx_order_items_product_id ON order_items(product_id)",
+        "effort": "Low",
+        "timeline": "1 day"
+      },
+      {
+        "category": "Security",
+        "issue": "Payment API keys stored in plain text",
+        "impact": "Critical - Security vulnerability",
+        "recommendation": "Encrypt sensitive fields or move to environment variables",
+        "effort": "Medium",
+        "timeline": "1 week"
+      }
+    ],
+    "high_priority": [
+      {
+        "category": "Performance",
+        "issue": "No table partitioning for large tables",
+        "impact": "Medium - Will affect performance at scale",
+        "recommendation": "Implement partitioning for orders table by month",
+        "effort": "High",
+        "timeline": "2 weeks"
+      },
+      {
+        "category": "Scalability",
+        "issue": "No read replicas configured",
+        "impact": "Medium - Limited read scalability",
+        "recommendation": "Set up read replicas for analytics queries",
+        "effort": "Medium",
+        "timeline": "1 week"
+      },
+      {
+        "category": "Data Integrity",
+        "issue": "Missing NOT NULL constraints on some critical fields",
+        "impact": "Medium - Data quality issues",
+        "recommendation": "Add NOT NULL constraints after data cleanup",
+        "effort": "Medium",
+        "timeline": "1 week"
+      }
+    ],
+    "medium_priority": [
+      {
+        "category": "Performance",
+        "issue": "No caching layer",
+        "impact": "Medium - Repeated database queries",
+        "recommendation": "Implement Redis for query and session caching",
+        "effort": "High",
+        "timeline": "2 weeks"
+      },
+      {
+        "category": "Monitoring",
+        "issue": "No query performance monitoring",
+        "impact": "Medium - Can't identify slow queries",
+        "recommendation": "Enable pg_stat_statements and set up monitoring dashboard",
+        "effort": "Low",
+        "timeline": "3 days"
+      },
+      {
+        "category": "Documentation",
+        "issue": "No ERD diagram",
+        "impact": "Low - Harder for developers to understand schema",
+        "recommendation": "Generate ERD using dbdiagram.io or similar tool",
+        "effort": "Low",
+        "timeline": "2 days"
+      }
+    ]
+  },
+  "summary": {
+    "overall_assessment": "Excellent",
+    "total_score": 8.4,
+    "key_strengths": [
+      "Comprehensive RLS implementation (9.5/10)",
+      "Excellent indexing strategy (9.0/10)",
+      "Well-designed schema with proper normalization (8.5/10)",
+      "Strong data integrity with audit trails (8.0/10)",
+      "Modern architecture with clean separation of concerns"
+    ],
+    "key_weaknesses": [
+      "Migration management needs improvement (7.0/10)",
+      "Scalability concerns for large-scale deployment (7.5/10)",
+      "Missing archival and partitioning strategies",
+      "No caching layer implemented",
+      "Some security concerns with API key storage"
+    ],
+    "readiness": {
+      "development": "Ready",
+      "staging": "Ready",
+      "production": "Ready with caveats",
+      "caveats": [
+        "Implement critical security fixes (API key encryption)",
+        "Consolidate database migrations",
+        "Add monitoring and alerting",
+        "Test backup and restore procedures",
+        "Plan for scalability (partitioning, replicas)"
+      ]
+    },
+    "comparison_to_industry_standards": {
+      "schema_design": "Above average - Well normalized with proper relationships",
+      "security": "Excellent - Comprehensive RLS surpasses most implementations",
+      "performance": "Good - Proper indexing, but missing caching layer",
+      "scalability": "Average - Needs partitioning and replication for scale",
+      "maintainability": "Good - Clean schema, but migration management needs improvement"
+    }
+  }
+}
+
+

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ProductCard } from "@/components/grocery/ProductCard";
 import {
   Search,
@@ -14,8 +15,11 @@ import {
   Clock,
   Star,
   Heart,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useLocation } from "@/contexts/LocationContext";
+import { NoServiceAvailable } from "@/components/location/NoServiceAvailable";
 
 interface Product {
   id: string;
@@ -55,51 +59,140 @@ export default function Fashion() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Get location context
+  const {
+    currentLocation,
+    serviceAreaId,
+    hasLocation,
+    isServiceAvailable,
+    isCheckingService,
+    availableServiceTypes,
+  } = useLocation();
+
+  // Check if fashion service is available in the current location
+  const hasFashionService =
+    isServiceAvailable && availableServiceTypes.includes("fashion");
+
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [serviceAreaId, hasFashionService]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      // Fetch fashion products and categories
-      const [productsResult, categoriesResult] = await Promise.all([
-        supabase
-          .from("products")
-          .select(
-            `
-            *,
-            categories!inner (
-              id,
-              name,
-              service_type
-            )
-          `,
-          )
-          .eq("is_active", true)
-          .eq("categories.service_type", "fashion"),
-        supabase
-          .from("categories")
-          .select("*")
-          .eq("service_type", "fashion")
-          .eq("is_active", true)
-          .order("sort_order"),
-      ]);
-
-      if (productsResult.error) {
-        console.error("Error fetching fashion products:", productsResult.error);
-      } else {
-        setProducts(productsResult.data || []);
-      }
-
-      if (categoriesResult.error) {
-        console.error(
-          "Error fetching fashion categories:",
-          categoriesResult.error,
+      // If location is selected and service is available, use location-based filtering
+      if (serviceAreaId && hasFashionService) {
+        const { data: locationData, error: locationError } = await supabase.rpc(
+          "get_products_by_service_area",
+          {
+            p_service_area_id: serviceAreaId,
+            p_service_type: "fashion",
+            p_category_id: null,
+            p_search_term: null,
+            p_limit: 100,
+            p_offset: 0,
+          }
         );
+
+        if (locationError) {
+          console.error("Error fetching location-based products:", locationError);
+          setProducts([]);
+        } else if (locationData) {
+          const transformedProducts = (locationData || []).map((p: any) => ({
+            id: p.offering_id,
+            name: p.offering_name,
+            description: null,
+            price: p.location_price,
+            discount_price: null,
+            image_url: p.primary_image_url,
+            stock_quantity: p.location_stock || 0,
+            is_active: p.is_available,
+            rating: null,
+            reviews_count: 0,
+            sku: null,
+            brand: null,
+            tags: [],
+            categories: {
+              id: "",
+              name: p.category_name || "",
+              service_type: "fashion",
+            },
+          }));
+          setProducts(transformedProducts);
+        }
+
+        // Fetch location-based categories
+        const { data: locationCategories, error: categoriesError } =
+          await supabase
+            .from("service_area_categories")
+            .select(
+              `
+              *,
+              categories:category_id (
+                id,
+                name,
+                service_type,
+                image_url,
+                is_active,
+                sort_order
+              )
+            `
+            )
+            .eq("service_area_id", serviceAreaId)
+            .eq("is_available", true)
+            .order("display_order");
+
+        if (categoriesError) {
+          console.error("Error fetching location-based categories:", categoriesError);
+          setCategories([]);
+        } else {
+          const transformedCategories = (locationCategories || [])
+            .map((sc: any) => sc.categories)
+            .filter((c: any) => c && c.service_type === "fashion");
+          setCategories(transformedCategories);
+        }
       } else {
-        setCategories(categoriesResult.data || []);
+        // Fallback: Fetch all fashion products
+        const [productsResult, categoriesResult] = await Promise.all([
+          supabase
+            .from("products")
+            .select(
+              `
+              *,
+              categories!inner (
+                id,
+                name,
+                service_type
+              )
+            `,
+            )
+            .eq("is_active", true)
+            .eq("categories.service_type", "fashion"),
+          supabase
+            .from("categories")
+            .select("*")
+            .eq("service_type", "fashion")
+            .eq("is_active", true)
+            .order("sort_order"),
+        ]);
+
+        if (productsResult.error) {
+          console.error("Error fetching fashion products:", productsResult.error);
+          setProducts([]);
+        } else {
+          setProducts(productsResult.data || []);
+        }
+
+        if (categoriesResult.error) {
+          console.error(
+            "Error fetching fashion categories:",
+            categoriesResult.error,
+          );
+          setCategories([]);
+        } else {
+          setCategories(categoriesResult.data || []);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -161,12 +254,18 @@ export default function Fashion() {
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
                   <MapPin className="h-4 w-4 text-primary" />
-                  <span>Rayachoty, Annamayya District</span>
+                  <span>
+                    {hasLocation && currentLocation
+                      ? `${currentLocation.city}, ${currentLocation.state}`
+                      : "Select location to see available products"}
+                  </span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <span>Same-day delivery</span>
-                </div>
+                {hasLocation && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <span>Same-day delivery</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -175,6 +274,31 @@ export default function Fashion() {
             </Badge>
           </div>
         </div>
+
+        {/* Location Alert */}
+        {!hasLocation && (
+          <Alert className="mb-6 bg-blue-50 border-blue-200">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              Please select your location from the header to see products
+              available in your area.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Service Not Available Alert */}
+        {hasLocation && !isCheckingService && !hasFashionService && (
+          <div className="mb-6">
+            <NoServiceAvailable
+              locationName={
+                currentLocation
+                  ? `${currentLocation.city}, ${currentLocation.state}`
+                  : undefined
+              }
+              variant="card"
+            />
+          </div>
+        )}
 
         {/* Quick categories */}
         <div className="mb-8">
@@ -339,7 +463,7 @@ export default function Fashion() {
         )}
 
         {/* Empty state */}
-        {!loading && sortedProducts.length === 0 && (
+        {!loading && sortedProducts.length === 0 && hasFashionService && (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">👗</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -358,6 +482,22 @@ export default function Fashion() {
             </Button>
           </div>
         )}
+
+        {/* Service not available - full empty state */}
+        {!loading &&
+          hasLocation &&
+          !isCheckingService &&
+          !hasFashionService && (
+            <NoServiceAvailable
+              locationName={
+                currentLocation
+                  ? `${currentLocation.city}, ${currentLocation.state}`
+                  : undefined
+              }
+              variant="full"
+              showSuggestions={true}
+            />
+          )}
 
         {/* Info section */}
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">

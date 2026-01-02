@@ -1,0 +1,713 @@
+---
+description: Complete Color System - Palettes, Themes, and Usage Rules
+globs: **/*.css,**/*.tsx,tailwind.config.ts
+---
+
+# KooliHub Color System
+
+## Overview
+Comprehensive color system with semantic colors, service-specific palettes, status colors, and theme support.
+
+---
+
+## 1. Color Architecture
+
+### 1.1 Color Token Hierarchy
+```
+Colors
+├── Primitive Colors (Raw Values)
+│   ├── Brand Colors (Yellow, etc.)
+│   └── Neutral Palette (Gray scale)
+│
+├── Semantic Colors (Purpose-Based)
+│   ├── Primary / Secondary
+│   ├── Background / Foreground
+│   ├── Muted / Accent
+│   └── Destructive / Success / Warning / Info
+│
+├── Service Colors (Domain-Specific)
+│   ├── Grocery (Green)
+│   ├── Trips (Blue)
+│   ├── Handyman (Orange)
+│   └── ... other services
+│
+└── Status Colors (State-Based)
+    ├── Order Status
+    ├── Payment Status
+    └── Generic Status
+```
+
+---
+
+## 2. Core Color Definitions
+
+### 2.1 CSS Variables (global.css)
+```css
+:root {
+  /* ═══════════════════════════════════════════════════════════════
+     PRIMITIVE COLORS - Raw HSL values for maximum flexibility
+     ═══════════════════════════════════════════════════════════════ */
+  
+  /* Brand Colors */
+  --brand-primary-h: 48;
+  --brand-primary-s: 95%;
+  --brand-primary-l: 63%;
+  
+  /* Gray Scale (Neutral Palette) */
+  --gray-50: 210 40% 98%;
+  --gray-100: 210 40% 96%;
+  --gray-200: 214 32% 91%;
+  --gray-300: 213 27% 84%;
+  --gray-400: 215 20% 65%;
+  --gray-500: 215 16% 47%;
+  --gray-600: 215 19% 35%;
+  --gray-700: 215 25% 27%;
+  --gray-800: 217 33% 17%;
+  --gray-900: 222 47% 11%;
+  --gray-950: 222 84% 5%;
+  
+  /* ═══════════════════════════════════════════════════════════════
+     SEMANTIC COLORS - Light Mode
+     ═══════════════════════════════════════════════════════════════ */
+  
+  /* Base */
+  --background: 0 0% 100%;
+  --foreground: 222 84% 5%;
+  
+  /* Primary (Brand Yellow) */
+  --primary: 48 95% 63%;
+  --primary-foreground: 0 0% 0%;
+  
+  /* Secondary */
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  
+  /* Muted */
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  
+  /* Accent */
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
+  
+  /* Card */
+  --card: 0 0% 100%;
+  --card-foreground: 222 84% 5%;
+  
+  /* Popover */
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 84% 5%;
+  
+  /* Border & Input */
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 25 85% 55%;
+  
+  /* ═══════════════════════════════════════════════════════════════
+     STATUS COLORS
+     ═══════════════════════════════════════════════════════════════ */
+  
+  /* Destructive (Error/Danger) */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  
+  /* Success */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+  
+  /* Warning */
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 0%;
+  
+  /* Info */
+  --info: 199 89% 48%;
+  --info-foreground: 0 0% 100%;
+  
+  /* ═══════════════════════════════════════════════════════════════
+     SIDEBAR COLORS
+     ═══════════════════════════════════════════════════════════════ */
+  
+  --sidebar-background: 0 0% 98%;
+  --sidebar-foreground: 240 5% 26%;
+  --sidebar-primary: 240 6% 10%;
+  --sidebar-primary-foreground: 0 0% 98%;
+  --sidebar-accent: 240 5% 96%;
+  --sidebar-accent-foreground: 240 6% 10%;
+  --sidebar-border: 220 13% 91%;
+  --sidebar-ring: 217 91% 60%;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE OVERRIDES
+   ═══════════════════════════════════════════════════════════════ */
+
+.dark {
+  --background: 222 84% 5%;
+  --foreground: 210 40% 98%;
+  
+  --primary: 48 95% 70%;
+  --primary-foreground: 222 84% 5%;
+  
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  
+  --accent: 217 33% 17%;
+  --accent-foreground: 210 40% 98%;
+  
+  --card: 222 84% 5%;
+  --card-foreground: 210 40% 98%;
+  
+  --popover: 222 84% 5%;
+  --popover-foreground: 210 40% 98%;
+  
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+  --ring: 213 27% 84%;
+  
+  /* Sidebar Dark */
+  --sidebar-background: 240 6% 10%;
+  --sidebar-foreground: 240 5% 96%;
+  --sidebar-primary: 224 76% 48%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 240 4% 16%;
+  --sidebar-accent-foreground: 240 5% 96%;
+  --sidebar-border: 240 4% 16%;
+}
+```
+
+---
+
+## 3. Service Color Palettes
+
+### 3.1 Tailwind Config Extension
+```typescript
+// tailwind.config.ts - colors section
+
+const serviceColors = {
+  // ═══════════════════════════════════════════
+  // GROCERY - Green
+  // ═══════════════════════════════════════════
+  grocery: {
+    50: '#f0fdf4',
+    100: '#dcfce7',
+    200: '#bbf7d0',
+    300: '#86efac',
+    400: '#4ade80',
+    500: '#10b981',  // Primary
+    600: '#059669',
+    700: '#047857',
+    800: '#065f46',
+    900: '#064e3b',
+    950: '#022c22',
+  },
+
+  // ═══════════════════════════════════════════
+  // TRIPS - Blue
+  // ═══════════════════════════════════════════
+  trips: {
+    50: '#eff6ff',
+    100: '#dbeafe',
+    200: '#bfdbfe',
+    300: '#93c5fd',
+    400: '#60a5fa',
+    500: '#3b82f6',  // Primary
+    600: '#2563eb',
+    700: '#1d4ed8',
+    800: '#1e40af',
+    900: '#1e3a8a',
+    950: '#172554',
+  },
+
+  // ═══════════════════════════════════════════
+  // HANDYMAN - Orange
+  // ═══════════════════════════════════════════
+  handyman: {
+    50: '#fff7ed',
+    100: '#ffedd5',
+    200: '#fed7aa',
+    300: '#fdba74',
+    400: '#fb923c',
+    500: '#f97316',  // Primary
+    600: '#ea580c',
+    700: '#c2410c',
+    800: '#9a3412',
+    900: '#7c2d12',
+    950: '#431407',
+  },
+
+  // ═══════════════════════════════════════════
+  // CAR RENTAL - Purple
+  // ═══════════════════════════════════════════
+  'car-rental': {
+    50: '#faf5ff',
+    100: '#f3e8ff',
+    200: '#e9d5ff',
+    300: '#d8b4fe',
+    400: '#c084fc',
+    500: '#8b5cf6',  // Primary
+    600: '#7c3aed',
+    700: '#6d28d9',
+    800: '#5b21b6',
+    900: '#4c1d95',
+    950: '#2e1065',
+  },
+
+  // ═══════════════════════════════════════════
+  // FASHION - Pink
+  // ═══════════════════════════════════════════
+  fashion: {
+    50: '#fdf2f8',
+    100: '#fce7f3',
+    200: '#fbcfe8',
+    300: '#f9a8d4',
+    400: '#f472b6',
+    500: '#ec4899',  // Primary
+    600: '#db2777',
+    700: '#be185d',
+    800: '#9d174d',
+    900: '#831843',
+    950: '#500724',
+  },
+
+  // ═══════════════════════════════════════════
+  // ELECTRONICS - Cyan
+  // ═══════════════════════════════════════════
+  electronics: {
+    50: '#f0f9ff',
+    100: '#e0f2fe',
+    200: '#bae6fd',
+    300: '#7dd3fc',
+    400: '#38bdf8',
+    500: '#0ea5e9',  // Primary
+    600: '#0284c7',
+    700: '#0369a1',
+    800: '#075985',
+    900: '#0c4a6e',
+    950: '#082f49',
+  },
+
+  // ═══════════════════════════════════════════
+  // BEAUTY - Rose
+  // ═══════════════════════════════════════════
+  beauty: {
+    50: '#fff1f2',
+    100: '#ffe4e6',
+    200: '#fecdd3',
+    300: '#fda4af',
+    400: '#fb7185',
+    500: '#f43f5e',  // Primary
+    600: '#e11d48',
+    700: '#be123c',
+    800: '#9f1239',
+    900: '#881337',
+    950: '#4c0519',
+  },
+
+  // ═══════════════════════════════════════════
+  // HOME KITCHEN - Amber
+  // ═══════════════════════════════════════════
+  'home-kitchen': {
+    50: '#fffbeb',
+    100: '#fef3c7',
+    200: '#fde68a',
+    300: '#fcd34d',
+    400: '#fbbf24',
+    500: '#f59e0b',  // Primary
+    600: '#d97706',
+    700: '#b45309',
+    800: '#92400e',
+    900: '#78350f',
+    950: '#451a03',
+  },
+};
+```
+
+### 3.2 Service Color Map
+```typescript
+// client/lib/service-colors.ts
+
+export const SERVICE_COLORS = {
+  grocery: {
+    primary: 'bg-grocery-500',
+    light: 'bg-grocery-50',
+    dark: 'bg-grocery-700',
+    text: 'text-grocery-700',
+    border: 'border-grocery-300',
+    gradient: 'from-grocery-500 to-grocery-600',
+  },
+  trips: {
+    primary: 'bg-trips-500',
+    light: 'bg-trips-50',
+    dark: 'bg-trips-700',
+    text: 'text-trips-700',
+    border: 'border-trips-300',
+    gradient: 'from-trips-500 to-trips-600',
+  },
+  handyman: {
+    primary: 'bg-handyman-500',
+    light: 'bg-handyman-50',
+    dark: 'bg-handyman-700',
+    text: 'text-handyman-700',
+    border: 'border-handyman-300',
+    gradient: 'from-handyman-500 to-handyman-600',
+  },
+  'car-rental': {
+    primary: 'bg-car-rental-500',
+    light: 'bg-car-rental-50',
+    dark: 'bg-car-rental-700',
+    text: 'text-car-rental-700',
+    border: 'border-car-rental-300',
+    gradient: 'from-car-rental-500 to-car-rental-600',
+  },
+  fashion: {
+    primary: 'bg-fashion-500',
+    light: 'bg-fashion-50',
+    dark: 'bg-fashion-700',
+    text: 'text-fashion-700',
+    border: 'border-fashion-300',
+    gradient: 'from-fashion-500 to-fashion-600',
+  },
+  electronics: {
+    primary: 'bg-electronics-500',
+    light: 'bg-electronics-50',
+    dark: 'bg-electronics-700',
+    text: 'text-electronics-700',
+    border: 'border-electronics-300',
+    gradient: 'from-electronics-500 to-electronics-600',
+  },
+  beauty: {
+    primary: 'bg-beauty-500',
+    light: 'bg-beauty-50',
+    dark: 'bg-beauty-700',
+    text: 'text-beauty-700',
+    border: 'border-beauty-300',
+    gradient: 'from-beauty-500 to-beauty-600',
+  },
+} as const;
+
+export type ServiceType = keyof typeof SERVICE_COLORS;
+
+export function getServiceColor(service: string) {
+  return SERVICE_COLORS[service as ServiceType] || SERVICE_COLORS.grocery;
+}
+```
+
+---
+
+## 4. Status Color System
+
+### 4.1 Status Color Definitions
+```typescript
+// client/lib/status-colors.ts
+
+export const STATUS_COLORS = {
+  // ═══════════════════════════════════════════
+  // ORDER STATUS
+  // ═══════════════════════════════════════════
+  order: {
+    pending: {
+      bg: 'bg-yellow-100',
+      text: 'text-yellow-800',
+      border: 'border-yellow-300',
+      dot: 'bg-yellow-500',
+    },
+    confirmed: {
+      bg: 'bg-blue-100',
+      text: 'text-blue-800',
+      border: 'border-blue-300',
+      dot: 'bg-blue-500',
+    },
+    processing: {
+      bg: 'bg-purple-100',
+      text: 'text-purple-800',
+      border: 'border-purple-300',
+      dot: 'bg-purple-500',
+    },
+    packed: {
+      bg: 'bg-indigo-100',
+      text: 'text-indigo-800',
+      border: 'border-indigo-300',
+      dot: 'bg-indigo-500',
+    },
+    shipped: {
+      bg: 'bg-cyan-100',
+      text: 'text-cyan-800',
+      border: 'border-cyan-300',
+      dot: 'bg-cyan-500',
+    },
+    out_for_delivery: {
+      bg: 'bg-teal-100',
+      text: 'text-teal-800',
+      border: 'border-teal-300',
+      dot: 'bg-teal-500',
+    },
+    delivered: {
+      bg: 'bg-green-100',
+      text: 'text-green-800',
+      border: 'border-green-300',
+      dot: 'bg-green-500',
+    },
+    cancelled: {
+      bg: 'bg-red-100',
+      text: 'text-red-800',
+      border: 'border-red-300',
+      dot: 'bg-red-500',
+    },
+    returned: {
+      bg: 'bg-orange-100',
+      text: 'text-orange-800',
+      border: 'border-orange-300',
+      dot: 'bg-orange-500',
+    },
+    refunded: {
+      bg: 'bg-gray-100',
+      text: 'text-gray-800',
+      border: 'border-gray-300',
+      dot: 'bg-gray-500',
+    },
+  },
+
+  // ═══════════════════════════════════════════
+  // PAYMENT STATUS
+  // ═══════════════════════════════════════════
+  payment: {
+    pending: {
+      bg: 'bg-yellow-100',
+      text: 'text-yellow-800',
+    },
+    completed: {
+      bg: 'bg-green-100',
+      text: 'text-green-800',
+    },
+    failed: {
+      bg: 'bg-red-100',
+      text: 'text-red-800',
+    },
+    refunded: {
+      bg: 'bg-gray-100',
+      text: 'text-gray-800',
+    },
+    partially_refunded: {
+      bg: 'bg-orange-100',
+      text: 'text-orange-800',
+    },
+  },
+
+  // ═══════════════════════════════════════════
+  // VENDOR STATUS
+  // ═══════════════════════════════════════════
+  vendor: {
+    pending_approval: {
+      bg: 'bg-yellow-100',
+      text: 'text-yellow-800',
+    },
+    active: {
+      bg: 'bg-green-100',
+      text: 'text-green-800',
+    },
+    inactive: {
+      bg: 'bg-gray-100',
+      text: 'text-gray-800',
+    },
+    suspended: {
+      bg: 'bg-red-100',
+      text: 'text-red-800',
+    },
+  },
+
+  // ═══════════════════════════════════════════
+  // TRIP STATUS
+  // ═══════════════════════════════════════════
+  trip: {
+    scheduled: {
+      bg: 'bg-blue-100',
+      text: 'text-blue-800',
+    },
+    active: {
+      bg: 'bg-green-100',
+      text: 'text-green-800',
+    },
+    completed: {
+      bg: 'bg-gray-100',
+      text: 'text-gray-800',
+    },
+    cancelled: {
+      bg: 'bg-red-100',
+      text: 'text-red-800',
+    },
+  },
+
+  // ═══════════════════════════════════════════
+  // GENERIC STATUS
+  // ═══════════════════════════════════════════
+  generic: {
+    success: {
+      bg: 'bg-green-100',
+      text: 'text-green-800',
+      border: 'border-green-300',
+    },
+    warning: {
+      bg: 'bg-yellow-100',
+      text: 'text-yellow-800',
+      border: 'border-yellow-300',
+    },
+    error: {
+      bg: 'bg-red-100',
+      text: 'text-red-800',
+      border: 'border-red-300',
+    },
+    info: {
+      bg: 'bg-blue-100',
+      text: 'text-blue-800',
+      border: 'border-blue-300',
+    },
+    neutral: {
+      bg: 'bg-gray-100',
+      text: 'text-gray-800',
+      border: 'border-gray-300',
+    },
+  },
+} as const;
+
+// Helper functions
+export function getOrderStatusColor(status: string) {
+  return STATUS_COLORS.order[status as keyof typeof STATUS_COLORS.order] 
+    || STATUS_COLORS.generic.neutral;
+}
+
+export function getPaymentStatusColor(status: string) {
+  return STATUS_COLORS.payment[status as keyof typeof STATUS_COLORS.payment] 
+    || STATUS_COLORS.generic.neutral;
+}
+
+export function getVendorStatusColor(status: string) {
+  return STATUS_COLORS.vendor[status as keyof typeof STATUS_COLORS.vendor] 
+    || STATUS_COLORS.generic.neutral;
+}
+
+export function getTripStatusColor(status: string) {
+  return STATUS_COLORS.trip[status as keyof typeof STATUS_COLORS.trip] 
+    || STATUS_COLORS.generic.neutral;
+}
+```
+
+---
+
+## 5. Usage Examples
+
+### 5.1 Using Semantic Colors
+```tsx
+// ✅ GOOD - Using semantic color classes
+<div className="bg-background text-foreground">
+  <h1 className="text-primary">Primary Heading</h1>
+  <p className="text-muted-foreground">Secondary text</p>
+  <Button className="bg-primary text-primary-foreground">
+    Action
+  </Button>
+  <span className="text-destructive">Error message</span>
+</div>
+
+// ❌ BAD - Hardcoded colors
+<div style={{ backgroundColor: '#ffffff', color: '#1a1a1a' }}>
+  <h1 style={{ color: '#FFD700' }}>Primary Heading</h1>
+</div>
+```
+
+### 5.2 Using Service Colors
+```tsx
+import { getServiceColor, SERVICE_COLORS } from '@/lib/service-colors';
+
+// Dynamic service theming
+function ServiceBanner({ serviceType }: { serviceType: string }) {
+  const colors = getServiceColor(serviceType);
+  
+  return (
+    <div className={cn(colors.light, colors.border, 'border rounded-lg p-4')}>
+      <h2 className={colors.text}>Welcome to {serviceType}</h2>
+      <div className={cn('h-1 rounded', colors.primary)} />
+    </div>
+  );
+}
+
+// Static service colors
+function GroceryCard() {
+  return (
+    <Card className="bg-grocery-50 border-grocery-200">
+      <CardTitle className="text-grocery-700">Fresh Groceries</CardTitle>
+    </Card>
+  );
+}
+```
+
+### 5.3 Using Status Colors
+```tsx
+import { getOrderStatusColor } from '@/lib/status-colors';
+
+function OrderStatusBadge({ status }: { status: string }) {
+  const colors = getOrderStatusColor(status);
+  
+  return (
+    <Badge className={cn(colors.bg, colors.text)}>
+      <span className={cn('w-2 h-2 rounded-full mr-2', colors.dot)} />
+      {status}
+    </Badge>
+  );
+}
+```
+
+---
+
+## 6. Color Rules
+
+### 6.1 DO:
+- ✅ Use CSS variables for theme colors (`bg-background`, `text-foreground`)
+- ✅ Use service color palette for service-specific UI
+- ✅ Use status colors from the centralized map
+- ✅ Support dark mode with `.dark` class overrides
+- ✅ Use `hsl()` format for flexibility
+
+### 6.2 DON'T:
+- ❌ Use hardcoded hex colors (`#FFD700`)
+- ❌ Use Tailwind colors directly (`bg-blue-500`) for brand colors
+- ❌ Create one-off color variables
+- ❌ Mix color systems inconsistently
+- ❌ Ignore dark mode compatibility
+
+---
+
+## 7. Adding New Colors
+
+### Step 1: Define in global.css (if semantic)
+```css
+:root {
+  --new-color: 200 80% 50%;
+  --new-color-foreground: 0 0% 100%;
+}
+.dark {
+  --new-color: 200 80% 60%;
+}
+```
+
+### Step 2: Extend tailwind.config.ts
+```typescript
+colors: {
+  'new-color': {
+    DEFAULT: 'hsl(var(--new-color))',
+    foreground: 'hsl(var(--new-color-foreground))',
+  },
+}
+```
+
+### Step 3: Document in this file
+Add to appropriate section with usage examples.
+
+---
+
+**Related Files**:
+- `client/global.css` - CSS variables
+- `tailwind.config.ts` - Tailwind extensions
+- `client/lib/service-colors.ts` - Service color utilities
+- `client/lib/status-colors.ts` - Status color utilities

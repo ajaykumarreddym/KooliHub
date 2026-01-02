@@ -1,36 +1,40 @@
-import React, { useEffect, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/common/StatsCard";
-import { supabase } from "@/lib/supabase";
-import { useNavigate } from "react-router-dom";
-import { useRealtimeStats, useRealtimeOrders } from "@/hooks/use-realtime";
-import { debugSupabaseConnection } from "@/lib/debug-utils";
+import { Button } from "@/components/ui/button";
 import {
-  Users,
-  Package,
-  ShoppingCart,
-  MapPin,
-  TrendingUp,
-  Clock,
-  AlertCircle,
-  Bug,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import { useRealtimeOrders, useRealtimeStats } from "@/hooks/use-realtime";
+import { debugSupabaseConnection } from "@/lib/debug-utils";
+import { supabase } from "@/lib/supabase";
+import {
+    AlertCircle,
+    Bug,
+    Clock,
+    MapPin,
+    Package,
+    ShoppingCart,
+    TrendingUp,
+    Users,
 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface DashboardStats {
   totalUsers: number;
-  totalProducts: number;
+  totalOfferings: number;
+  totalVendors: number;
+  activeVendors: number;
+  totalCategories: number;
   totalOrders: number;
   serviceableAreas: number;
   todayOrders: number;
   pendingOrders: number;
   totalRevenue: number;
+  totalAttributes: number;
 }
 
 export const Dashboard: React.FC = () => {
@@ -38,9 +42,13 @@ export const Dashboard: React.FC = () => {
   const { stats: realtimeStats, loading: statsLoading } = useRealtimeStats();
   const { orders: recentOrders, loading: ordersLoading } = useRealtimeOrders();
   const [additionalStats, setAdditionalStats] = useState({
-    totalProducts: 0,
+    totalOfferings: 0,
+    totalVendors: 0,
+    activeVendors: 0,
+    totalCategories: 0,
     serviceableAreas: 0,
     totalRevenue: 0,
+    totalAttributes: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,11 +79,20 @@ export const Dashboard: React.FC = () => {
     try {
       setError(null);
 
-      const [productsResult, areasResult, revenueOrdersResult] =
+      const [offeringsResult, vendorsResult, categoriesResult, areasResult, revenueOrdersResult, attributesResult] =
         await Promise.allSettled([
           supabase
-            .from("products")
-            .select("id", { count: "exact", head: true }),
+            .from("offerings")
+            .select("id", { count: "exact", head: true })
+            .is("deleted_at", null),
+          supabase
+            .from("vendors")
+            .select("id, status", { count: "exact" })
+            .is("deleted_at", null),
+          supabase
+            .from("categories")
+            .select("id", { count: "exact", head: true })
+            .eq("is_active", true),
           supabase
             .from("serviceable_areas")
             .select("id", { count: "exact", head: true }),
@@ -83,6 +100,10 @@ export const Dashboard: React.FC = () => {
             .from("orders")
             .select("total_amount")
             .eq("payment_status", "completed"),
+          supabase
+            .from("attribute_registry")
+            .select("id", { count: "exact", head: true })
+            .eq("is_active", true),
         ]);
 
       // Process results and handle any errors
@@ -106,10 +127,20 @@ export const Dashboard: React.FC = () => {
           )
         : 0;
 
+      // Process vendor data to get active count
+      const vendorsData = vendorsResult.status === "fulfilled" ? vendorsResult.value.data : [];
+      const activeVendorsCount = Array.isArray(vendorsData) 
+        ? vendorsData.filter((vendor: any) => vendor.status === 'active').length 
+        : 0;
+
       setAdditionalStats({
-        totalProducts: getValue(productsResult),
+        totalOfferings: getValue(offeringsResult),
+        totalVendors: getValue(vendorsResult),
+        activeVendors: activeVendorsCount,
+        totalCategories: getValue(categoriesResult),
         serviceableAreas: getValue(areasResult),
         totalRevenue: revenue,
+        totalAttributes: getValue(attributesResult),
       });
     } catch (error) {
       const errorMessage = parseError(error);
@@ -195,7 +226,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
         <StatsCard
           title="Users"
           value={realtimeStats.totalUsers}
@@ -205,11 +236,27 @@ export const Dashboard: React.FC = () => {
         />
 
         <StatsCard
-          title="Products"
-          value={additionalStats.totalProducts}
+          title="Offerings"
+          value={additionalStats.totalOfferings}
           icon={Package}
           loading={loading}
           className="bg-green-50 border-green-200"
+        />
+
+        <StatsCard
+          title="Vendors"
+          value={`${additionalStats.activeVendors}/${additionalStats.totalVendors}`}
+          icon={Users}
+          loading={loading}
+          className="bg-purple-50 border-purple-200"
+        />
+
+        <StatsCard
+          title="Categories"
+          value={additionalStats.totalCategories}
+          icon={Package}
+          loading={loading}
+          className="bg-cyan-50 border-cyan-200"
         />
 
         <StatsCard
@@ -217,7 +264,7 @@ export const Dashboard: React.FC = () => {
           value={realtimeStats.totalOrders}
           icon={ShoppingCart}
           loading={loading}
-          className="bg-purple-50 border-purple-200"
+          className="bg-yellow-50 border-yellow-200"
         />
 
         <StatsCard
@@ -229,9 +276,9 @@ export const Dashboard: React.FC = () => {
         />
 
         <StatsCard
-          title="Today"
-          value={realtimeStats.todayOrders}
-          icon={Clock}
+          title="Attributes"
+          value={additionalStats.totalAttributes}
+          icon={MapPin}
           loading={loading}
           className="bg-indigo-50 border-indigo-200"
         />
@@ -239,7 +286,7 @@ export const Dashboard: React.FC = () => {
         <StatsCard
           title="Pending"
           value={realtimeStats.pendingOrders}
-          icon={MapPin}
+          icon={Clock}
           loading={loading}
           className="bg-red-50 border-red-200"
         />
@@ -258,30 +305,30 @@ export const Dashboard: React.FC = () => {
                 variant="outline"
                 size="sm"
                 className="h-16 flex-col gap-1"
-                onClick={() => navigate("/admin/inventory")}
+                onClick={() => navigate("/admin/services")}
               >
                 <Package className="h-4 w-4" />
-                <span className="text-xs">Inventory</span>
+                <span className="text-xs">Services</span>
               </Button>
 
               <Button
                 variant="outline"
                 size="sm"
                 className="h-16 flex-col gap-1"
-                onClick={() => navigate("/admin/users")}
+                onClick={() => navigate("/admin/vendors")}
               >
                 <Users className="h-4 w-4" />
-                <span className="text-xs">Users</span>
+                <span className="text-xs">Vendors</span>
               </Button>
 
               <Button
                 variant="outline"
                 size="sm"
                 className="h-16 flex-col gap-1"
-                onClick={() => navigate("/admin/service-areas")}
+                onClick={() => navigate("/admin/unified-product-management")}
               >
                 <MapPin className="h-4 w-4" />
-                <span className="text-xs">Areas</span>
+                <span className="text-xs">Products</span>
               </Button>
 
               <Button

@@ -1,0 +1,81 @@
+---
+description: Prevent creation of unnecessary summary files
+---
+
+# Summary File Creation Policy
+
+## Critical Rule: NO Summary Files
+
+**NEVER** create summary, completion, or documentation files at the end of tasks unless explicitly requested by the user.
+
+## Prohibited File Types
+
+Do NOT create these files automatically:
+- ❌ `*_SUMMARY.md`
+- ❌ `*_COMPLETE.md`
+- ❌ `*_IMPLEMENTATION.md`
+- ❌ `*_FIX.md`
+- ❌ `*_GUIDE.md`
+- ❌ `*.txt` summary files
+- ❌ `*_REPORT.md`
+- ❌ Any other completion/summary documentation
+
+## When Files ARE Allowed
+
+Only create documentation files when:
+1. ✅ User **explicitly requests** a summary or documentation
+2. ✅ Creating essential configuration files (`.env.example`, `config.ts`, etc.)
+3. ✅ Creating necessary code files (components, utilities, etc.)
+4. ✅ Creating migration files that will be applied
+
+## Database Changes Communication
+
+When making database changes:
+1. ✅ Apply the changes directly using Supabase MCP tools
+2. ✅ Provide a **brief verbal summary** in the response (3-5 lines max)
+3. ❌ Do NOT create a separate `.sql` or `.md` file documenting what was done
+
+### Example of Correct Approach:
+```
+✅ Database updated:
+- Created `fcm_tokens` table
+- Added indexes for performance
+- Applied RLS policies
+```
+
+### Example of Incorrect Approach:
+```
+❌ Created file: DATABASE_CHANGES_SUMMARY.md
+❌ Created file: MIGRATION_COMPLETE.txt
+```
+
+## Implementation Guidelines
+
+### When Completing Tasks:
+- Summarize changes **in your response** (not in files)
+- Only create files that are **functional** and will be **used** by the application
+- If documentation is needed, ask the user first
+
+### Exception: Initial Setup
+Documentation files are acceptable when:
+- Setting up a new major feature for the first time
+- User needs reference documentation for complex systems
+- **But ask first**: "Would you like me to create documentation for this?"
+
+## Rationale
+
+This rule exists because:
+1. The codebase has accumulated 100+ unnecessary summary files
+2. Summary files clutter the project directory
+3. Information should be in code comments or proper documentation, not scattered `.md` files
+4. Git history already serves as a record of changes
+5. Users can ask for summaries when needed
+
+## Enforcement
+
+**Always follow this rule** unless the user explicitly says:
+- "Create a summary document"
+- "Generate documentation for this"
+- "I need a guide for..."
+
+When in doubt, **DO NOT** create the file.

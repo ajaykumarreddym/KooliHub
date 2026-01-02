@@ -1,74 +1,92 @@
+import cors from "cors";
 import "dotenv/config";
 import express from "express";
-import cors from "cors";
-import { handleDemo } from "./routes/demo";
 import {
-  requireAdmin,
-  getDashboardStats,
-  getAnalyticsData,
-  bulkUpdateProducts,
-  exportServiceAreas,
-  getRealtimeStats,
+    bulkUpdateProducts,
+    exportServiceAreas,
+    getAnalyticsData,
+    getDashboardStats,
+    getRealtimeStats,
+    requireAdmin,
 } from "./routes/admin";
 import {
-  setupAdminAccount,
-  testAdminAuth,
-  checkDatabase,
-} from "./routes/setup";
+    createSubcategory,
+    getAttributeHierarchy,
+    getSubcategories,
+    previewProductForm,
+    reorderAttributes,
+    validateProductAttributes
+} from "./routes/attributes";
+import { confirmEmail, resendConfirmation } from "./routes/auth";
 import {
-  createUser,
-  getUserById,
-  loginUser,
-  listUsers,
-  updateUserRole,
-} from "./routes/users";
-import { resendConfirmation, confirmEmail } from "./routes/auth";
+    createCategory,
+    deleteCategory,
+    getCategories,
+    getCategory,
+    getCategoryTree,
+    updateCategory,
+} from "./routes/categories";
 import {
-  saveFCMToken,
-  subscribeToTopic,
-  unsubscribeFromTopic,
-  sendNotificationToUser,
-  sendNotificationToTopic,
-  sendOrderNotification,
-  sendTestNotification,
-  getNotificationSettings,
+    applyFieldTemplate,
+    createCustomField,
+    deleteCustomField,
+    getCustomFields,
+    getCustomFieldValues,
+    getFieldTemplates,
+    saveCustomFieldValues,
+    updateCustomField,
+} from "./routes/custom-fields";
+import { handleDemo } from "./routes/demo";
+import {
+    getNotificationSettings,
+    saveFCMToken,
+    sendNotificationToTopic,
+    sendNotificationToUser,
+    sendOrderNotification,
+    sendTestNotification,
+    subscribeToTopic,
+    unsubscribeFromTopic,
 } from "./routes/firebase";
 import {
-  getEffectivePrice,
-  getAreaProducts,
-  bulkUpdatePricing,
-  copyAreaPricing,
-  getAreaPricingAnalytics,
+    bulkUpdatePricing,
+    copyAreaPricing,
+    getAreaPricingAnalytics,
+    getAreaProducts,
+    getEffectivePrice,
 } from "./routes/product-area-pricing";
 import {
-  getVendors,
-  getVendor,
-  createVendor,
-  updateVendor,
-  updateVendorStatus,
-  deleteVendor,
-  getVendorStats,
-} from "./routes/vendors";
-import {
-  getProducts,
-  getProduct,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-  getProductVariants,
-  createProductVariant,
-  updateProductVariant,
-  deleteProductVariant,
+    createProduct,
+    createProductVariant,
+    deleteProduct,
+    deleteProductVariant,
+    getProduct,
+    getProducts,
+    getProductVariants,
+    updateProduct,
+    updateProductVariant,
 } from "./routes/products";
 import {
-  getCategories,
-  getCategory,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-  getCategoryTree,
-} from "./routes/categories";
-import { uploadVendorImage, uploadProductImage, handleUploadError } from "./routes/upload";
+    checkDatabase,
+    setupAdminAccount,
+    testAdminAuth,
+} from "./routes/setup";
+import { handleUploadError, uploadProductImage, uploadVendorImage } from "./routes/upload";
+import {
+    createUser,
+    getUserById,
+    listUsers,
+    loginUser,
+    updateUserRole,
+} from "./routes/users";
+import {
+    createVendor,
+    deleteVendor,
+    getVendor,
+    getVendors,
+    getVendorStats,
+    updateVendor,
+    updateVendorStatus,
+} from "./routes/vendors";
 
 // Extend Request type to include user
 declare global {
@@ -200,6 +218,26 @@ export function createServer() {
   app.post("/api/admin/categories", requireAdmin, createCategory);
   app.put("/api/admin/categories/:id", requireAdmin, updateCategory);
   app.delete("/api/admin/categories/:id", requireAdmin, deleteCategory);
+
+  // Custom fields management routes (protected)
+  app.get("/api/admin/custom-fields/:serviceTypeId", requireAdmin, getCustomFields);
+  app.post("/api/admin/custom-fields", requireAdmin, createCustomField);
+  app.put("/api/admin/custom-fields/:fieldId", requireAdmin, updateCustomField);
+  app.delete("/api/admin/custom-fields/:fieldId", requireAdmin, deleteCustomField);
+  app.get("/api/admin/custom-fields/templates", requireAdmin, getFieldTemplates);
+  app.post("/api/admin/custom-fields/:serviceTypeId/apply-template", requireAdmin, applyFieldTemplate);
+  
+  // Custom field values routes (protected)
+  app.get("/api/admin/custom-field-values/:productId", requireAdmin, getCustomFieldValues);
+  app.post("/api/admin/custom-field-values/:productId", requireAdmin, saveCustomFieldValues);
+
+  // Attribute management endpoints (NEW - Naming Convention System)
+  app.post("/api/attributes/reorder", requireAdmin, reorderAttributes);
+  app.get("/api/attributes/preview", previewProductForm);
+  app.post("/api/attributes/validate", validateProductAttributes);
+  app.get("/api/attributes/hierarchy/:productId", getAttributeHierarchy);
+  app.get("/api/attributes/subcategories", getSubcategories);
+  app.post("/api/attributes/subcategories", requireAdmin, createSubcategory);
 
   return app;
 }

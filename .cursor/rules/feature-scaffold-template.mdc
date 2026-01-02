@@ -1,0 +1,795 @@
+---
+description: Feature Scaffolding Template - Clean Architecture Blueprint for New Features
+---
+
+# Feature Scaffold Template
+
+Use this template when building new features/services on KooliHub. This follows Clean Architecture + SOLID principles established in the Trip Booking system.
+
+---
+
+## 1. File Structure for New Feature
+
+```
+client/
+├── domain/{feature-name}/
+│   ├── entities/
+│   │   └── {Entity}.ts           # Business entity with rules
+│   ├── repositories/
+│   │   └── I{Entity}Repository.ts # Repository interface
+│   └── services/
+│       └── {Feature}Service.ts    # Domain service
+│
+├── infrastructure/{feature-name}/
+│   └── repositories/
+│       └── Supabase{Entity}Repository.ts  # Supabase implementation
+│
+├── hooks/{feature-name}/
+│   ├── use-{feature}.ts          # Main feature hook
+│   ├── use-{entity}-list.ts      # List/search hook
+│   └── use-{entity}-detail.ts    # Detail view hook
+│
+├── components/{feature-name}/
+│   ├── atoms/
+│   │   ├── {Entity}Badge.tsx
+│   │   └── {Entity}Icon.tsx
+│   ├── molecules/
+│   │   ├── {Entity}Card.tsx
+│   │   ├── {Entity}Form.tsx
+│   │   └── {Entity}SearchInput.tsx
+│   └── organisms/
+│       ├── {Entity}List.tsx
+│       └── {Entity}Detail.tsx
+│
+└── pages/{feature-name}/
+    ├── {Feature}Home.tsx         # Feature landing page
+    ├── {Entity}Search.tsx        # Search/listing page
+    ├── {Entity}Detail.tsx        # Detail page
+    └── {Entity}Create.tsx        # Create/edit page
+```
+
+---
+
+## 2. Domain Entity Template
+
+```typescript
+// client/domain/{feature}/entities/{Entity}.ts
+
+/**
+ * Domain Entity: {Entity}
+ * Clean Architecture - Domain Layer
+ */
+
+export interface {Entity} {
+  id: string;
+  // Add entity properties
+  name: string;
+  status: '{entity}_status_1' | '{entity}_status_2' | '{entity}_status_3';
+  // ... other properties
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export class {Entity}Entity implements {Entity} {
+  id: string;
+  name: string;
+  status: '{entity}_status_1' | '{entity}_status_2' | '{entity}_status_3';
+  createdAt: Date;
+  updatedAt: Date;
+
+  constructor(data: {Entity}) {
+    Object.assign(this, data);
+  }
+
+  // Business Rules - Add domain logic here
+  
+  isActive(): boolean {
+    return this.status === '{entity}_status_active';
+  }
+
+  canBeModified(): boolean {
+    // Add business rule logic
+    return this.status !== '{entity}_status_completed';
+  }
+
+  validate(): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    
+    if (!this.name || this.name.length < 2) {
+      errors.push('Name must be at least 2 characters');
+    }
+    
+    return { isValid: errors.length === 0, errors };
+  }
+}
+```
+
+---
+
+## 3. Repository Interface Template
+
+```typescript
+// client/domain/{feature}/repositories/I{Entity}Repository.ts
+
+/**
+ * Repository Interface: {Entity}
+ * Clean Architecture - Domain Layer
+ */
+
+import { {Entity} } from '../entities/{Entity}';
+
+export interface {Entity}Filters {
+  status?: string;
+  search?: string;
+  // Add filter fields
+}
+
+export interface I{Entity}Repository {
+  // CRUD Operations
+  getById(id: string): Promise<{Entity} | null>;
+  getAll(filters?: {Entity}Filters): Promise<{Entity}[]>;
+  search(query: string): Promise<{Entity}[]>;
+  create(entity: Omit<{Entity}, 'id' | 'createdAt' | 'updatedAt'>): Promise<{Entity}>;
+  update(id: string, entity: Partial<{Entity}>): Promise<{Entity}>;
+  delete(id: string): Promise<void>;
+  
+  // Custom queries
+  getByUserId(userId: string): Promise<{Entity}[]>;
+  getRecent(limit?: number): Promise<{Entity}[]>;
+}
+```
+
+---
+
+## 4. Infrastructure Repository Template
+
+```typescript
+// client/infrastructure/{feature}/repositories/Supabase{Entity}Repository.ts
+
+/**
+ * Supabase Repository Implementation: {Entity}
+ * Clean Architecture - Infrastructure Layer
+ */
+
+import { supabase } from '@/lib/supabase';
+import { {Entity}, {Entity}Entity } from '@/domain/{feature}/entities/{Entity}';
+import { I{Entity}Repository, {Entity}Filters } from '@/domain/{feature}/repositories/I{Entity}Repository';
+
+export class Supabase{Entity}Repository implements I{Entity}Repository {
+  private tableName = '{entities}'; // Database table name
+
+  async getById(id: string): Promise<{Entity} | null> {
+    const { data, error } = await supabase
+      .from(this.tableName)
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+    return this.mapToEntity(data);
+  }
+
+  async getAll(filters?: {Entity}Filters): Promise<{Entity}[]> {
+    let query = supabase
+      .from(this.tableName)
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+    if (filters?.search) {
+      query = query.ilike('name', `%${filters.search}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map(this.mapToEntity);
+  }
+
+  async search(query: string): Promise<{Entity}[]> {
+    const { data, error } = await supabase
+      .from(this.tableName)
+      .select('*')
+      .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+      .limit(20);
+
+    if (error) throw error;
+    return (data || []).map(this.mapToEntity);
+  }
+
+  async create(entity: Omit<{Entity}, 'id' | 'createdAt' | 'updatedAt'>): Promise<{Entity}> {
+    const { data, error } = await supabase
+      .from(this.tableName)
+      .insert(this.mapToDatabase(entity))
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.mapToEntity(data);
+  }
+
+  async update(id: string, entity: Partial<{Entity}>): Promise<{Entity}> {
+    const { data, error } = await supabase
+      .from(this.tableName)
+      .update(this.mapToDatabase(entity))
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.mapToEntity(data);
+  }
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from(this.tableName)
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
+  async getByUserId(userId: string): Promise<{Entity}[]> {
+    const { data, error } = await supabase
+      .from(this.tableName)
+      .select('*')
+      .eq('user_id', userId)
+      .is('deleted_at', null);
+
+    if (error) throw error;
+    return (data || []).map(this.mapToEntity);
+  }
+
+  async getRecent(limit: number = 10): Promise<{Entity}[]> {
+    const { data, error } = await supabase
+      .from(this.tableName)
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return (data || []).map(this.mapToEntity);
+  }
+
+  // Mapping functions
+  private mapToEntity(data: any): {Entity} {
+    return new {Entity}Entity({
+      id: data.id,
+      name: data.name,
+      status: data.status,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+      // Map other fields...
+    });
+  }
+
+  private mapToDatabase(entity: Partial<{Entity}>): any {
+    const mapped: any = {};
+    if (entity.name !== undefined) mapped.name = entity.name;
+    if (entity.status !== undefined) mapped.status = entity.status;
+    // Map other fields with snake_case...
+    return mapped;
+  }
+}
+```
+
+---
+
+## 5. Custom Hook Template
+
+```typescript
+// client/hooks/{feature}/use-{entity}-list.ts
+
+import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { {Entity} } from '@/domain/{feature}/entities/{Entity}';
+import { {Entity}Filters } from '@/domain/{feature}/repositories/I{Entity}Repository';
+import { Supabase{Entity}Repository } from '@/infrastructure/{feature}/repositories/Supabase{Entity}Repository';
+import { useToast } from '@/hooks/use-toast';
+
+const repository = new Supabase{Entity}Repository();
+
+export interface Use{Entity}ListOptions {
+  initialFilters?: {Entity}Filters;
+  autoFetch?: boolean;
+}
+
+export function use{Entity}List(options: Use{Entity}ListOptions = {}) {
+  const { initialFilters, autoFetch = true } = options;
+  const [filters, setFilters] = useState<{Entity}Filters>(initialFilters || {});
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Query for list
+  const {
+    data: items = [],
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['{entities}', filters],
+    queryFn: () => repository.getAll(filters),
+    enabled: autoFetch,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Create mutation
+  const createMutation = useMutation({
+    mutationFn: (data: Omit<{Entity}, 'id' | 'createdAt' | 'updatedAt'>) => 
+      repository.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['{entities}'] });
+      toast({ title: 'Success', description: '{Entity} created successfully' });
+    },
+    onError: (error) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<{Entity}> }) =>
+      repository.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['{entities}'] });
+      toast({ title: 'Success', description: '{Entity} updated successfully' });
+    },
+    onError: (error) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => repository.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['{entities}'] });
+      toast({ title: 'Success', description: '{Entity} deleted successfully' });
+    },
+    onError: (error) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const updateFilters = useCallback((newFilters: Partial<{Entity}Filters>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setFilters({});
+  }, []);
+
+  return {
+    // Data
+    items,
+    loading,
+    error,
+    filters,
+    
+    // Actions
+    refetch,
+    create: createMutation.mutate,
+    update: updateMutation.mutate,
+    remove: deleteMutation.mutate,
+    updateFilters,
+    clearFilters,
+    
+    // Loading states
+    isCreating: createMutation.isPending,
+    isUpdating: updateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
+  };
+}
+```
+
+---
+
+## 6. Component Templates
+
+### Atom: Badge Component
+```typescript
+// client/components/{feature}/atoms/{Entity}StatusBadge.tsx
+
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+interface {Entity}StatusBadgeProps {
+  status: string;
+  className?: string;
+}
+
+const statusConfig = {
+  active: { label: 'Active', className: 'bg-green-100 text-green-800' },
+  pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
+  completed: { label: 'Completed', className: 'bg-blue-100 text-blue-800' },
+  cancelled: { label: 'Cancelled', className: 'bg-red-100 text-red-800' },
+};
+
+export function {Entity}StatusBadge({ status, className }: {Entity}StatusBadgeProps) {
+  const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+  
+  return (
+    <Badge className={cn(config.className, className)}>
+      {config.label}
+    </Badge>
+  );
+}
+```
+
+### Molecule: Card Component
+```typescript
+// client/components/{feature}/molecules/{Entity}Card.tsx
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { {Entity}StatusBadge } from '../atoms/{Entity}StatusBadge';
+import { {Entity} } from '@/domain/{feature}/entities/{Entity}';
+import { formatDate } from '@/lib/utils';
+
+interface {Entity}CardProps {
+  item: {Entity};
+  onSelect?: (item: {Entity}) => void;
+  onEdit?: (item: {Entity}) => void;
+}
+
+export function {Entity}Card({ item, onSelect, onEdit }: {Entity}CardProps) {
+  return (
+    <Card 
+      className="hover:shadow-md transition-shadow cursor-pointer"
+      onClick={() => onSelect?.(item)}
+    >
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg font-semibold">{item.name}</CardTitle>
+        <{Entity}StatusBadge status={item.status} />
+      </CardHeader>
+      <CardContent>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-muted-foreground">
+            Created: {formatDate(item.createdAt)}
+          </span>
+          {onEdit && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(item);
+              }}
+            >
+              Edit
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### Organism: List Component
+```typescript
+// client/components/{feature}/organisms/{Entity}List.tsx
+
+import { {Entity}Card } from '../molecules/{Entity}Card';
+import { {Entity} } from '@/domain/{feature}/entities/{Entity}';
+import { Skeleton } from '@/components/ui/skeleton';
+
+interface {Entity}ListProps {
+  items: {Entity}[];
+  loading?: boolean;
+  onSelect?: (item: {Entity}) => void;
+  onEdit?: (item: {Entity}) => void;
+  emptyMessage?: string;
+}
+
+export function {Entity}List({
+  items,
+  loading,
+  onSelect,
+  onEdit,
+  emptyMessage = 'No items found',
+}: {Entity}ListProps) {
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...Array(6)].map((_, i) => (
+          <Skeleton key={i} className="h-40 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {items.map((item) => (
+        <{Entity}Card
+          key={item.id}
+          item={item}
+          onSelect={onSelect}
+          onEdit={onEdit}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+## 7. Page Template
+
+```typescript
+// client/pages/{feature}/{Feature}Home.tsx
+
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Layout } from '@/components/layout/Layout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { {Entity}List } from '@/components/{feature}/organisms/{Entity}List';
+import { use{Entity}List } from '@/hooks/{feature}/use-{entity}-list';
+import { Plus, Search } from 'lucide-react';
+
+export default function {Feature}Home() {
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const { items, loading, updateFilters } = use{Entity}List();
+
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    updateFilters({ search: value });
+  };
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">{Feature}</h1>
+            <p className="text-muted-foreground">
+              Manage your {feature} items
+            </p>
+          </div>
+          
+          <Button onClick={() => navigate('/{feature}/create')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create New
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* List */}
+        <{Entity}List
+          items={items}
+          loading={loading}
+          onSelect={(item) => navigate(`/{feature}/${item.id}`)}
+          onEdit={(item) => navigate(`/{feature}/${item.id}/edit`)}
+        />
+      </div>
+    </Layout>
+  );
+}
+```
+
+---
+
+## 8. Database Migration Template
+
+```sql
+-- supabase/migrations/YYYYMMDD_{feature}_tables.sql
+
+-- Enable UUID extension if not already enabled
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create {entities} table
+CREATE TABLE IF NOT EXISTS {entities} (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  vendor_id UUID REFERENCES vendors(id) ON DELETE SET NULL,
+  
+  -- Core fields
+  name TEXT NOT NULL,
+  description TEXT,
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'completed', 'cancelled')),
+  
+  -- Metadata
+  metadata JSONB DEFAULT '{}',
+  
+  -- Timestamps
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  deleted_at TIMESTAMP WITH TIME ZONE,
+  
+  -- Audit
+  created_by UUID REFERENCES profiles(id),
+  updated_by UUID REFERENCES profiles(id)
+);
+
+-- Create indexes
+CREATE INDEX idx_{entities}_user_id ON {entities}(user_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_{entities}_vendor_id ON {entities}(vendor_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_{entities}_status ON {entities}(status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_{entities}_created_at ON {entities}(created_at DESC);
+
+-- Enable RLS
+ALTER TABLE {entities} ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "{entities}_select_policy" ON {entities}
+  FOR SELECT
+  USING (
+    deleted_at IS NULL
+    AND (
+      -- Admins can see all
+      auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')
+      OR
+      -- Users can see their own
+      user_id = auth.uid()
+      OR
+      -- Vendors can see their own
+      vendor_id IN (
+        SELECT vendor_id FROM vendor_users WHERE user_id = auth.uid()
+      )
+    )
+  );
+
+CREATE POLICY "{entities}_insert_policy" ON {entities}
+  FOR INSERT
+  WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "{entities}_update_policy" ON {entities}
+  FOR UPDATE
+  USING (
+    user_id = auth.uid()
+    OR auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "{entities}_delete_policy" ON {entities}
+  FOR DELETE
+  USING (
+    user_id = auth.uid()
+    OR auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')
+  );
+
+-- Trigger for updated_at
+CREATE OR REPLACE FUNCTION update_{entities}_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER {entities}_updated_at_trigger
+  BEFORE UPDATE ON {entities}
+  FOR EACH ROW
+  EXECUTE FUNCTION update_{entities}_updated_at();
+```
+
+---
+
+## 9. Shared Types Template
+
+```typescript
+// Add to shared/api.ts
+
+// {Feature} Types
+export type {Entity}Status = 'draft' | 'active' | 'completed' | 'cancelled';
+
+export interface {Entity} {
+  id: string;
+  user_id?: string;
+  vendor_id?: string;
+  name: string;
+  description?: string;
+  status: {Entity}Status;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  created_by?: string;
+  updated_by?: string;
+}
+
+export interface {Entity}CreateRequest {
+  name: string;
+  description?: string;
+  // Add other required fields
+}
+
+export interface {Entity}UpdateRequest {
+  name?: string;
+  description?: string;
+  status?: {Entity}Status;
+  // Add other updateable fields
+}
+```
+
+---
+
+## 10. Route Registration
+
+```typescript
+// Add to client/App.tsx
+
+// Import the page
+import {Feature}Home from './pages/{feature}/{Feature}Home';
+import {Entity}Detail from './pages/{feature}/{Entity}Detail';
+import {Entity}Create from './pages/{feature}/{Entity}Create';
+
+// Add routes (ABOVE the catch-all "*" route)
+<Route path="/{feature}" element={<{Feature}Home />} />
+<Route path="/{feature}/create" element={<{Entity}Create />} />
+<Route path="/{feature}/:id" element={<{Entity}Detail />} />
+<Route path="/{feature}/:id/edit" element={<{Entity}Create />} />
+```
+
+---
+
+## Checklist for New Feature
+
+- [ ] **Domain Layer**
+  - [ ] Create entity interface and class
+  - [ ] Add business rules as methods
+  - [ ] Create repository interface
+  - [ ] Create domain service if needed
+
+- [ ] **Infrastructure Layer**
+  - [ ] Implement Supabase repository
+  - [ ] Add mapping functions
+
+- [ ] **Application Layer (Hooks)**
+  - [ ] Create list hook with CRUD
+  - [ ] Create detail hook
+  - [ ] Create any specialized hooks
+
+- [ ] **Presentation Layer**
+  - [ ] Create atoms (badges, icons)
+  - [ ] Create molecules (cards, forms)
+  - [ ] Create organisms (lists, details)
+  - [ ] Create pages
+
+- [ ] **Database**
+  - [ ] Create migration file
+  - [ ] Add indexes
+  - [ ] Configure RLS
+  - [ ] Test queries
+
+- [ ] **Types**
+  - [ ] Add to shared/api.ts
+  - [ ] Export from index
+
+- [ ] **Routing**
+  - [ ] Add routes to App.tsx
+  - [ ] Add navigation links
+
+- [ ] **Testing**
+  - [ ] Unit tests for entities
+  - [ ] Integration tests for repository
+  - [ ] Component tests
+
+---
+
+**Usage**: Copy relevant sections and replace `{Feature}`, `{Entity}`, `{feature}`, `{entity}`, `{entities}` with your actual names.

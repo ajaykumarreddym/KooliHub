@@ -1,8 +1,8 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Star } from "lucide-react";
-import { useRealtimeProducts } from "@/hooks/use-realtime-products";
+import { Card, CardContent } from "@/components/ui/card";
+import { useLocation } from "@/contexts/LocationContext";
+import { AlertCircle, Clock, Star } from "lucide-react";
 
 const getServiceIcon = (serviceType: string) => {
   const icons: Record<string, string> = {
@@ -20,10 +20,13 @@ const getServiceIcon = (serviceType: string) => {
 };
 
 export function DealsSection() {
-  const { products: allProducts, loading } = useRealtimeProducts(undefined, 20);
+  const { locationBasedProducts: allProducts, isLoadingProducts: loading, currentLocation } = useLocation();
 
-  // Filter for products with discounts
-  const deals = allProducts.filter(product => product.discount_price !== null).slice(0, 4);
+  // Filter for products with discounts (location_price or discount_price)
+  const deals = allProducts.filter(product => 
+    (product.location_price && product.location_price < (product.base_price || product.price)) ||
+    product.discount_price !== null
+  ).slice(0, 4);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -84,24 +87,27 @@ export function DealsSection() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {deals.length > 0 ? (
             deals.map((deal) => (
-              <Card key={deal.id} className="group hover:shadow-lg transition-shadow cursor-pointer">
+              <Card key={deal.offering_id || deal.id} className="group hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="p-0">
                   {/* Image section */}
                   <div className="relative bg-gray-100 h-48 flex items-center justify-center">
-                    {deal.image_url ? (
+                    {deal.primary_image_url || deal.image_url ? (
                       <img
-                        src={deal.image_url}
-                        alt={deal.name}
+                        src={deal.primary_image_url || deal.image_url}
+                        alt={deal.offering_name || deal.name}
                         className="w-full h-full object-cover"
                       />
                     ) : (
                       <span className="text-6xl opacity-50">
-                        {getServiceIcon(deal.categories?.service_type || 'default')}
+                        {getServiceIcon(deal.service_type || deal.categories?.service_type || 'default')}
                       </span>
                     )}
-                    {deal.discount_price && (
+                    {(deal.location_price || deal.discount_price) && (
                       <Badge className="absolute top-3 left-3 bg-red-500 text-white font-bold">
-                        {calculateDiscount(deal.price, deal.discount_price)}% OFF
+                        {calculateDiscount(
+                          deal.base_price || deal.price, 
+                          deal.location_price || deal.discount_price
+                        )}% OFF
                       </Badge>
                     )}
                   </div>
@@ -109,11 +115,11 @@ export function DealsSection() {
                   {/* Content section */}
                   <div className="p-4">
                     <Badge variant="secondary" className="text-xs mb-2">
-                      {deal.categories?.name || 'Product'}
+                      {deal.category_name || deal.categories?.name || 'Product'}
                     </Badge>
 
                     <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
-                      {deal.name}
+                      {deal.offering_name || deal.name}
                     </h3>
 
                     {/* Rating */}
@@ -130,11 +136,11 @@ export function DealsSection() {
                     {/* Price */}
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-lg font-bold text-gray-900">
-                        {formatPrice(deal.discount_price || deal.price)}
+                        {formatPrice(deal.location_price || deal.discount_price || deal.base_price || deal.price)}
                       </span>
-                      {deal.discount_price && (
+                      {(deal.location_price || deal.discount_price) && (
                         <span className="text-sm text-gray-500 line-through">
-                          {formatPrice(deal.price)}
+                          {formatPrice(deal.base_price || deal.price)}
                         </span>
                       )}
                     </div>
@@ -150,8 +156,18 @@ export function DealsSection() {
               </Card>
             ))
           ) : (
-            <div className="col-span-full text-center py-8">
-              <p className="text-gray-500">No deals available at the moment</p>
+            <div className="col-span-full text-center py-12">
+              <Card className="max-w-md mx-auto border-yellow-200 bg-yellow-50">
+                <CardContent className="p-6">
+                  <AlertCircle className="h-12 w-12 text-yellow-600 mx-auto mb-3" />
+                  <p className="font-medium text-gray-900 mb-1">No deals available</p>
+                  <p className="text-sm text-gray-600">
+                    {currentLocation 
+                      ? `No special deals in ${currentLocation.city} right now. Check back later!`
+                      : "Select your location to see available deals."}
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>

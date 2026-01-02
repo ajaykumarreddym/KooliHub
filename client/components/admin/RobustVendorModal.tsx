@@ -1,46 +1,44 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-  Upload,
-  X,
-  Image as ImageIcon,
-  Store,
-  Mail,
-  Phone,
-  MapPin,
-  FileText,
-  DollarSign,
-  Calendar,
-  Hash,
-  Building,
-  Save,
-  AlertCircle,
-  CheckCircle,
-  Loader2,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
-import { VendorImageUpload } from "./VendorImageUpload";
 import type { Vendor, VendorStatus } from "@shared/api";
+import {
+    AlertCircle,
+    Building,
+    Calendar,
+    DollarSign,
+    FileText,
+    Hash,
+    Image as ImageIcon,
+    Loader2,
+    Mail,
+    MapPin,
+    Phone,
+    Save,
+    Store,
+    Upload,
+    X
+} from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { VendorImageUpload } from "./VendorImageUpload";
 
 interface RobustVendorModalProps {
   isOpen: boolean;
@@ -504,6 +502,38 @@ export function RobustVendorModal({
     );
   };
 
+  // Specialized handler for business terms number inputs
+  const handleBusinessTermChange = useCallback(
+    (field: keyof VendorForm, value: string) => {
+      // Allow empty string
+      if (value === '') {
+        handleInputChange(field, 0);
+        return;
+      }
+
+      const numValue = parseFloat(value);
+      
+      // Validate based on field type
+      let isValid = false;
+      
+      if (field === 'commission_rate') {
+        // Commission rate: 0-100%
+        isValid = !isNaN(numValue) && numValue >= 0 && numValue <= 100;
+      } else if (field === 'payment_terms_days') {
+        // Payment terms: >= 0 (allow 0 for immediate payment)
+        isValid = !isNaN(numValue) && numValue >= 0 && Number.isInteger(numValue);
+      } else if (field === 'minimum_order_amount') {
+        // Minimum order: >= 0
+        isValid = !isNaN(numValue) && numValue >= 0;
+      }
+
+      if (isValid) {
+        handleInputChange(field, numValue);
+      }
+    },
+    [handleInputChange],
+  );
+
   const renderInput = (
     field: keyof VendorForm,
     label: string,
@@ -511,40 +541,52 @@ export function RobustVendorModal({
     type: string = "text",
     required: boolean = false,
     placeholder?: string,
-  ) => (
-    <div className="space-y-2">
-      <Label htmlFor={field} className="flex items-center gap-2">
-        {icon}
-        {label}
-        {required && <span className="text-red-500">*</span>}
-      </Label>
-      <Input
-        id={field}
-        ref={field === "name" ? firstInputRef : undefined}
-        type={type}
-        value={formData[field]}
-        onChange={(e) =>
-          handleInputChange(
-            field,
-            type === "number"
-              ? parseFloat(e.target.value) || 0
-              : e.target.value,
-          )
-        }
-        placeholder={placeholder}
-        required={required}
-        className={validationErrors[field] ? "border-red-500" : ""}
-        autoComplete="off"
-        spellCheck={false}
-      />
-      {validationErrors[field] && (
-        <p className="text-sm text-red-500 flex items-center gap-1">
-          <AlertCircle className="h-3 w-3" />
-          {validationErrors[field]}
-        </p>
-      )}
-    </div>
-  );
+  ) => {
+    // Special handling for business terms number fields
+    const isBusinessTermField = ['commission_rate', 'payment_terms_days', 'minimum_order_amount'].includes(field);
+    
+    return (
+      <div className="space-y-2">
+        <Label htmlFor={field} className="flex items-center gap-2">
+          {icon}
+          {label}
+          {required && <span className="text-red-500">*</span>}
+        </Label>
+        <Input
+          id={field}
+          ref={field === "name" ? firstInputRef : undefined}
+          type={type}
+          min={type === "number" ? "0" : undefined}
+          max={field === "commission_rate" ? "100" : undefined}
+          step={field === "commission_rate" || field === "minimum_order_amount" ? "0.01" : "1"}
+          value={formData[field]}
+          onChange={(e) => {
+            if (isBusinessTermField && type === "number") {
+              handleBusinessTermChange(field, e.target.value);
+            } else {
+              handleInputChange(
+                field,
+                type === "number"
+                  ? parseFloat(e.target.value) || 0
+                  : e.target.value,
+              );
+            }
+          }}
+          placeholder={placeholder}
+          required={required}
+          className={validationErrors[field] ? "border-red-500" : ""}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        {validationErrors[field] && (
+          <p className="text-sm text-red-500 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {validationErrors[field]}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const renderTextarea = (
     field: keyof VendorForm,

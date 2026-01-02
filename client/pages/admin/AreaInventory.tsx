@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { ProductAreaPricing } from "@/components/admin/ProductAreaPricing";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -6,9 +8,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -16,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -25,32 +42,34 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  MapPin,
-  Package,
-  TrendingUp,
-  TrendingDown,
-  Search,
-  Filter,
-  Download,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle,
-  Star,
-  IndianRupee,
-  Clock,
-  Truck,
-  Tag,
-  BarChart3,
-  PieChart,
-} from "lucide-react";
-import { ProductAreaPricing } from "@/components/admin/ProductAreaPricing";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useAreaProducts,
   type AreaProductFilters,
 } from "@/hooks/use-area-products";
-import { supabase } from "@/lib/supabase";
 import { formatCurrency } from "@/lib/payment-utils";
+import { supabase } from "@/lib/supabase";
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle,
+  Clock,
+  Download,
+  Edit,
+  Eye,
+  IndianRupee,
+  MapPin,
+  Package,
+  RefreshCw,
+  Search,
+  Settings,
+  Star,
+  Tag,
+  Trash2,
+  TrendingDown,
+  Truck
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 interface ServiceArea {
@@ -74,11 +93,14 @@ export const AreaInventory: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedArea, setSelectedArea] = useState<string>("");
   const [filters, setFilters] = useState<AreaProductFilters>({
-    available_only: true,
+    available_only: false,
     sort_by: "priority",
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const {
     products,
@@ -135,6 +157,79 @@ export const AreaInventory: React.FC = () => {
 
   const handleFilterChange = (key: keyof AreaProductFilters, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!editingProduct || !selectedArea) return;
+
+    try {
+      setUpdating(true);
+
+      const { error } = await supabase
+        .from("service_area_products")
+        .update({
+          stock_quantity: editingProduct.stock_quantity,
+          price_override: editingProduct.area_price,
+          is_available: editingProduct.is_available,
+          delivery_time_override: editingProduct.estimated_delivery_hours,
+          priority_order: editingProduct.priority,
+          location_notes: editingProduct.notes || null,
+        })
+        .eq("service_area_id", selectedArea)
+        .eq("offering_id", editingProduct.id);
+
+      if (error) throw error;
+
+      toast.success("Product updated successfully");
+      setIsEditDialogOpen(false);
+      setEditingProduct(null);
+      refetch();
+    } catch (error) {
+      console.error("Error updating product:", error);
+      toast.error("Failed to update product");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleToggleAvailability = async (productId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("service_area_products")
+        .update({ is_available: !currentStatus })
+        .eq("service_area_id", selectedArea)
+        .eq("offering_id", productId);
+
+      if (error) throw error;
+
+      toast.success(`Product ${!currentStatus ? 'enabled' : 'disabled'} successfully`);
+      refetch();
+    } catch (error) {
+      console.error("Error toggling availability:", error);
+      toast.error("Failed to update product");
+    }
+  };
+
+  const handleRemoveProduct = async (productId: string) => {
+    if (!confirm("Are you sure you want to remove this product from this service area?")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("service_area_products")
+        .delete()
+        .eq("service_area_id", selectedArea)
+        .eq("offering_id", productId);
+
+      if (error) throw error;
+
+      toast.success("Product removed from service area");
+      refetch();
+    } catch (error) {
+      console.error("Error removing product:", error);
+      toast.error("Failed to remove product");
+    }
   };
 
   const exportData = () => {
@@ -483,26 +578,26 @@ export const AreaInventory: React.FC = () => {
                           <TableHead>Delivery</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Priority</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {productsLoading ? (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8">
+                            <TableCell colSpan={7} className="text-center py-8">
                               <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
                               Loading products...
                             </TableCell>
                           </TableRow>
                         ) : products.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8">
+                            <TableCell colSpan={7} className="text-center py-8">
                               <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                               <p className="text-gray-500">
                                 No products found for this area
                               </p>
                               <p className="text-sm text-gray-400">
-                                Add products to this service area using the Area
-                                Pricing tab
+                                Add products to this service area to start managing inventory
                               </p>
                             </TableCell>
                           </TableRow>
@@ -510,11 +605,20 @@ export const AreaInventory: React.FC = () => {
                           products.map((product) => (
                             <TableRow key={product.id}>
                               <TableCell>
-                                <div>
-                                  <p className="font-medium">{product.name}</p>
-                                  <p className="text-sm text-gray-500">
-                                    {product.brand} • {product.category_name}
-                                  </p>
+                                <div className="flex items-center gap-3">
+                                  {product.primary_image_url && (
+                                    <img
+                                      src={product.primary_image_url}
+                                      alt={product.name}
+                                      className="w-12 h-12 object-cover rounded-lg"
+                                    />
+                                  )}
+                                  <div>
+                                    <p className="font-medium">{product.name}</p>
+                                    <p className="text-sm text-gray-500">
+                                      {product.brand} • {product.category_name}
+                                    </p>
+                                  </div>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -566,9 +670,6 @@ export const AreaInventory: React.FC = () => {
                               <TableCell>
                                 <div className="text-sm">
                                   <p>{product.estimated_delivery_hours}h</p>
-                                  <p className="text-gray-500">
-                                    ₹{product.delivery_charge}
-                                  </p>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -591,6 +692,42 @@ export const AreaInventory: React.FC = () => {
                                     {product.priority}
                                   </span>
                                 </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <Settings className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setEditingProduct(product);
+                                        setIsEditDialogOpen(true);
+                                      }}
+                                    >
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleToggleAvailability(product.id, product.is_available)}
+                                    >
+                                      <Eye className="h-4 w-4 mr-2" />
+                                      {product.is_available ? 'Disable' : 'Enable'}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleRemoveProduct(product.id)}
+                                      className="text-red-600"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Remove from Area
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             </TableRow>
                           ))
@@ -799,6 +936,181 @@ export const AreaInventory: React.FC = () => {
           </Tabs>
         </>
       )}
+
+      {/* Edit Product Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Product Details</DialogTitle>
+            <DialogDescription>
+              Update product settings for this service area
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingProduct && (
+            <div className="space-y-6 py-4">
+              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                {editingProduct.primary_image_url && (
+                  <img
+                    src={editingProduct.primary_image_url}
+                    alt={editingProduct.name}
+                    className="w-20 h-20 object-cover rounded-lg"
+                  />
+                )}
+                <div>
+                  <h4 className="font-semibold text-lg">{editingProduct.name}</h4>
+                  <p className="text-sm text-gray-600">
+                    {editingProduct.brand} • {editingProduct.category_name}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stock">Stock Quantity</Label>
+                  <Input
+                    id="stock"
+                    type="number"
+                    value={editingProduct.stock_quantity}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        stock_quantity: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="price">Area Price (₹)</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    value={editingProduct.area_price}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        area_price: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="discount">Discount (%)</Label>
+                  <Input
+                    id="discount"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editingProduct.area_discount_percentage.toFixed(2)}
+                    disabled
+                    className="bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Auto-calculated from price difference
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="delivery">Delivery Time (hours)</Label>
+                  <Input
+                    id="delivery"
+                    type="number"
+                    value={editingProduct.estimated_delivery_hours}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        estimated_delivery_hours: parseInt(e.target.value) || 24,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="priority">Priority Order</Label>
+                  <Input
+                    id="priority"
+                    type="number"
+                    value={editingProduct.priority}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        priority: parseInt(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2 flex items-center justify-between pt-6">
+                  <Label htmlFor="available">Product Available</Label>
+                  <Switch
+                    id="available"
+                    checked={editingProduct.is_available}
+                    onCheckedChange={(checked) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        is_available: checked,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h5 className="font-semibold text-sm mb-2">Price Calculation</h5>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Base Price:</span>
+                    <span className="font-medium">{formatCurrency(editingProduct.base_price)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Area Price:</span>
+                    <span className="font-medium">{formatCurrency(editingProduct.area_price)}</span>
+                  </div>
+                  {editingProduct.base_price > editingProduct.area_price && (
+                    <>
+                      <div className="flex justify-between text-green-600">
+                        <span>Savings:</span>
+                        <span>-{formatCurrency(editingProduct.base_price - editingProduct.area_price)}</span>
+                      </div>
+                      <div className="flex justify-between text-green-600">
+                        <span>Discount:</span>
+                        <span>{editingProduct.area_discount_percentage.toFixed(2)}%</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t text-blue-600 font-semibold">
+                        <span>Final Price:</span>
+                        <span>{formatCurrency(editingProduct.area_price)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              disabled={updating}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateProduct} disabled={updating}>
+              {updating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

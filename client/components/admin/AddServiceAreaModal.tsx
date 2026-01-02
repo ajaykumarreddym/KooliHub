@@ -1,23 +1,23 @@
-import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/lib/supabase";
+import { useAdminData } from "@/contexts/AdminDataContext";
 import { toast } from "@/hooks/use-toast";
-import { SERVICES } from "@/lib/constants";
 import { handleError } from "@/lib/error-utils";
+import { supabase } from "@/lib/supabase";
+import { Edit3, MapPin, Package } from "lucide-react";
+import React, { useState } from "react";
 import { MapPicker } from "./MapPicker";
-import { MapPin, Edit3 } from "lucide-react";
 
 interface GeoFence {
   type: "polygon" | "circle";
@@ -37,6 +37,9 @@ export const AddServiceAreaModal: React.FC<AddServiceAreaModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  // Get service types from database dynamically
+  const { serviceTypes, loading: dataLoading } = useAdminData();
+  
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("basic");
   const [pincodeValidation, setPincodeValidation] = useState<{
@@ -339,35 +342,60 @@ export const AddServiceAreaModal: React.FC<AddServiceAreaModalProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label>Service Types</Label>
-                <div className="grid grid-cols-2 gap-3 p-3 border rounded-lg bg-gray-50/50">
-                  {Object.values(SERVICES).map((service) => (
-                    <div
-                      key={service.id}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox
-                        id={service.id}
-                        checked={formData.service_types.includes(service.id)}
-                        onCheckedChange={(checked) =>
-                          handleServiceTypeToggle(
-                            service.id,
-                            checked as boolean,
-                          )
-                        }
-                      />
-                      <Label
-                        htmlFor={service.id}
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {service.icon} {service.title}
-                      </Label>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <Label>Service Types</Label>
+                  <span className="text-xs text-gray-500">
+                    {serviceTypes.filter(s => s.is_active).length} available
+                  </span>
                 </div>
-                <p className="text-xs text-gray-500">
-                  Select the service types available in this area
-                </p>
+                <div className="border rounded-lg bg-gray-50/50">
+                  {dataLoading.serviceTypes ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                      <span className="ml-2 text-sm text-gray-500">Loading service types...</span>
+                    </div>
+                  ) : serviceTypes.length === 0 ? (
+                    <div className="flex items-center justify-center py-8 text-gray-500">
+                      <Package className="h-5 w-5 mr-2" />
+                      <span className="text-sm">No service types available</span>
+                    </div>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto p-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {serviceTypes
+                          .filter(service => service.is_active)
+                          .map((service) => (
+                            <div
+                              key={service.id}
+                              className="flex items-center space-x-2 p-2 rounded-md hover:bg-white/50 transition-colors"
+                            >
+                              <Checkbox
+                                id={service.id}
+                                checked={formData.service_types.includes(service.id)}
+                                onCheckedChange={(checked) =>
+                                  handleServiceTypeToggle(
+                                    service.id,
+                                    checked as boolean,
+                                  )
+                                }
+                              />
+                              <Label
+                                htmlFor={service.id}
+                                className="text-sm font-normal cursor-pointer flex items-center gap-1 min-w-0"
+                              >
+                                <span className="text-base">{service.icon}</span>
+                                <span className="truncate">{service.title}</span>
+                              </Label>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>Select the service types available in this area</span>
+                  <span className="text-blue-600">• Loaded from database</span>
+                </div>
               </div>
 
               <div className="flex items-center space-x-2">

@@ -1,40 +1,39 @@
-import React, { useState, useCallback, useRef } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Upload,
-  X,
-  Image as ImageIcon,
-  Store,
-  Mail,
-  Phone,
-  MapPin,
-  FileText,
-  DollarSign,
-  Calendar,
-  Hash,
-  Building,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { uploadApi, vendorApi } from "@/lib/api";
 import type { Vendor, VendorStatus } from "@shared/api";
-import { vendorApi, uploadApi } from "@/lib/api";
+import {
+    Building,
+    Calendar,
+    DollarSign,
+    FileText,
+    Hash,
+    Image as ImageIcon,
+    Mail,
+    MapPin,
+    Phone,
+    Store,
+    Upload,
+    X,
+} from "lucide-react";
+import React, { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 
 interface EnhancedVendorModalProps {
   isOpen: boolean;
@@ -185,30 +184,78 @@ export function EnhancedVendorModal({
 
   const handleCommissionRateChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      setFormData((prev) => ({
-        ...prev,
-        commission_rate: parseFloat(e.target.value) || 0,
-      }));
+      const value = e.target.value;
+      
+      // Allow empty string or valid number input
+      if (value === '') {
+        setFormData((prev) => ({
+          ...prev,
+          commission_rate: 0,
+        }));
+        return;
+      }
+
+      const numValue = parseFloat(value);
+      
+      // Validate: must be >= 0 and <= 100
+      if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+        setFormData((prev) => ({
+          ...prev,
+          commission_rate: numValue,
+        }));
+      }
     },
     [],
   );
 
   const handlePaymentTermsChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      setFormData((prev) => ({
-        ...prev,
-        payment_terms_days: parseInt(e.target.value) || 30,
-      }));
+      const value = e.target.value;
+      
+      // Allow empty string or valid number input
+      if (value === '') {
+        setFormData((prev) => ({
+          ...prev,
+          payment_terms_days: 0,
+        }));
+        return;
+      }
+
+      const numValue = parseInt(value);
+      
+      // Validate: must be >= 0 (changed from >= 1 to allow 0)
+      if (!isNaN(numValue) && numValue >= 0) {
+        setFormData((prev) => ({
+          ...prev,
+          payment_terms_days: numValue,
+        }));
+      }
     },
     [],
   );
 
   const handleMinOrderAmountChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      setFormData((prev) => ({
-        ...prev,
-        minimum_order_amount: parseFloat(e.target.value) || 0,
-      }));
+      const value = e.target.value;
+      
+      // Allow empty string or valid number input
+      if (value === '') {
+        setFormData((prev) => ({
+          ...prev,
+          minimum_order_amount: 0,
+        }));
+        return;
+      }
+
+      const numValue = parseFloat(value);
+      
+      // Validate: must be >= 0
+      if (!isNaN(numValue) && numValue >= 0) {
+        setFormData((prev) => ({
+          ...prev,
+          minimum_order_amount: numValue,
+        }));
+      }
     },
     [],
   );
@@ -677,7 +724,7 @@ export function EnhancedVendorModal({
                 <Input
                   id="payment_terms_days"
                   type="number"
-                  min="1"
+                  min="0"
                   value={formData.payment_terms_days}
                   onChange={handlePaymentTermsChange}
                 />

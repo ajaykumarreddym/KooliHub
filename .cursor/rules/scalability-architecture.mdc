@@ -1,0 +1,440 @@
+# Scalability & Architecture Rules
+**Domain**: Scalability, Performance, Architecture  
+**Version**: 1.0.0  
+**Last Updated**: October 22, 2025
+
+---
+
+## Multi-Tenant Scalability
+
+### MT-001: Tenant Isolation
+**Priority**: CRITICAL
+
+**Implementation**:
+- Every table with tenant-specific data MUST have `tenant_id` column
+- RLS policies MUST enforce tenant isolation
+- Queries MUST filter by `tenant_id`
+- Cross-tenant data access ONLY through admin interfaces
+
+**Tables with Tenant Isolation**:
+- tenants
+- offerings
+- vendors
+- merchants
+- merchant_inventory
+- attribute_registry
+- zone_service_availability
+
+### MT-002: Tenant-Aware Queries
+**Priority**: HIGH
+
+All database queries for tenant-specific data:
+```typescript
+// ✅ CORRECT
+const { data } = await supabase
+  .from('offerings')
+  .select('*')
+  .eq('tenant_id', currentTenantId);
+
+// ❌ WRONG - Missing tenant filter
+const { data } = await supabase
+  .from('offerings')
+  .select('*');
+```
+
+---
+
+## Database Scalability
+
+### DB-SCALE-001: Query Optimization
+**Priority**: CRITICAL
+
+**Mandatory Optimizations**:
+1. **Indexes**: All foreign keys MUST be indexed
+2. **Partial Indexes**: Use for common filtered queries
+3. **Composite Indexes**: For multi-column WHERE clauses
+4. **LIMIT Clause**: Always use pagination
+5. **SELECT Specific Columns**: Avoid `SELECT *` in production
+
+**Example**:
+```sql
+-- Composite index for common query pattern
+CREATE INDEX idx_offerings_tenant_status_type 
+ON offerings(tenant_id, status, type) 
+WHERE deleted_at IS NULL;
+```
+
+### DB-SCALE-002: Pagination Standards
+**Priority**: HIGH
+
+**Default Pagination**:
+- Default limit: 50 items
+- Max limit: 1000 items
+- Always return total count
+- Use offset or cursor-based pagination
+
+**API Response**:
+```typescript
+interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+```
+
+### DB-SCALE-003: Connection Pooling
+**Priority**: HIGH
+
+**Supabase Connection Management**:
+- Use single Supabase client instance
+- Implement connection pooling (Supabase handles this)
+- Monitor connection usage
+- Set appropriate timeout values
+
+---
+
+## Caching Strategy
+
+### CACHE-001: AdminDataContext Caching
+**Priority**: HIGH
+
+**Cached Entities**:
+- offerings (products)
+- serviceAreas
+- serviceTypes
+- categories
+- vendors
+- merchants
+
+**Cache Behavior**:
+- **Fetch once** on user authentication
+- **Real-time updates** via Supabase subscriptions
+- **Debounced updates** (500ms) to prevent UI flicker
+- **Manual refresh** available for each entity
+- **Cache stats** for monitoring
+
+**Implementation**:
+```typescript
+// ✅ Use cached data from context
+const { offerings, loading } = useAdminData();
+
+// ❌ Don't fetch directly unless necessary
+const fetchProducts = async () => {
+  const { data } = await supabase.from('offerings').select('*');
+};
+```
+
+### CACHE-002: React Query Integration
+**Priority**: HIGH
+
+**Configuration** (from App.tsx):
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
+```
+
+**Usage**:
+- Use React Query for server state
+- Set appropriate `staleTime` and `cacheTime`
+- Implement proper invalidation strategy
+- Use optimistic updates where appropriate
+
+---
+
+## Real-Time Scalability
+
+### RT-001: Subscription Management
+**Priority**: HIGH
+
+**Best Practices**:
+- Subscribe to specific tables, not entire database
+- Filter subscriptions with RLS
+- Debounce rapid updates (500ms default)
+- Clean up subscriptions on unmount
+- Handle reconnection scenarios
+
+**Example Implementation**:
+```typescript
+useEffect(() => {
+  const channel = supabase
+    .channel('products-realtime')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'offerings'
+    }, (payload) => {
+      debouncedUpdate('offerings', refreshOfferings);
+    })
+    .subscribe();
+  
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
+```
+
+### RT-002: Debouncing Strategy
+**Priority**: MEDIUM
+
+**Implementation**:
+- Default debounce: 500ms
+- Search inputs: 300ms
+- Form inputs: 150ms
+- Scroll events: 100ms
+
+---
+
+## Service Area Scalability
+
+### SA-001: Location-Based Queries
+**Priority**: HIGH
+
+**Optimizations**:
+- Use PostGIS for spatial queries
+- Index lat/long columns with GiST
+- Implement spatial search functions
+
+**Functions**:
+```sql
+-- Optimized nearby areas search
+CREATE OR REPLACE FUNCTION find_nearby_areas(
+  p_lat DOUBLE PRECISION,
+  p_lng DOUBLE PRECISION,
+  p_radius_km INTEGER DEFAULT 10
+)
+RETURNS TABLE (
+  area_id uuid,
+  pincode text,
+  distance_km numeric
+)
+```
+
+### SA-002: Service Area Product Mapping
+**Priority**: HIGH
+
+**Scalability Considerations**:
+- Use `service_area_products` table for mapping
+- Index `(service_area_id, offering_id)` composite key
+- Use database function `get_products_by_service_area()`
+- Implement bulk assignment function
+- Cache frequently accessed mappings
+
+---
+
+## Attribute System Scalability
+
+### ATTR-001: Dynamic Attribute Performance
+**Priority**: HIGH
+
+**Optimization Strategies**:
+- Pre-calculate attribute inheritance (use database function)
+- Cache attribute configurations per service type
+- Use JSONB for flexible attribute storage
+- Index attribute_registry.name for quick lookups
+
+**Database Function**:
+```sql
+-- Pre-calculated inheritance
+SELECT * FROM get_product_form_attributes_v2(
+  'grocery',      -- service_type_id
+  'uuid-cat',     -- category_id
+  'uuid-subcat'   -- subcategory_id
+);
+```
+
+### ATTR-002: Attribute Registry Management
+**Priority**: MEDIUM
+
+**Best Practices**:
+- Limit attribute registry to <500 attributes
+- Archive unused attributes
+- Use scoped attributes (service-specific)
+- Implement attribute versioning for changes
+
+---
+
+## File Upload Scalability
+
+### UPLOAD-001: Upload Strategy
+**Priority**: MEDIUM
+
+**Current Implementation**:
+- Storage: Local filesystem (`public/uploads/`)
+- Max size: 10MB per file
+- Supported: JPG, PNG, WebP, GIF
+
+**Future Scalability** (when needed):
+- Migrate to Supabase Storage or S3
+- Implement CDN for image delivery
+- Add image optimization pipeline
+- Use progressive image loading
+
+### UPLOAD-002: Image Optimization
+**Priority**: MEDIUM
+
+**Best Practices**:
+- Resize images server-side
+- Generate multiple sizes (thumbnail, medium, large)
+- Convert to WebP format
+- Implement lazy loading
+- Use placeholder images
+
+---
+
+## API Scalability
+
+### API-SCALE-001: Rate Limiting
+**Priority**: HIGH
+
+**Implementation** (to be added):
+```typescript
+// Express rate limiter
+import rateLimit from 'express-rate-limit';
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests, please try again later.'
+});
+
+app.use('/api/', apiLimiter);
+```
+
+**Rate Limits** (recommended):
+- Public endpoints: 100 requests/15min
+- Authenticated: 1000 requests/15min
+- Admin: 5000 requests/15min
+
+### API-SCALE-002: Response Compression
+**Priority**: MEDIUM
+
+**Implementation**:
+```typescript
+import compression from 'compression';
+
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6
+}));
+```
+
+---
+
+## Monitoring & Observability
+
+### MON-001: Performance Metrics
+**Priority**: HIGH
+
+**Key Metrics to Track**:
+- API response times (p50, p95, p99)
+- Database query times
+- Cache hit rates
+- Error rates
+- Active users
+- Real-time subscription count
+
+**Tools**:
+- React Query DevTools (development)
+- Supabase Dashboard (production)
+- Custom logging (to be implemented)
+
+### MON-002: Query Performance Monitoring
+**Priority**: MEDIUM
+
+**Implementation**:
+```sql
+-- Enable query logging (production)
+ALTER SYSTEM SET log_min_duration_statement = 1000; -- Log queries > 1s
+
+-- Analyze slow queries
+SELECT * FROM pg_stat_statements 
+ORDER BY total_exec_time DESC 
+LIMIT 10;
+```
+
+---
+
+## Horizontal Scaling Preparation
+
+### HSCALE-001: Stateless Architecture
+**Priority**: MEDIUM
+
+**Current State**: Partially stateless
+- Server uses local file storage (not scalable)
+- Session state in Supabase (scalable)
+
+**Future Improvements**:
+- Move uploads to cloud storage
+- Implement distributed caching (Redis)
+- Use session store for auth
+
+### HSCALE-002: Database Sharding Strategy
+**Priority**: LOW (future planning)
+
+**When to Shard**:
+- Database > 100GB
+- Query performance degradation
+- Write throughput limits reached
+
+**Sharding Approach** (future):
+- Shard by `tenant_id`
+- Use PostgreSQL logical replication
+- Implement application-level routing
+
+---
+
+## Archival & Data Lifecycle
+
+### ARCH-001: Soft Delete Pattern
+**Priority**: HIGH
+
+**Implementation**:
+- All entities use `deleted_at` timestamp
+- Queries filter `WHERE deleted_at IS NULL`
+- Implement cleanup jobs for old soft-deleted data
+
+**Example**:
+```typescript
+// Soft delete
+await supabase
+  .from('offerings')
+  .update({ deleted_at: new Date().toISOString() })
+  .eq('id', offeringId);
+
+// Hard delete (admin only, after 90 days)
+await supabase
+  .from('offerings')
+  .delete()
+  .lt('deleted_at', ninetyDaysAgo);
+```
+
+### ARCH-002: Event Sourcing & Audit
+**Priority**: MEDIUM
+
+**Tables**:
+- `domain_events`: Event sourcing for critical entities
+- `audit_logs`: Complete audit trail
+
+**Usage**:
+- Log all state changes
+- Enable event replay
+- Facilitate debugging
+- Compliance requirements
+
+---
+
+**Next Review**: November 22, 2025

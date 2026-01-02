@@ -1,7 +1,5 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,18 +9,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
 import {
-  User,
-  ShoppingBag,
+  ChevronDown,
   Heart,
-  MapPin,
-  Settings,
   HelpCircle,
   LogOut,
+  MapPin,
+  Settings,
   Shield,
-  ChevronDown,
+  ShoppingBag,
+  User,
 } from "lucide-react";
+import React from "react";
+import { Link } from "react-router-dom";
 
 export const UserProfile: React.FC = () => {
   const { user, profile, signOut, isAdminUser, profileError } = useAuth();

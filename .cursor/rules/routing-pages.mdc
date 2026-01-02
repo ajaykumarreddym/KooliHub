@@ -1,0 +1,73 @@
+---
+globs: **/pages/*.tsx,App.tsx
+description: React Router 6 SPA routing guidelines and page structure
+---
+
+# Routing & Page Management
+
+## SPA Routing System
+The routing system uses React Router 6 in SPA mode, configured in [client/App.tsx](mdc:client/App.tsx).
+
+## Route Structure
+
+### Consumer Routes (Public)
+- `/` → [Index.tsx](mdc:client/pages/Index.tsx) (Home page)
+- `/grocery` → [Grocery.tsx](mdc:client/pages/Grocery.tsx)
+- `/trips` → [Trips.tsx](mdc:client/pages/Trips.tsx)
+- `/car-rental` → [CarRental.tsx](mdc:client/pages/CarRental.tsx)
+- `/handyman` → [Handyman.tsx](mdc:client/pages/Handyman.tsx)
+- `/home` → [HomeKitchen.tsx](mdc:client/pages/HomeKitchen.tsx)
+- `/electronics` → [Electronics.tsx](mdc:client/pages/Electronics.tsx)
+- `/fashion` → [Fashion.tsx](mdc:client/pages/Fashion.tsx)
+- `/beauty` → [Beauty.tsx](mdc:client/pages/Beauty.tsx)
+
+### User Routes
+- `/profile` → [Profile.tsx](mdc:client/pages/Profile.tsx)
+- `/auth/callback` → [AuthCallback.tsx](mdc:client/pages/AuthCallback.tsx)
+
+### Admin Routes (Protected)
+- `/admin/login` → [AdminLogin.tsx](mdc:client/pages/admin/AdminLogin.tsx)
+- `/admin/dashboard` → [Dashboard.tsx](mdc:client/pages/admin/Dashboard.tsx)
+- `/admin/product-management` → [UnifiedProductManagement.tsx](mdc:client/pages/admin/UnifiedProductManagement.tsx)
+- `/admin/vendors` → [Vendors.tsx](mdc:client/pages/admin/Vendors.tsx)
+- And many more admin routes...
+
+## Adding New Routes
+
+### For Consumer Pages:
+1. Create component in [client/pages/MyPage.tsx](mdc:client/pages/)
+2. Add route in [client/App.tsx](mdc:client/App.tsx):
+```typescript
+<Route path="/my-page" element={<MyPage />} />
+```
+
+### For Admin Pages:
+1. Create component in [client/pages/admin/MyAdminPage.tsx](mdc:client/pages/admin/)
+2. Add route inside the admin Route wrapper in [client/App.tsx](mdc:client/App.tsx):
+```typescript
+<Route path="my-admin-page" element={<MyAdminPage />} />
+```
+
+## Route Protection
+- Admin routes are protected with `<AdminRoute>` component
+- Check [client/components/admin/AdminRoute.tsx](mdc:client/components/admin/AdminRoute.tsx) for auth logic
+- User authentication context is provided by [AuthContext.tsx](mdc:client/contexts/AuthContext.tsx)
+
+## Page Component Guidelines
+1. **Use functional components** with TypeScript
+2. **Include proper page titles** and meta information
+3. **Implement loading states** for data fetching
+4. **Handle error states** gracefully
+5. **Use React Query** for server state management
+6. **Import shared types** from `@shared/api`
+
+## Route Organization Rules
+- **ALWAYS** add custom routes **ABOVE** the catch-all `*` route
+- **Group related routes** logically (admin routes together, etc.)
+- **Use consistent naming** (kebab-case for URLs, PascalCase for components)
+- **Implement proper 404 handling** with [NotFound.tsx](mdc:client/pages/NotFound.tsx)
+
+## Navigation Redirects
+- Old routes are redirected to new unified routes (see product management redirects in App.tsx)
+- Use `<Navigate>` component for route redirects
+- Always use `replace` prop for redirects to avoid browser history pollution

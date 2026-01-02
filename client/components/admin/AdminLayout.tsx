@@ -1,137 +1,168 @@
-import React, { useState } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard,
-  Package,
-  Users,
-  BarChart3,
-  MapPin,
-  Menu,
-  X,
-  LogOut,
-  Settings,
-  Home,
-  Layers,
-  Tag,
-  Image,
-  Bell,
-  CreditCard,
-  Cog,
-  Database,
-  ShoppingCart,
-  Truck,
-  TrendingUp,
-  Calculator,
-  Store,
+    BarChart3,
+    Bell,
+    Calculator,
+    Cog,
+    CreditCard,
+    Database,
+    Home,
+    Image,
+    LayoutDashboard,
+    LogOut,
+    MapPin,
+    Menu,
+    Package,
+    Settings,
+    ShoppingCart,
+    Store,
+    Tag,
+    TrendingUp,
+    Truck,
+    Users,
+    X
 } from "lucide-react";
+import React, { useState } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
-// FIXED: Unified Products & Inventory Management - No separate items
-const sidebarItems = [
+// GROUPED: Organized admin sections for better UX and navigation
+const sidebarGroups = [
   {
     title: "Dashboard",
-    href: "/admin/dashboard",
-    icon: LayoutDashboard,
+    items: [
+      {
+        title: "Overview",
+        href: "/admin/dashboard",
+        icon: LayoutDashboard,
+      },
+    ]
   },
   {
-    title: "POS System",
-    href: "/admin/pos",
-    icon: Calculator,
+    title: "Core Operations",
+    items: [
+      {
+        title: "Service Management 🎯",
+        href: "/admin/services",
+        icon: Settings,
+        description: "Manage all services by category (Transport, Handyman, etc.)"
+      },
+      {
+        title: "POS System",
+        href: "/admin/pos",
+        icon: Calculator,
+      },
+      {
+        title: "Product Management",
+        href: "/admin/product-management",
+        icon: Package,
+        description: "Products, Inventory, Service Areas & Categories"
+      },
+      {
+        title: "Area Inventory",
+        href: "/admin/area-inventory",
+        icon: MapPin,
+      },
+    ]
   },
   {
-    title: "Vendors",
-    href: "/admin/vendors",
-    icon: Store,
+    title: "Order Management",
+    items: [
+      {
+        title: "Orders",
+        href: "/admin/orders",
+        icon: ShoppingCart,
+      },
+      {
+        title: "Fulfillment",
+        href: "/admin/order-fulfillment",
+        icon: Truck,
+      },
+      {
+        title: "Payments",
+        href: "/admin/payments",
+        icon: CreditCard,
+      },
+    ]
   },
   {
-    title: "Products & Inventory ✓",
-    href: "/admin/products-inventory",
-    icon: Package,
+    title: "Business Management",
+    items: [
+      {
+        title: "Vendors",
+        href: "/admin/vendors",
+        icon: Store,
+      },
+      {
+        title: "Users",
+        href: "/admin/users",
+        icon: Users,
+      },
+    ]
   },
   {
-    title: "Area Inventory",
-    href: "/admin/area-inventory",
-    icon: MapPin,
+    title: "Marketing & Promotions",
+    items: [
+      {
+        title: "Coupons",
+        href: "/admin/coupons",
+        icon: Tag,
+      },
+      {
+        title: "Banners",
+        href: "/admin/banners",
+        icon: Image,
+      },
+      {
+        title: "Notifications",
+        href: "/admin/notifications",
+        icon: Bell,
+      },
+      {
+        title: "Firebase Push",
+        href: "/admin/firebase-notifications",
+        icon: Bell,
+      },
+    ]
   },
   {
-    title: "Users",
-    href: "/admin/users",
-    icon: Users,
+    title: "Analytics & Reports",
+    items: [
+      {
+        title: "Analytics",
+        href: "/admin/analytics",
+        icon: BarChart3,
+      },
+      {
+        title: "Order Analytics",
+        href: "/admin/order-analytics",
+        icon: TrendingUp,
+      },
+    ]
   },
   {
-    title: "Analytics",
-    href: "/admin/analytics",
-    icon: BarChart3,
-  },
-  {
-    title: "Service Areas",
-    href: "/admin/service-areas",
-    icon: MapPin,
-  },
-  {
-    title: "Service Types",
-    href: "/admin/service-types",
-    icon: Layers,
-  },
-  {
-    title: "Orders",
-    href: "/admin/orders",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Fulfillment",
-    href: "/admin/order-fulfillment",
-    icon: Truck,
-  },
-  {
-    title: "Order Analytics",
-    href: "/admin/order-analytics",
-    icon: TrendingUp,
-  },
-  {
-    title: "Coupons",
-    href: "/admin/coupons",
-    icon: Tag,
-  },
-  {
-    title: "Banners",
-    href: "/admin/banners",
-    icon: Image,
-  },
-  {
-    title: "Notifications",
-    href: "/admin/notifications",
-    icon: Bell,
-  },
-  {
-    title: "Firebase Push",
-    href: "/admin/firebase-notifications",
-    icon: Bell,
-  },
-  {
-    title: "Payments",
-    href: "/admin/payments",
-    icon: CreditCard,
-  },
-  {
-    title: "App Config",
-    href: "/admin/app-config",
-    icon: Cog,
-  },
-  {
-    title: "Database Setup",
-    href: "/admin/database-setup",
-    icon: Database,
+    title: "System Configuration",
+    items: [
+      {
+        title: "App Config",
+        href: "/admin/app-config",
+        icon: Cog,
+      },
+      {
+        title: "Database Setup",
+        href: "/admin/database-setup",
+        icon: Database,
+      },
+    ]
   },
 ];
 
@@ -173,7 +204,7 @@ export const AdminLayout: React.FC = () => {
                 <span className="text-lg font-semibold text-gray-900">
                   KooliHub
                 </span>
-                <span className="text-xs text-gray-500">Admin Panel • Unified ✓</span>
+                <span className="text-xs text-gray-500">Admin Panel • Organized & Grouped ✓</span>
               </div>
             </div>
             <Button
@@ -186,26 +217,49 @@ export const AdminLayout: React.FC = () => {
             </Button>
           </div>
 
-          {/* Navigation - Clean modern design with enhanced scrolling */}
+          {/* Navigation - Grouped sections with enhanced design */}
           <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden min-h-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400">
-            <div className="space-y-1 pb-4">
-              {sidebarItems.map((item) => (
-                <NavLink
-                  key={item.href}
-                  to={item.href}
-                  className={({ isActive }) =>
-                    cn(
-                      "group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200",
-                      isActive
-                        ? "bg-primary text-white"
-                        : "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
-                    )
-                  }
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  <span>{item.title}</span>
-                </NavLink>
+            <div className="space-y-6 pb-4">
+              {sidebarGroups.map((group, groupIndex) => (
+                <div key={group.title} className="space-y-2">
+                  {/* Group Header */}
+                  {groupIndex > 0 && (
+                    <div className="pt-6 border-t border-gray-200">
+                      <h3 className="px-3 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        {group.title}
+                      </h3>
+                    </div>
+                  )}
+                  
+                  {/* Group Items */}
+                  <div className="space-y-1">
+                    {group.items.map((item) => (
+                      <NavLink
+                        key={item.href}
+                        to={item.href}
+                        className={({ isActive }) =>
+                          cn(
+                            "group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200",
+                            isActive
+                              ? "bg-primary text-white shadow-sm"
+                              : "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+                          )
+                        }
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <item.icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="truncate">{item.title}</span>
+                          {item.description && (
+                            <p className="text-xs text-gray-500 group-hover:text-gray-600 truncate mt-0.5">
+                              {item.description}
+                            </p>
+                          )}
+                        </div>
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </nav>

@@ -1,0 +1,110 @@
+---
+globs: **/contexts/*.tsx,**/hooks/*.ts,**/hooks/*.tsx
+description: React state management patterns and context usage
+---
+
+# State Management Guidelines
+
+## State Management Architecture
+KooliHub uses a combination of React Context, React Query, and local state for comprehensive state management.
+
+## React Contexts
+
+### Core Contexts ([client/contexts/](mdc:client/contexts/))
+
+#### [AuthContext.tsx](mdc:client/contexts/AuthContext.tsx)
+- Handles user authentication state
+- Manages login/logout operations
+- Provides user profile information
+- Integrates with Supabase Auth
+
+#### [AdminDataContext.tsx](mdc:client/contexts/AdminDataContext.tsx)
+- Manages admin-specific data and state
+- Handles admin dashboard information
+- Provides admin user permissions
+
+#### [CartContext.tsx](mdc:client/contexts/CartContext.tsx)
+- Manages shopping cart state
+- Handles add/remove cart operations
+- Persists cart data across sessions
+
+#### [WishlistContext.tsx](mdc:client/contexts/WishlistContext.tsx)
+- Manages user wishlist/favorites
+- Handles wishlist operations
+- Provides wishlist state across components
+
+## Custom Hooks ([client/hooks/](mdc:client/hooks/))
+
+### Data Fetching Hooks
+- **[use-realtime-products.ts](mdc:client/hooks/use-realtime-products.ts)**: Real-time product updates
+- **[use-realtime-vendors.ts](mdc:client/hooks/use-realtime-vendors.ts)**: Real-time vendor updates
+- **[use-area-products.ts](mdc:client/hooks/use-area-products.ts)**: Area-specific product fetching
+
+### Feature-Specific Hooks
+- **[use-firebase.ts](mdc:client/hooks/use-firebase.ts)**: Firebase integration
+- **[use-vendor-auth.ts](mdc:client/hooks/use-vendor-auth.ts)**: Vendor authentication
+- **[use-custom-fields.ts](mdc:client/hooks/use-custom-fields.ts)**: Dynamic field management
+- **[use-search.ts](mdc:client/hooks/use-search.ts)**: Search functionality
+- **[use-wishlist.ts](mdc:client/hooks/use-wishlist.ts)**: Wishlist operations
+
+### Utility Hooks
+- **[use-mobile.tsx](mdc:client/hooks/use-mobile.tsx)**: Mobile device detection
+- **[use-toast.ts](mdc:client/hooks/use-toast.ts)**: Toast notification management
+
+## React Query Integration
+React Query is configured in [App.tsx](mdc:client/App.tsx) with sensible defaults:
+
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+```
+
+### Query Guidelines
+- Use React Query for server state management
+- Implement proper loading and error states
+- Cache data appropriately
+- Use optimistic updates where suitable
+
+## State Management Best Practices
+
+### Context Usage Rules
+1. **Keep contexts focused** - Each context should handle a specific domain
+2. **Minimize context re-renders** - Use multiple contexts instead of one large context
+3. **Provide meaningful defaults** - Always have fallback values
+4. **Use TypeScript** - Define proper types for all context values
+
+### Custom Hook Patterns
+1. **Encapsulate complex logic** - Move complex state logic into custom hooks
+2. **Return consistent interfaces** - Use consistent naming for returned values
+3. **Handle loading states** - Always provide loading indicators
+4. **Error handling** - Implement proper error boundaries and fallbacks
+
+### Local State Guidelines
+- Use `useState` for component-specific state
+- Use `useReducer` for complex state logic
+- Consider `useMemo` and `useCallback` for performance optimization
+- Avoid prop drilling - use context for deeply nested state
+
+### Real-time State Management
+- Leverage Supabase real-time subscriptions
+- Implement proper connection state handling
+- Clean up subscriptions in useEffect cleanup
+- Handle reconnection scenarios gracefully
+
+## Provider Hierarchy
+The app providers are wrapped in the following order in [App.tsx](mdc:client/App.tsx):
+1. `QueryClientProvider` (React Query)
+2. `AuthProvider` (Authentication)
+3. `AdminDataProvider` (Admin data)
+4. `FirebaseProvider` (Firebase services)
+5. `WishlistProvider` (Wishlist state)
+6. `CartProvider` (Shopping cart)
+7. `TooltipProvider` (UI tooltips)
+
+This hierarchy ensures proper dependency injection and avoids circular dependencies.

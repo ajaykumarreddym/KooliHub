@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { supabase } from "@/lib/supabase";
-import { parseError, logDetailedError } from "@/lib/debug-utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { verifyAdminAccess } from "@/lib/admin-verify";
+import { logDetailedError, parseError } from "@/lib/debug-utils";
+import { supabase } from "@/lib/supabase";
 import {
-  Wifi,
-  WifiOff,
-  User,
-  UserX,
-  Database,
-  Shield,
-  RefreshCw,
-  CheckCircle,
+    CheckCircle,
+    Database,
+    RefreshCw,
+    Shield,
+    User,
+    UserX,
+    Wifi,
+    WifiOff,
 } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 interface ConnectionInfo {
   supabaseConnected: boolean;
@@ -40,8 +40,8 @@ export const ConnectionStatus: React.FC = () => {
     const errors: string[] = [];
 
     try {
-      // Get project URL from Supabase client
-      const projectUrl = supabase.supabaseUrl;
+      // Get project URL from environment variable
+      const projectUrl = import.meta.env.VITE_SUPABASE_URL || '';
 
       // Test basic connection
       let supabaseConnected = false;

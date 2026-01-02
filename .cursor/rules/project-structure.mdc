@@ -1,0 +1,62 @@
+---
+alwaysApply: true
+---
+
+# KooliHub Project Structure & Architecture Guide
+
+## Project Overview
+KooliHub is a full-stack multi-vendor super app built with React 18, TypeScript, Express.js, and Supabase. It supports multiple service types (grocery, handyman, car rental, electronics, etc.) with unified product management.
+- Follow Solid principles and better Coding  standards and reusbale components
+
+## Core Architecture
+- **Frontend**: React 18 + React Router 6 SPA + TypeScript + Vite + TailwindCSS 3
+- **Backend**: Express server integrated with Vite dev server
+- **Database**: Supabase PostgreSQL with Row Level Security (RLS)
+- **Package Manager**: PNPM (preferred)
+- **UI Library**: Radix UI + TailwindCSS 3 + Lucide React icons
+- **Testing**: Vitest
+- **Validation**: Zod
+
+## Directory Structure
+
+### Client Side ([client/](mdc:client/))
+- **[App.tsx](mdc:client/App.tsx)**: Main app entry point with routing setup
+- **[global.css](mdc:client/global.css)**: TailwindCSS theming and global styles
+- **[pages/](mdc:client/pages/)**: Route components (Index.tsx = home page)
+  - Consumer pages: Index, Grocery, Fashion, Beauty, etc.
+  - Admin pages: Dashboard, ProductManagement, Vendors, etc.
+- **[components/](mdc:client/components/)**: Reusable UI components
+  - **[ui/](mdc:client/components/ui/)**: Pre-built UI component library (Radix-based)
+  - **[admin/](mdc:client/components/admin/)**: Admin-specific components
+  - **[auth/](mdc:client/components/auth/)**: Authentication components
+- **[contexts/](mdc:client/contexts/)**: React contexts for state management
+- **[hooks/](mdc:client/hooks/)**: Custom React hooks
+- **[lib/](mdc:client/lib/)**: Utility functions and configurations
+
+### Server Side ([server/](mdc:server/))
+- **[index.ts](mdc:server/index.ts)**: Main server setup with Express configuration
+- **[routes/](mdc:server/routes/)**: API endpoint handlers
+- **[lib/](mdc:server/lib/)**: Server utilities and configurations
+
+### Shared ([shared/](mdc:shared/))
+- **[api.ts](mdc:shared/api.ts)**: TypeScript interfaces shared between client and server
+
+## Path Aliases
+- `@/*` → Client folder ([client/](mdc:client/))
+- `@shared/*` → Shared folder ([shared/](mdc:shared/))
+
+## Development Commands
+- `pnpm dev` → Start dev server (client + server on port 8080)
+- `pnpm build` → Production build
+- `pnpm start` → Start production server
+- `pnpm typecheck` → TypeScript validation
+- `pnpm test` → Run Vitest tests
+
+## Key Configuration Files
+- **[tsconfig.json](mdc:tsconfig.json)**: TypeScript configuration with path mapping
+- **[package.json](mdc:package.json)**: Dependencies and scripts
+- **[tailwind.config.ts](mdc:tailwind.config.ts)**: TailwindCSS configuration
+- **[vite.config.ts](mdc:vite.config.ts)**: Vite configuration for client
+- **[vite.config.server.ts](mdc:vite.config.server.ts)**: Vite configuration for server build
+
+## Dont add the  .md or txt or summary file at the end of the response  if ask explicitly then do it 

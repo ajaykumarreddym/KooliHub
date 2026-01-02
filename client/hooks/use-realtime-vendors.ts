@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { RealtimeChannel } from "@supabase/supabase-js";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface Vendor {
   id: string;
@@ -19,6 +19,7 @@ export interface Vendor {
   is_verified: boolean;
   logo_url: string | null;
   banner_url: string | null;
+  settings: Record<string, any>;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -29,6 +30,8 @@ export function useRealtimeVendors() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const setupFnRef = useRef<(() => Promise<void | (() => void)>) | null>(null);
 
   useEffect(() => {
     let channel: RealtimeChannel;
@@ -182,7 +185,10 @@ export function useRealtimeVendors() {
         console.log("📡 Creating channel:", channelName);
 
         channel = supabase
-          .channel(channelName)
+          .channel(channelName);
+        channelRef.current = channel;
+        
+        channel
           .on(
             "postgres_changes",
             {
@@ -236,36 +242,37 @@ export function useRealtimeVendors() {
             if (err) {
               try {
                 errorDetails = err; // Store original for logging
+                const error = err as any; // Cast to any for error property access
 
                 if (typeof err === "string") {
                   errorMsg = err;
                 } else if (err && typeof err === "object") {
                   // Try multiple ways to extract meaningful error information
-                  if (err.message) {
-                    errorMsg = err.message;
-                  } else if (err.error) {
+                  if (error.message) {
+                    errorMsg = error.message;
+                  } else if (error.error) {
                     errorMsg =
-                      typeof err.error === "string"
-                        ? err.error
-                        : JSON.stringify(err.error);
-                  } else if (err.code) {
-                    errorMsg = `Error code: ${err.code}${err.hint ? ` (${err.hint})` : ""}`;
-                  } else if (err.details) {
-                    errorMsg = err.details;
-                  } else if (err.description) {
-                    errorMsg = err.description;
+                      typeof error.error === "string"
+                        ? error.error
+                        : JSON.stringify(error.error);
+                  } else if (error.code) {
+                    errorMsg = `Error code: ${error.code}${error.hint ? ` (${error.hint})` : ""}`;
+                  } else if (error.details) {
+                    errorMsg = error.details;
+                  } else if (error.description) {
+                    errorMsg = error.description;
                   } else {
                     // Check for common Supabase error patterns
-                    if (err.status === 403) {
+                    if (error.status === 403) {
                       errorMsg =
                         "Permission denied - insufficient privileges for real-time subscriptions";
-                    } else if (err.status === 401) {
+                    } else if (error.status === 401) {
                       errorMsg = "Authentication required - please login again";
-                    } else if (err.status === 400) {
+                    } else if (error.status === 400) {
                       errorMsg =
                         "Bad request - subscription configuration error";
-                    } else if (err.statusCode) {
-                      errorMsg = `HTTP ${err.statusCode}: ${err.statusText || "Request failed"}`;
+                    } else if (error.statusCode) {
+                      errorMsg = `HTTP ${error.statusCode}: ${error.statusText || "Request failed"}`;
                     } else {
                       // Safely stringify with fallback
                       try {
@@ -445,10 +452,12 @@ export function useRealtimeVendors() {
           }
         };
 
-        setLoading(false);
       }
     };
 
+    // Store the function in ref for external access
+    setupFnRef.current = setupRealtimeSubscription;
+    
     setupRealtimeSubscription();
 
     return () => {
@@ -559,21 +568,23 @@ export function useRealtimeVendors() {
   };
 
   // Manual subscription restart function
-  const restartSubscription = async () => {
+  const restartSubscription = useCallback(async () => {
     console.log("🔄 Manual subscription restart triggered");
     setError(null);
     setRetryCount(0);
 
     // Clean up existing subscription
-    if (channel) {
+    if (channelRef.current) {
       console.log("🧹 Cleaning up existing subscription");
-      supabase.removeChannel(channel);
-      channel = null;
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
     // Restart the subscription setup
-    await setupRealtimeSubscription();
-  };
+    if (setupFnRef.current) {
+      await setupFnRef.current();
+    }
+  }, []);
 
   // Test subscription function for debugging
   const testSubscription = async () => {
@@ -632,7 +643,7 @@ export function useRealtimeVendors() {
         error,
       });
       console.log("Supabase client:", supabase);
-      console.log("Current channel:", channel);
+      console.log("Current channel:", channelRef.current);
       testSubscription();
     };
   }
